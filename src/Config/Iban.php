@@ -44,8 +44,15 @@ class Iban extends BaseConfig
     /**
      * The `Config\Database` connection group queried by
      * {@see \Daycry\Iban\Providers\DatabaseProvider} / {@see \Daycry\Iban\Models\BankModel}.
+     *
+     * Defaults to `null`, meaning "no override": {@see BankModel} then leaves
+     * its own `$DBGroup` unset, so CI4's environment-aware fallback
+     * (`Database\Config::connect(null)`, which resolves to `'tests'` under
+     * `ENVIRONMENT === 'testing'`, or the app's `Config\Database::$defaultGroup`
+     * otherwise) applies transparently. Set this only to force a specific
+     * connection group regardless of environment (e.g. a read replica).
      */
-    public string $dbGroup = 'default';
+    public ?string $dbGroup = null;
 
     /**
      * The table name queried by

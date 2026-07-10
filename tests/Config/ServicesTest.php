@@ -37,7 +37,7 @@ final class ServicesTest extends CIUnitTestCase
         // instance built against it.
         config(IbanConfig::class)->provider = 'null';
         config(IbanConfig::class)->table    = 'banks';
-        config(IbanConfig::class)->dbGroup  = 'default';
+        config(IbanConfig::class)->dbGroup  = null;
         $this->resetServices();
     }
 
@@ -141,7 +141,7 @@ final class ServicesTest extends CIUnitTestCase
         self::assertSame('null', $config->provider);
         self::assertSame('print', $config->defaultFormat);
         self::assertFalse($config->checkNationalByDefault);
-        self::assertSame('default', $config->dbGroup);
+        self::assertNull($config->dbGroup);
         self::assertSame('banks', $config->table);
     }
 
