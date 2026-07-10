@@ -1,4 +1,11 @@
-# Minimal .gitignore for T-01 (expanded in T-02)
+# Composer
 /vendor/
 composer.phar
 .composer/
+
+# PHPUnit
+.phpunit.cache
+build/
+
+# PHP-CS-Fixer
+.php-cs-fixer.cache
