@@ -5,6 +5,11 @@
 - **Paquete:** `daycry/iban` — librería de IBAN para CodeIgniter 4, usable también fuera de CI.
 - **Filosofía (alineada con daycry/auth, daycry/jobs, daycry/doctrine):** sin dependencias innecesarias, core standalone, PSR-4/12/11, tests desde el día uno, documentación completa.
 
+> **Cadena de roadmap (trazabilidad):**
+> - **Spec (roadmap):** [`../../roadmap/2026-07-10-daycry-iban-v1/spec.md`](../../roadmap/2026-07-10-daycry-iban-v1/spec.md)
+> - **Evaluación / presupuesto:** [`../../roadmap/2026-07-10-daycry-iban-v1/evaluation.md`](../../roadmap/2026-07-10-daycry-iban-v1/evaluation.md) — v1.0 estimado en ≈ 157 h base (188 h con margen +20 %), ≈ 9.559 €; característica más cara: registro estructural de ~80+ países.
+> - **Plan de implementación:** [`../../roadmap/2026-07-10-daycry-iban-v1/improvement-plan.md`](../../roadmap/2026-07-10-daycry-iban-v1/improvement-plan.md) · [`../../roadmap/2026-07-10-daycry-iban-v1/tasks.md`](../../roadmap/2026-07-10-daycry-iban-v1/tasks.md) — 8 fases, 55 tareas bite-sized (TDD), cobertura completa de C-01..C-10.
+
 ---
 
 ## 1. Objetivo y alcance
