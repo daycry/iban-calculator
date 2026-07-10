@@ -24,26 +24,9 @@ final readonly class ParsedIban
     ) {
     }
 
-    // TODO(T-25): extraer a Daycry\Iban\Core\Formatter y delegar
     public function format(IbanFormat $f = IbanFormat::Print): string
     {
-        return match ($f) {
-            IbanFormat::Electronic  => $this->electronic,
-            IbanFormat::Print       => trim(chunk_split($this->electronic, 4, ' ')),
-            IbanFormat::Anonymized  => $this->anonymize(),
-        };
-    }
-
-    private function anonymize(): string
-    {
-        $len = strlen($this->electronic);
-        if ($len <= 6) {
-            return $this->electronic;
-        }
-        // Visible: código de país (2) + últimos 4; resto enmascarado con '*'
-        return substr($this->electronic, 0, 2)
-            . str_repeat('*', $len - 6)
-            . substr($this->electronic, -4);
+        return (new \Daycry\Iban\Core\Formatter())->format($this->electronic, $f);
     }
 
     public function __toString(): string
