@@ -20,8 +20,13 @@ use SplFileInfo;
  * order to preserve the standalone guarantee. `National` (country-specific
  * check-digit validators, e.g. Spain's mod-11) implements `Contracts` and
  * is consumed by `Core\Validator`, so it must stay framework-free as well.
- * Only the thin CI4 adapter layer (Config/, Commands/, Models/, Database/,
- * Helpers/, Providers/) is allowed to depend on `codeigniter4/*`.
+ * `Resolver` composes `BankResult` from a `ParsedIban` plus a provider
+ * overlay and must remain usable without CI4, so it is guarded too. Only
+ * the thin CI4 adapter layer (Config/, Commands/, Models/, Database/,
+ * Helpers/, Providers/) is allowed to depend on `codeigniter4/*`; note
+ * `Providers/` is deliberately NOT guarded here, since `DatabaseProvider`
+ * will live there and does depend on CI4 (`NullProvider` is framework-free
+ * by design, but that is not enforced by this guard).
  *
  * @see docs/superpowers/specs/2026-07-10-daycry-iban-v1-design.md §3
  */
@@ -36,6 +41,7 @@ final class CoreIsFrameworkFreeTest extends TestCase
         'Exceptions',
         'Registry',
         'National',
+        'Resolver',
     ];
 
     /** @var string[] */
