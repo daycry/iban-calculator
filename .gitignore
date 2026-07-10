@@ -1,0 +1,4 @@
+# Minimal .gitignore for T-01 (expanded in T-02)
+/vendor/
+composer.phar
+.composer/
