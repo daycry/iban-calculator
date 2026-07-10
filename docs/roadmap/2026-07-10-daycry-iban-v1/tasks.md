@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Estado** | 📝 borrador |
+| **Estado** | ✅ completado — v1.0 (55/55 tareas · 686 tests · ~99% cobertura) |
 | **Fecha** | 2026-07-10 |
 | **Plan** | [`improvement-plan.md`](./improvement-plan.md) |
 
@@ -16,14 +16,14 @@
 | Fase | Completadas | Total | Progreso | Horas (real/est) | Tokens (real/est) |
 |------|------------|-------|----------|------------------|-------------------|
 | Fase 1 — Fundaciones [C-01,C-02] | 12 | 12 | ✅ 100% | — / 20h | ~1,01M / 450k |
-| Fase 2 — Registro estructural [C-04] | 0 | 7 | 0% | 0 / 36h | 0 / 1.080k |
-| Fase 3 — Core algorítmico [C-03] | 0 | 6 | 0% | 0 / 24h | 0 / 620k |
-| Fase 4 — Check ES + generador [C-06,C-05] | 0 | 5 | 0% | 0 / 13h | 0 / 435k |
-| Fase 5 — Resolver + BD [C-07] | 0 | 6 | 0% | 0 / 14h | 0 / 440k |
-| Fase 6 — Integración CI4 [C-08] | 0 | 7 | 0% | 0 / 16h | 0 / 560k |
-| Fase 7 — Tests transversales [C-09] | 0 | 7 | 0% | 0 / 24h | 0 / 750k |
-| Fase 8 — Documentación [C-10] | 0 | 5 | 0% | 0 / 10h | 0 / 340k |
-| **TOTAL** | **12** | **55** | **22%** | **— / 157h** | **~1,01M / 4,68M** |
+| Fase 2 — Registro estructural [C-04] | 7 | 7 | ✅ 100% | — / 36h | ~1,0M / 1.080k |
+| Fase 3 — Core algorítmico [C-03] | 6 | 6 | ✅ 100% | — / 24h | ~0,9M / 620k |
+| Fase 4 — Check ES + generador [C-06,C-05] | 5 | 5 | ✅ 100% | — / 13h | ~0,6M / 435k |
+| Fase 5 — Resolver + BD [C-07] | 6 | 6 | ✅ 100% | — / 14h | ~0,8M / 440k |
+| Fase 6 — Integración CI4 [C-08] | 7 | 7 | ✅ 100% | — / 16h | ~1,3M / 560k |
+| Fase 7 — Tests transversales [C-09] | 7 | 7 | ✅ 100% | — / 24h | ~1,3M / 750k |
+| Fase 8 — Documentación [C-10] | 5 | 5 | ✅ 100% | — / 10h | ~0,7M / 340k |
+| **TOTAL** | **55** | **55** | **✅ 100%** | **— / 157h** | **~8,3M / 4,68M** |
 
 ---
 
@@ -417,7 +417,7 @@ interface NationalCheckValidatorInterface {
 
 ## 🗂️ Fase 2 — Registro estructural + infraestructura Registry [C-04] ⭐
 
-**Estado**: 📝 borrador · **Estimado**: 36h · **Real**: — · **Coste est.**: 1.825 € · **Tokens est.**: 1.080k
+**Estado**: ✅ completa (7/7 · 78 países validados por T-19) · **Estimado**: 36h · **Coste est.**: 1.825 € · **Tokens est.**: 1.080k
 
 > Hito de **datos**, la partida más cara y arriesgada. Autoría **independiente** de hechos (longitudes/offsets), cross-check contra `cmpayments/iban` e `ixnode/php-iban` (MIT); **nunca** copiar bytes de SWIFT/globalcitizen/Wikipedia/SwiftRef. Se construye por hitos incrementales (SEPA primero).
 
@@ -600,7 +600,7 @@ final readonly class CountryStructure {
 
 ## ⚙️ Fase 3 — Core algorítmico [C-03]
 
-**Estado**: 📝 borrador · **Estimado**: 24h · **Real**: — · **Coste est.**: 1.215 € · **Tokens est.**: 620k
+**Estado**: ✅ completa (6/6 · core funcional: validate/parse/format) · **Estimado**: 24h · **Coste est.**: 1.215 € · **Tokens est.**: 620k
 
 ### T-20 — `Normalizer`
 
@@ -739,7 +739,7 @@ final readonly class CountryStructure {
 
 ## 🇪🇸 Fase 4 — Check nacional ES (mod-11) + generador `bin/` [C-06, C-05]
 
-**Estado**: 📝 borrador · **Estimado**: 13h · **Real**: — · **Coste est.**: 661 € · **Tokens est.**: 435k
+**Estado**: ✅ completa (5/5 · check nacional ES + generador bin/) · **Estimado**: 13h · **Coste est.**: 661 € · **Tokens est.**: 435k
 
 ### T-26 — `SpanishNationalCheckValidator` (mod-11)
 
@@ -852,7 +852,7 @@ final readonly class CountryStructure {
 
 ## 🔌 Fase 5 — Resolver + Providers + esquema BD [C-07]
 
-**Estado**: 📝 borrador · **Estimado**: 14h · **Real**: — · **Coste est.**: 711 € · **Tokens est.**: 440k
+**Estado**: ✅ completa (6/6 · resolver + DatabaseProvider + facade, tests BD reales) · **Estimado**: 14h · **Coste est.**: 711 € · **Tokens est.**: 440k
 
 ### T-31 — `NullProvider` (default)
 
@@ -989,7 +989,7 @@ final readonly class CountryStructure {
 
 ## 🧩 Fase 6 — Integración CodeIgniter 4 (adaptador fino) [C-08]
 
-**Estado**: 📝 borrador · **Estimado**: 16h · **Real**: — · **Coste est.**: 814 € · **Tokens est.**: 560k
+**Estado**: ✅ completa (7/7 · Config/Services/Registrar + helper + 4 comandos) · **Estimado**: 16h · **Coste est.**: 814 € · **Tokens est.**: 560k
 
 ### T-37 — `Config\Iban`
 
@@ -1143,7 +1143,7 @@ final readonly class CountryStructure {
 
 ## 🧪 Fase 7 — Suite de tests transversal [C-09]
 
-**Estado**: 📝 borrador · **Estimado**: 24h · **Real**: — · **Coste est.**: 1.219 € · **Tokens est.**: 750k
+**Estado**: ✅ completa (7/7 · 686 tests, cobertura 99,3% global, phpstan lvl8 src+tests) · **Estimado**: 24h · **Coste est.**: 1.219 € · **Tokens est.**: 750k
 
 > Transversal: los tests unitarios TDD viven en sus tareas (Fases 1–6). Esta fase consolida infraestructura y fixtures **cross-cutting**, y fija los umbrales de cobertura.
 
@@ -1300,7 +1300,7 @@ final readonly class CountryStructure {
 
 ## 📚 Fase 8 — Documentación [C-10]
 
-**Estado**: 📝 borrador · **Estimado**: 10h · **Real**: — · **Coste est.**: 510 € · **Tokens est.**: 340k
+**Estado**: ✅ completa (5/5 · README v1.0 + usage/formatting/i18n/licensing + CHANGELOG + roadmap) · **Estimado**: 10h · **Coste est.**: 510 € · **Tokens est.**: 340k
 
 ### T-51 — README completo
 
