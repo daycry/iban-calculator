@@ -11,12 +11,15 @@ use RecursiveIteratorIterator;
 use SplFileInfo;
 
 /**
- * Architecture rule: `src/Core/` and `src/Contracts/` must stay framework-free.
+ * Architecture rule: the framework-free core must stay free of CodeIgniter 4.
  *
  * The Core is meant to work with zero dependencies (validation, parsing,
- * formatting, MOD-97) and must not know about CodeIgniter 4. Only the thin
- * CI4 adapter layer (Config/, Commands/, Models/, Database/, Providers/) is
- * allowed to depend on `codeigniter4/*`.
+ * formatting, MOD-97) and must not know about CodeIgniter 4. `Contracts`,
+ * `DTO`, `Enums` and `Exceptions` are transitively depended upon by `Core`
+ * and `Contracts`, so they must remain framework-free too in order to
+ * preserve the standalone guarantee. Only the thin CI4 adapter layer
+ * (Config/, Commands/, Models/, Database/, Helpers/, Providers/) is allowed
+ * to depend on `codeigniter4/*`.
  *
  * @see docs/superpowers/specs/2026-07-10-daycry-iban-v1-design.md §3
  */
@@ -26,6 +29,9 @@ final class CoreIsFrameworkFreeTest extends TestCase
     private const GUARDED_DIRECTORIES = [
         'Core',
         'Contracts',
+        'DTO',
+        'Enums',
+        'Exceptions',
     ];
 
     /** @var string[] */
@@ -34,7 +40,7 @@ final class CoreIsFrameworkFreeTest extends TestCase
         'codeigniter4',
     ];
 
-    public function testCoreAndContractsDoNotReferenceCodeIgniter(): void
+    public function testGuardedDirectoriesDoNotReferenceCodeIgniter(): void
     {
         $violations = [];
 
@@ -48,14 +54,11 @@ final class CoreIsFrameworkFreeTest extends TestCase
                     continue;
                 }
 
-                foreach (self::FORBIDDEN_NEEDLES as $needle) {
-                    if (str_contains($contents, $needle)) {
-                        $violations[] = sprintf(
-                            '%s references "%s"',
-                            $file->getPathname(),
-                            $needle
-                        );
-                    }
+                if (self::containsFrameworkReference($contents)) {
+                    $violations[] = sprintf(
+                        '%s references CodeIgniter',
+                        $file->getPathname()
+                    );
                 }
             }
         }
@@ -63,8 +66,63 @@ final class CoreIsFrameworkFreeTest extends TestCase
         self::assertSame(
             [],
             $violations,
-            "src/Core and src/Contracts must be framework-free (no CodeIgniter\\ / codeigniter4 references):\n"
+            'The framework-free core (' . implode(', ', self::GUARDED_DIRECTORIES)
+                . ") must not reference CodeIgniter\\ / codeigniter4:\n"
                 . implode("\n", $violations)
+        );
+    }
+
+    /**
+     * Negative self-test: proves {@see containsFrameworkReference()} actually
+     * detects a violation instead of silently passing (e.g. an inverted or
+     * broken predicate would still make the positive test above pass green).
+     */
+    public function testDetectorFlagsSourceContainingCodeIgniterReference(): void
+    {
+        $dirty = <<<'PHP'
+            <?php
+
+            declare(strict_types=1);
+
+            namespace Fixtures;
+
+            use CodeIgniter\Config\BaseConfig;
+
+            final class TaintedConfig extends BaseConfig
+            {
+            }
+            PHP;
+
+        self::assertTrue(
+            self::containsFrameworkReference($dirty),
+            'Expected the detector to flag source referencing CodeIgniter\\Config\\BaseConfig'
+        );
+    }
+
+    /**
+     * Negative self-test companion: proves clean source is NOT flagged, so the
+     * detector isn't a trivial "always true" stub either.
+     */
+    public function testDetectorDoesNotFlagCleanSource(): void
+    {
+        $clean = <<<'PHP'
+            <?php
+
+            declare(strict_types=1);
+
+            namespace Fixtures;
+
+            final class PlainValueObject
+            {
+                public function __construct(private readonly string $value)
+                {
+                }
+            }
+            PHP;
+
+        self::assertFalse(
+            self::containsFrameworkReference($clean),
+            'Did not expect the detector to flag framework-free source'
         );
     }
 
@@ -86,5 +144,16 @@ final class CoreIsFrameworkFreeTest extends TestCase
                 yield $file;
             }
         }
+    }
+
+    private static function containsFrameworkReference(string $phpSource): bool
+    {
+        foreach (self::FORBIDDEN_NEEDLES as $needle) {
+            if (str_contains($phpSource, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
