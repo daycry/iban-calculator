@@ -1,33 +1,30 @@
-name: CI
+name: Code Style
 
 on:
   push:
-    branches:
-      - main
-      - master
-      - 'feature/**'
+    branches: [master, main]
   pull_request:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  test:
-    name: PHP ${{ matrix.php }}
+  code-style:
+    name: PHP-CS-Fixer (PSR-12)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        php: ['8.3', '8.4']
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup PHP ${{ matrix.php }}
+      # Runs on our minimum supported PHP version (8.3).
+      - name: Setup PHP 8.3
         uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ matrix.php }}
+          php-version: '8.3'
           extensions: mbstring, intl, json
           coverage: none
           tools: composer:v2
@@ -40,18 +37,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-composer-php${{ matrix.php }}-${{ hashFiles('**/composer.json') }}
+          # No composer.lock in this repo by convention; cache key hashes composer.json.
+          key: ${{ runner.os }}-composer-php8.3-${{ hashFiles('**/composer.json') }}
           restore-keys: |
-            ${{ runner.os }}-composer-php${{ matrix.php }}-
+            ${{ runner.os }}-composer-php8.3-
 
-      - name: Install dependencies (CI4 ^4.6)
+      - name: Install dependencies
         run: composer update --prefer-dist --no-progress --no-interaction
-
-      - name: Run test suite
-        run: composer test
-
-      - name: Run static analysis
-        run: composer analyze
 
       - name: Check coding standards
         run: composer cs

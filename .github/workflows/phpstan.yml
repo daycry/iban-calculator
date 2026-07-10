@@ -1,0 +1,56 @@
+name: PHPStan
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  phpstan:
+    name: Static analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, intl, json
+          coverage: none
+          tools: composer:v2
+
+      - name: Resolve Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          # No composer.lock in this repo by convention; cache key hashes composer.json.
+          key: ${{ runner.os }}-composer-php8.3-${{ hashFiles('**/composer.json') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-php8.3-
+
+      - name: Cache PHPStan result cache
+        uses: actions/cache@v4
+        with:
+          path: build/phpstan
+          key: ${{ runner.os }}-phpstan-${{ hashFiles('**/composer.json', 'phpstan.neon') }}
+          restore-keys: |
+            ${{ runner.os }}-phpstan-
+
+      - name: Install dependencies
+        run: composer update --prefer-dist --no-progress --no-interaction
+
+      - name: Run static analysis
+        run: composer analyze
