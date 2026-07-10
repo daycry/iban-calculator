@@ -44,7 +44,7 @@
     },
     "scripts": {
         "test": "phpunit",
-        "analyze": "phpstan analyse",
+        "analyze": "@php phpstan-analyse.php",
         "cs": "php-cs-fixer fix --dry-run --diff"
     },
     "minimum-stability": "stable",
