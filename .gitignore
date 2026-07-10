@@ -2,6 +2,8 @@
 /vendor/
 composer.phar
 .composer/
+# Library convention: do not commit the lock file; CI uses `composer update`
+composer.lock
 
 # PHPUnit
 .phpunit.cache
