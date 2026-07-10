@@ -39,6 +39,8 @@ use Daycry\Iban\Registry\Registry;
  */
 final class Validator implements ValidatorInterface
 {
+    private const MAX_INPUT_LENGTH = 64;
+
     public function __construct(
         private Registry $registry,
         private Normalizer $normalizer = new Normalizer(),
@@ -51,6 +53,15 @@ final class Validator implements ValidatorInterface
 
     public function validate(string|ParsedIban $iban, bool $checkNational = false): ValidationResult
     {
+        // Defense-in-depth: fail-fast on over-long input before normalization
+        if (is_string($iban) && strlen($iban) > self::MAX_INPUT_LENGTH) {
+            return $this->violation(
+                ViolationCode::BadLength,
+                'iban.violation.bad_length',
+                'The IBAN is too long.'
+            );
+        }
+
         $normalized = $iban instanceof ParsedIban ? $iban->electronic : $this->normalizer->normalize($iban);
 
         if ($normalized === '') {

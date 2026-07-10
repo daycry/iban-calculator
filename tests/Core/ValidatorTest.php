@@ -114,6 +114,46 @@ final class ValidatorTest extends TestCase
         self::assertSame('The IBAN length is invalid for its country.', $violation->message);
     }
 
+    public function testOverLongInputFailsFastBeforeNormalization(): void
+    {
+        // 5000 chars: far exceeds the 64-char MAX_INPUT_LENGTH guard;
+        // should be rejected with BadLength before any normalization/regex work.
+        $result    = $this->validator->validate(str_repeat('A', 5000));
+        $violation = $result->firstViolation();
+
+        self::assertFalse($result->isValid());
+        self::assertNotNull($violation);
+        self::assertSame(ViolationCode::BadLength, $violation->code);
+        self::assertSame('iban.violation.bad_length', $violation->messageKey);
+        self::assertSame('The IBAN is too long.', $violation->message);
+    }
+
+    public function testNormallyFormattedSpacedIbanUnder64CharsStillValidates(): void
+    {
+        // A normal ES IBAN with spaces: 'IBAN ES91 2100 0418 4502 0005 1332'
+        // Length is under 64 chars, so the guard should not trigger;
+        // normalization should proceed and validation should succeed.
+        $result = $this->validator->validate('IBAN ES91 2100 0418 4502 0005 1332');
+
+        self::assertTrue($result->isValid());
+    }
+
+    public function testInputAt65CharsFailsWithTooLongMessage(): void
+    {
+        // 65 chars: just over the 64-char limit. Should fail the length guard
+        // with the specific "too long" message.
+        $sixtyFiveChars = str_repeat('A', 65);
+        self::assertSame(65, strlen($sixtyFiveChars));
+
+        $result = $this->validator->validate($sixtyFiveChars);
+        $violation = $result->firstViolation();
+
+        self::assertFalse($result->isValid());
+        self::assertNotNull($violation);
+        self::assertSame(ViolationCode::BadLength, $violation->code);
+        self::assertSame('The IBAN is too long.', $violation->message);
+    }
+
     public function testMalformedStructureIsReportedWhenALetterReplacesADigitInTheBban(): void
     {
         // 24 chars (correct ES length), legal [A-Z0-9] chars, but the 'X'
