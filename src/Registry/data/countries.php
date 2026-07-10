@@ -14,6 +14,8 @@ declare(strict_types=1);
  *
  * @var array<string, array<string, mixed>>
  */
+// sepa flags follow the EPC List of SEPA Scheme Countries (EPC409-09 v8.0, Dec 2025).
+// AL, MD, ME, MK joined SEPA in late 2025 and RS became operational 2026-05, so their sepa => true is current — do not revert to the older 36-country list.
 return [
     'AD' => [
         'iban_length'    => 24,
@@ -240,8 +242,8 @@ return [
         'bban_structure' => '4!n9!n1!n',
         'bank'           => [4, 4],
         'branch'         => null,
-        'account'        => [8, 10],
-        'national_check' => null,
+        'account'        => [8, 9],
+        'national_check' => [17, 1],
         'sepa'           => false,
         'example'        => 'FO6264600001631634',
     ],
@@ -290,8 +292,8 @@ return [
         'bban_structure' => '4!n9!n1!n',
         'bank'           => [4, 4],
         'branch'         => null,
-        'account'        => [8, 10],
-        'national_check' => null,
+        'account'        => [8, 9],
+        'national_check' => [17, 1],
         'sepa'           => false,
         'example'        => 'GL8964710001000206',
     ],
