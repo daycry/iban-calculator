@@ -27,4 +27,25 @@
             <directory>src</directory>
         </include>
     </source>
+    <!--
+        Coverage reporting (T-44). Driven by whatever coverage driver is
+        available (Xdebug or PCOV) via a driver-aware runner invoking
+        PHPUnit's clover coverage report; when neither driver is installed,
+        PHPUnit skips coverage collection with a warning and the test run
+        itself still passes — coverage is diagnostic, never a requirement
+        for `composer test` to succeed.
+
+        Target thresholds (tracked manually for now; no coverage `<report>`
+        threshold element below enforces them automatically, since that
+        would fail the whole suite locally whenever a dev machine has no
+        coverage driver):
+          - Core/ + Registry/ (the framework-free validation engine): target >= 90%
+          - Global (src/ as a whole, incl. Config/Commands/Database/
+            Providers/Resolver, which lean on the CI4 test bootstrap): target >= 80%
+    -->
+    <coverage>
+        <report>
+            <clover outputFile="build/logs/clover.xml"/>
+        </report>
+    </coverage>
 </phpunit>
