@@ -27,7 +27,7 @@ final class Registry
      * registry is NOT derived from, nor copied out of, the SWIFT IBAN
      * Registry file.
      */
-    public const string VERSION = '2026-07 (independent authorship; not derived from the SWIFT IBAN Registry)';
+    public const string VERSION = '2026-07 (78 countries; independently authored, not derived from the SWIFT IBAN Registry file)';
 
     /**
      * Hydrated country map, lazily built and cached on first access.
