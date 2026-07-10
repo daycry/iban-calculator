@@ -242,7 +242,7 @@ property is overridable via `.env` using the `iban.<property>` prefix, e.g. `iba
 |---|---|---|
 | `$provider` | `'null'` | `'null'` (no lookups — the safe default), `'database'` (`DatabaseProvider`), or the fully-qualified class name of a custom `ProviderInterface` implementation. |
 | `$defaultFormat` | `'print'` | `'electronic'`, `'print'`, or `'anonymized'` — the default `IbanFormat` when a caller doesn't explicitly request one (currently consulted by consumers of the config; the facade's own `format()` still defaults its `IbanFormat $f` parameter to `IbanFormat::Print`). |
-| `$checkNationalByDefault` | `false` | Whether national check-digit validation should run by default. |
+| `$checkNationalByDefault` | `false` | Whether national check-digit validation should run by default (reserved; not yet consulted by the facade/service — callers still pass `checkNational: true` explicitly). |
 | `$dbGroup` | `'default'` | The `Config\Database` connection group queried by `DatabaseProvider` / `BankModel`. |
 | `$table` | `'banks'` | The table name queried by `DatabaseProvider` / `BankModel`. |
 
@@ -332,7 +332,7 @@ $ php spark iban:parse ES9121000418450200051332 --json
 
 ### `iban:resolve <iban> [--json]`
 
-Wraps `resolve()`. Prints all `ParsedIban` fields plus the 12 bank-data fields and `isResolved`. With
+Wraps `resolve()`. Prints the IBAN's structural fields (excluding `nationalCheckDigit` and `sepaCountry`—use `iban:parse` for those) plus the 12 bank-data fields and `isResolved`. With
 the default empty `banks` table, prints a yellow note that only structural fields are available.
 
 ```bash
