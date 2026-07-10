@@ -5,17 +5,25 @@ declare(strict_types=1);
 /**
  * Raw IBAN structure registry data, keyed by ISO 3166-1 alpha-2 country code.
  *
+ * GENERATED FILE. Produced by `bin/generate-registry.php` from the fact
+ * source `bin/data/registry-facts.csv` — do not hand-edit; edit the CSV and
+ * regenerate (`php bin/generate-registry.php`) instead. See
+ * docs/registry-authoring.md for the annual-refresh workflow.
+ *
  * Independently authored structural facts (lengths / field offsets / BBAN
  * tokens) derived from publicly documented IBAN formats — NOT copied or
  * derived from the SWIFT IBAN Registry file. `branch` and `national_check`
  * may be `null` for countries whose BBAN has no such field.
  *
+ * sepa flags follow the EPC List of SEPA Scheme Countries (EPC409-09 v8.0,
+ * Dec 2025). AL, MD, ME, MK joined SEPA in late 2025 and RS became
+ * operational 2026-05, so their sepa => true is current — do not revert to
+ * the older 36-country list.
+ *
  * @see docs/registry-authoring.md
  *
  * @var array<string, array<string, mixed>>
  */
-// sepa flags follow the EPC List of SEPA Scheme Countries (EPC409-09 v8.0, Dec 2025).
-// AL, MD, ME, MK joined SEPA in late 2025 and RS became operational 2026-05, so their sepa => true is current — do not revert to the older 36-country list.
 return [
     'AD' => [
         'iban_length'    => 24,
