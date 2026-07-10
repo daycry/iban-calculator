@@ -112,7 +112,7 @@ Each entry in the registry must satisfy the following structural and algorithmic
 3. **Offset coverage**:
    - All offsets (`bank`, `branch`, `account`, `national_check`) must fall within `[4, iban_length)`.
    - No two fields may overlap.
-   - Together, these fields must cover the entire BBAN (no gaps in coverage).
+   - Full BBAN coverage is NOT required (some countries have unassigned BBAN segments, e.g. currency/reserved digits).
 
 ### Algorithmic validation
 4. **MOD-97 checksum** — The `example` IBAN must satisfy the IBAN checksum algorithm (ISO 13616):

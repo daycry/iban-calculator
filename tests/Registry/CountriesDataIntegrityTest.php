@@ -210,7 +210,6 @@ final class CountriesDataIntegrityTest extends TestCase
     {
         preg_match_all('/(\d+)!?[nace]/', $country->bbanStructure, $matches);
 
-        /** @var list<string> $tokenLengths */
         $tokenLengths = $matches[1];
         $tokenSum     = array_sum(array_map('intval', $tokenLengths));
         $expected     = $country->ibanLength - 4;
@@ -271,23 +270,22 @@ final class CountriesDataIntegrityTest extends TestCase
 
         uasort($intervals, static fn (array $a, array $b): int => $a[0] <=> $b[0]);
 
-        $previousEnd  = null;
-        $previousName = null;
+        /** @var array{0:int,1:string}|null $previous */
+        $previous = null;
 
         foreach ($intervals as $name => [$start, $end]) {
-            if ($previousEnd !== null && $previousName !== null && $start < $previousEnd) {
+            if ($previous !== null && $start < $previous[0]) {
                 $violations[] = sprintf(
                     'field "%s" [%d, %d) overlaps preceding field "%s" ending at %d',
                     $name,
                     $start,
                     $end,
-                    $previousName,
-                    $previousEnd,
+                    $previous[1],
+                    $previous[0],
                 );
             }
 
-            $previousEnd  = $end;
-            $previousName = $name;
+            $previous = [$end, $name];
         }
 
         return $violations;
