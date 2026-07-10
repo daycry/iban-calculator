@@ -44,7 +44,8 @@
         "sort-packages": true
     },
     "scripts": {
-        "test": "phpunit",
+        "test": "phpunit --no-coverage",
+        "test:coverage": "phpunit --coverage-clover build/logs/clover.xml",
         "analyze": "phpstan analyse",
         "cs": "php-cs-fixer fix --dry-run --diff"
     },
