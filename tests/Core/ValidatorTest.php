@@ -211,14 +211,18 @@ final class ValidatorTest extends TestCase
         self::assertFalse($isValid);
     }
 
-    // -- National check hook (empty map => silent skip in v1.0 core) -----
+    // -- National check hook (empty map => silent skip) -------------------
 
     public function testCheckNationalIsSilentlySkippedWhenNoValidatorIsRegisteredForCountry(): void
     {
-        // The core Validator is constructed with an empty $nationalValidators
-        // map (T-27 wires ES in Phase 4); requesting the national check must
-        // not turn a structurally/checksum-valid IBAN invalid.
-        $result = $this->validator->validate('ES9121000418450200051332', checkNational: true);
+        // Since T-27, the default $nationalValidators map wires in ES, so
+        // this test builds its own Validator with an explicitly empty map
+        // to keep testing the "no validator registered => silent skip"
+        // behaviour in isolation: requesting the national check must not
+        // turn a structurally/checksum-valid IBAN invalid.
+        $validator = new Validator(new Registry(), nationalValidators: []);
+
+        $result = $validator->validate('ES9121000418450200051332', checkNational: true);
 
         self::assertTrue($result->isValid());
     }
