@@ -539,7 +539,22 @@ function main(array $argv): int
     $dryRun    = in_array('--dry-run', $argv, true);
 
     if (!$dryRun) {
-        file_put_contents($targetPath, $generated);
+        // Atomic write: write to a temp file in the same directory, then
+        // rename() over the target. rename() is atomic on POSIX and on the
+        // same NTFS volume on Windows, so a reader (or a concurrent CI job)
+        // never observes a partially-written countries.php, and a failure
+        // mid-write (disk full, process killed) leaves the original file
+        // untouched instead of truncated/corrupt.
+        $tmpPath = $targetPath . '.tmp';
+
+        if (file_put_contents($tmpPath, $generated) === false) {
+            throw new RuntimeException(sprintf('Unable to write temporary file "%s".', $tmpPath));
+        }
+
+        if (!rename($tmpPath, $targetPath)) {
+            throw new RuntimeException(sprintf('Unable to rename "%s" to "%s".', $tmpPath, $targetPath));
+        }
+
         fwrite(STDOUT, sprintf("Wrote %s (%d bytes).\n", $targetPath, strlen($generated)));
 
         return 0;
