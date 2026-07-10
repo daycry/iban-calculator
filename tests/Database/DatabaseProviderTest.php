@@ -6,6 +6,7 @@ namespace Tests\Database;
 
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
+use Config\Database as DatabaseConfig;
 use Daycry\Iban\Core\Normalizer;
 use Daycry\Iban\Core\Parser;
 use Daycry\Iban\Core\Validator;
@@ -169,5 +170,71 @@ final class DatabaseProviderTest extends CIUnitTestCase
 
         self::assertFalse($result->isResolved());
         self::assertNull($result->bankName);
+    }
+
+    /**
+     * Functional, query-level proof of the Fix 1 wiring: a `BankModel`
+     * constructed with a custom table name genuinely queries THAT table
+     * instead of `banks`, end-to-end through `DatabaseProvider` against a
+     * real (SQLite `:memory:`) connection.
+     *
+     * The table is built via `Forge` (like `CreateBanksTable` itself),
+     * rather than a raw `CREATE TABLE` query, so it goes through the same
+     * `DBPrefix` handling (`'tests'` uses `'db_'`, see the bundled
+     * `Config\Database::$tests`) as everything the query builder / Model
+     * layer touches -- a raw, unprefixed `CREATE TABLE` would silently
+     * create a table the builder can never see.
+     *
+     * The row is seeded into that hand-created `custom_banks` table (not
+     * via the package's `CreateBanksTable` migration, which only ever
+     * targets `banks`), and the default `banks` table -- created empty by
+     * this class's migration -- is asserted to NOT contain it, proving the
+     * lookup below genuinely depends on the overridden table name rather
+     * than on `banks` coincidentally having the row too.
+     */
+    public function testDatabaseProviderQueriesTheConfiguredCustomTableInsteadOfBanks(): void
+    {
+        $customTable = 'custom_banks';
+        $forge       = DatabaseConfig::forge($this->DBGroup);
+
+        $forge->addField('id');
+        $forge->addField([
+            'country_code'   => ['type' => 'CHAR', 'constraint' => 2, 'null' => false],
+            'bank_code'      => ['type' => 'VARCHAR', 'constraint' => 35, 'null' => false],
+            'branch_code'    => ['type' => 'VARCHAR', 'constraint' => 35, 'null' => true],
+            'bic'            => ['type' => 'VARCHAR', 'constraint' => 11, 'null' => true],
+            'name'           => ['type' => 'VARCHAR', 'constraint' => 255, 'null' => true],
+            'short_name'     => ['type' => 'VARCHAR', 'constraint' => 140, 'null' => true],
+            'city'           => ['type' => 'VARCHAR', 'constraint' => 140, 'null' => true],
+            'address'        => ['type' => 'VARCHAR', 'constraint' => 255, 'null' => true],
+            'sepa_sct'       => ['type' => 'TINYINT', 'constraint' => 1, 'null' => true],
+            'sepa_sct_inst'  => ['type' => 'TINYINT', 'constraint' => 1, 'null' => true],
+            'sepa_sdd_core'  => ['type' => 'TINYINT', 'constraint' => 1, 'null' => true],
+            'sepa_sdd_b2b'   => ['type' => 'TINYINT', 'constraint' => 1, 'null' => true],
+            'source_id'      => ['type' => 'VARCHAR', 'constraint' => 64, 'null' => true],
+            'source_version' => ['type' => 'VARCHAR', 'constraint' => 64, 'null' => true],
+            'source_license' => ['type' => 'VARCHAR', 'constraint' => 64, 'null' => true],
+            'updated_at'     => ['type' => 'DATETIME', 'null' => true],
+        ]);
+        $forge->createTable($customTable, true);
+
+        try {
+            $this->db->table($customTable)->insert(self::SEEDED_ROW);
+
+            $defaultTableProvider = new DatabaseProvider(new BankModel());
+            self::assertNull(
+                $defaultTableProvider->findByBankCode('ES', '2100', '0418'),
+                'The default banks table must stay empty in this test.',
+            );
+
+            $customTableProvider = new DatabaseProvider(new BankModel($customTable));
+            $info                = $customTableProvider->findByBankCode('ES', '2100', '0418');
+
+            self::assertInstanceOf(BankInfo::class, $info);
+            self::assertSame('CaixaBank', $info->bankName);
+            self::assertSame('CAIXESBBXXX', $info->bic);
+        } finally {
+            $forge->dropTable($customTable, true);
+        }
     }
 }

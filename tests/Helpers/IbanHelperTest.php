@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Helpers;
 
 use CodeIgniter\Test\CIUnitTestCase;
+use Daycry\Iban\Core\Mod97;
 use Daycry\Iban\DTO\ParsedIban;
 use Daycry\Iban\DTO\ValidationResult;
 
@@ -135,6 +136,27 @@ final class IbanHelperTest extends CIUnitTestCase
         self::assertFalse($result->isValid());
     }
 
+    public function testIbanValidateDefaultsCheckNationalToFalseAndIgnoresBadNationalDigits(): void
+    {
+        // Without the flag, the national validator is never invoked: the
+        // IBAN is structurally sound and MOD-97-valid, so it is valid --
+        // mirrors ValidatorNationalTest's equivalent facade-level case.
+        self::assertTrue(iban_validate($this->esIbanWithBadNationalCheckDigits())->isValid());
+    }
+
+    /**
+     * Fix 4 of the final v1.0 review: `iban_validate()` exposes the same
+     * `$checkNational` flag as the facade's `validate()`. A MOD-97-valid ES
+     * IBAN whose national (mod-11) check digits are wrong only fails when
+     * `checkNational: true` is passed through.
+     */
+    public function testIbanValidateWithCheckNationalTrueFailsANationallyInvalidEsIban(): void
+    {
+        $result = iban_validate($this->esIbanWithBadNationalCheckDigits(), checkNational: true);
+
+        self::assertFalse($result->isValid());
+    }
+
     /**
      * Every function in the helper must be wrapped in a
      * `function_exists()` guard so re-including the file (as `helper()`
@@ -149,5 +171,29 @@ final class IbanHelperTest extends CIUnitTestCase
 
         self::assertTrue(function_exists('iban_is_valid'));
         self::assertTrue(iban_is_valid(self::VALID_IBAN));
+    }
+
+    /**
+     * Builds a MOD-97-valid ES IBAN whose national (mod-11) check digits
+     * are wrong: same bank/branch/account as `self::VALID_IBAN` (national
+     * DC '45'), but the BBAN carries a wrong national DC ('46'). The
+     * IBAN-level check digits are recomputed over that (bad) BBAN via
+     * `Mod97::checkDigits()`, so the assembled IBAN passes MOD-97 while
+     * still failing the ES national check.
+     *
+     * Mirrors `Tests\Core\ValidatorNationalTest::esIbanWithBadNationalCheckDigits()`.
+     */
+    private function esIbanWithBadNationalCheckDigits(): string
+    {
+        $bank    = '2100';
+        $branch  = '0418';
+        $badDc   = '46'; // correct value would be '45'
+        $account = '0200051332';
+
+        $bban = $bank . $branch . $badDc . $account;
+
+        $checkDigits = (new Mod97())->checkDigits('ES', $bban);
+
+        return 'ES' . $checkDigits . $bban;
     }
 }

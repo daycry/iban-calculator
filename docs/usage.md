@@ -243,8 +243,8 @@ property is overridable via `.env` using the `iban.<property>` prefix, e.g. `iba
 | `$provider` | `'null'` | `'null'` (no lookups — the safe default), `'database'` (`DatabaseProvider`), or the fully-qualified class name of a custom `ProviderInterface` implementation. |
 | `$defaultFormat` | `'print'` | `'electronic'`, `'print'`, or `'anonymized'` — the default `IbanFormat` when a caller doesn't explicitly request one (currently consulted by consumers of the config; the facade's own `format()` still defaults its `IbanFormat $f` parameter to `IbanFormat::Print`). |
 | `$checkNationalByDefault` | `false` | Whether national check-digit validation should run by default (reserved; not yet consulted by the facade/service — callers still pass `checkNational: true` explicitly). |
-| `$dbGroup` | `'default'` | The `Config\Database` connection group queried by `DatabaseProvider` / `BankModel`. |
-| `$table` | `'banks'` | The table name queried by `DatabaseProvider` / `BankModel`. |
+| `$dbGroup` | `'default'` | The `Config\Database` connection group queried by `DatabaseProvider` / `BankModel` — wired by `Config\Services::iban()`'s `'database'` branch, which builds `new BankModel($config->table, $config->dbGroup)`. |
+| `$table` | `'banks'` | The table name queried by `DatabaseProvider` / `BankModel` — wired the same way as `$dbGroup` above. |
 
 To override, publish your own `App\Config\Iban extends \Daycry\Iban\Config\Iban` (CI4's `Factories`
 resolution picks up the app's version automatically), or set the matching `.env` variables.

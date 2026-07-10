@@ -28,6 +28,12 @@ use SplFileInfo;
  * will live there and does depend on CI4 (`NullProvider` is framework-free
  * by design, but that is not enforced by this guard).
  *
+ * `src/Iban.php` (the public standalone facade, {@see \Daycry\Iban\Iban})
+ * sits directly under `src/`, outside all of the guarded directories above,
+ * but is documented and tested (see `IbanFacadeTest`) as usable with zero
+ * CI4 dependency — so it is guarded individually via `GUARDED_FILES` to
+ * catch a future CI4 import creeping into it.
+ *
  * @see docs/superpowers/specs/2026-07-10-daycry-iban-v1-design.md §3
  */
 final class CoreIsFrameworkFreeTest extends TestCase
@@ -42,6 +48,16 @@ final class CoreIsFrameworkFreeTest extends TestCase
         'Registry',
         'National',
         'Resolver',
+    ];
+
+    /**
+     * Individual files (relative to `src/`) guarded in addition to
+     * {@see GUARDED_DIRECTORIES}.
+     *
+     * @var string[]
+     */
+    private const GUARDED_FILES = [
+        'Iban.php',
     ];
 
     /** @var string[] */
@@ -77,6 +93,45 @@ final class CoreIsFrameworkFreeTest extends TestCase
             [],
             $violations,
             'The framework-free core (' . implode(', ', self::GUARDED_DIRECTORIES)
+                . ") must not reference CodeIgniter\\ / codeigniter4:\n"
+                . implode("\n", $violations)
+        );
+    }
+
+    /**
+     * Companion to {@see testGuardedDirectoriesDoNotReferenceCodeIgniter()}:
+     * covers individually-guarded files (see {@see GUARDED_FILES}) that live
+     * outside every guarded directory, chiefly the standalone facade
+     * `src/Iban.php`.
+     */
+    public function testGuardedFilesDoNotReferenceCodeIgniter(): void
+    {
+        $violations = [];
+
+        foreach (self::GUARDED_FILES as $relativeFile) {
+            $path = dirname(__DIR__, 2) . '/src/' . $relativeFile;
+
+            if (!is_file($path)) {
+                $violations[] = sprintf('%s does not exist', $path);
+
+                continue;
+            }
+
+            $contents = file_get_contents($path);
+
+            if ($contents === false) {
+                continue;
+            }
+
+            if (self::containsFrameworkReference($contents)) {
+                $violations[] = sprintf('%s references CodeIgniter', $path);
+            }
+        }
+
+        self::assertSame(
+            [],
+            $violations,
+            'The individually-guarded files (' . implode(', ', self::GUARDED_FILES)
                 . ") must not reference CodeIgniter\\ / codeigniter4:\n"
                 . implode("\n", $violations)
         );

@@ -36,13 +36,17 @@ if (! function_exists('iban_validate')) {
      * Validates an IBAN and returns the full result (including violations).
      *
      * Never throws: an invalid IBAN simply produces a non-valid result.
+     *
+     * @param bool $checkNational Whether to also run national check-digit
+     *                             validation, mirroring the facade's
+     *                             `validate()` parameter of the same name.
      */
-    function iban_validate(string $iban): ValidationResult
+    function iban_validate(string $iban, bool $checkNational = false): ValidationResult
     {
         /** @var IbanService $svc */
         $svc = service('iban');
 
-        return $svc->validate($iban);
+        return $svc->validate($iban, $checkNational);
     }
 }
 

@@ -8,9 +8,11 @@ use CodeIgniter\Test\CIUnitTestCase;
 use Daycry\Iban\Config\Iban as IbanConfig;
 use Daycry\Iban\Config\Services as IbanServices;
 use Daycry\Iban\Iban as IbanService;
+use Daycry\Iban\Models\BankModel;
 use Daycry\Iban\Providers\DatabaseProvider;
 use Daycry\Iban\Providers\NullProvider;
 use Daycry\Iban\Resolver\Resolver;
+use InvalidArgumentException;
 use ReflectionProperty;
 
 /**
@@ -28,11 +30,14 @@ final class ServicesTest extends CIUnitTestCase
     {
         parent::tearDown();
 
-        // A test below mutates the shared `Config\Iban` singleton to
-        // exercise the 'database' branch of the provider match; undo that
-        // so later tests keep seeing the documented 'null' default, and
-        // drop any shared `service('iban')` instance built against it.
+        // Tests below mutate the shared `Config\Iban` singleton to
+        // exercise the 'database' branch of the provider match (and its
+        // $table/$dbGroup wiring); undo that so later tests keep seeing
+        // the documented defaults, and drop any shared `service('iban')`
+        // instance built against it.
         config(IbanConfig::class)->provider = 'null';
+        config(IbanConfig::class)->table    = 'banks';
+        config(IbanConfig::class)->dbGroup  = 'default';
         $this->resetServices();
     }
 
@@ -93,6 +98,42 @@ final class ServicesTest extends CIUnitTestCase
         self::assertInstanceOf(NullProvider::class, self::resolverProviderOf($iban));
     }
 
+    public function testProviderMatchThrowsForANonExistentClassName(): void
+    {
+        config(IbanConfig::class)->provider = 'Totally\\Bogus\\NoSuchProviderClass';
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('is not a valid class');
+
+        IbanServices::iban(false);
+    }
+
+    /**
+     * Proves the Fix 1 wiring: the 'database' branch of `Services::iban()`
+     * doesn't just build a bare `new DatabaseProvider()` -- it constructs
+     * the underlying `BankModel` from `Config\Iban::$table` /
+     * `Config\Iban::$dbGroup`, so a consuming app's overrides of either
+     * property actually reach the DB layer.
+     *
+     * @see tests/Database/DatabaseProviderTest.php for a functional,
+     *      query-level proof of the `$table` override in action.
+     */
+    public function testDatabaseProviderBranchBuildsBankModelFromConfiguredTableAndDbGroup(): void
+    {
+        config(IbanConfig::class)->provider = 'database';
+        config(IbanConfig::class)->table    = 'custom_banks';
+        config(IbanConfig::class)->dbGroup  = 'tests';
+
+        $iban = IbanServices::iban(false);
+
+        $provider = self::resolverProviderOf($iban);
+        self::assertInstanceOf(DatabaseProvider::class, $provider);
+
+        $model = self::bankModelOf($provider);
+        self::assertSame('custom_banks', self::tableOf($model));
+        self::assertSame('tests', self::dbGroupOf($model));
+    }
+
     public function testConfigIbanHasTheFiveDocumentedDefaults(): void
     {
         $config = new IbanConfig();
@@ -116,5 +157,43 @@ final class ServicesTest extends CIUnitTestCase
         $property->setAccessible(true);
 
         return $property->getValue($iban->resolver());
+    }
+
+    /**
+     * Reaches into `DatabaseProvider`'s private `$model` to assert how
+     * `Services::iban()` built it (table/dbGroup), without triggering a
+     * real DB lookup.
+     */
+    private static function bankModelOf(DatabaseProvider $provider): BankModel
+    {
+        $property = new ReflectionProperty(DatabaseProvider::class, 'model');
+        $property->setAccessible(true);
+
+        /** @var BankModel $model */
+        $model = $property->getValue($provider);
+
+        return $model;
+    }
+
+    private static function tableOf(BankModel $model): string
+    {
+        $property = new ReflectionProperty(BankModel::class, 'table');
+        $property->setAccessible(true);
+
+        /** @var string $value */
+        $value = $property->getValue($model);
+
+        return $value;
+    }
+
+    private static function dbGroupOf(BankModel $model): ?string
+    {
+        $property = new ReflectionProperty(BankModel::class, 'DBGroup');
+        $property->setAccessible(true);
+
+        /** @var string|null $value */
+        $value = $property->getValue($model);
+
+        return $value;
     }
 }
