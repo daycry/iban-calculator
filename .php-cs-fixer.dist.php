@@ -8,7 +8,7 @@ declare(strict_types=1);
  * Baseline ruleset is `@PSR12`, plus a small set of conservative, widely
  * accepted extras (short array syntax, ordered/deduplicated imports,
  * `declare(strict_types=1)` enforcement). Covers `src/` and `tests/`, plus
- * loose PHP files at the project root (e.g. `phpstan-analyse.php`).
+ * this config file itself.
  *
  * Usage:
  *   composer cs        # dry-run, shows diff (see composer.json)
@@ -18,7 +18,7 @@ declare(strict_types=1);
 $finder = (new PhpCsFixer\Finder())
     ->in(__DIR__ . '/src')
     ->in(__DIR__ . '/tests')
-    ->append([__FILE__, __DIR__ . '/phpstan-analyse.php']);
+    ->append([__FILE__]);
 
 return (new PhpCsFixer\Config())
     ->setRiskyAllowed(true)
