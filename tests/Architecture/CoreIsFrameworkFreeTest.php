@@ -15,11 +15,13 @@ use SplFileInfo;
  *
  * The Core is meant to work with zero dependencies (validation, parsing,
  * formatting, MOD-97) and must not know about CodeIgniter 4. `Contracts`,
- * `DTO`, `Enums` and `Exceptions` are transitively depended upon by `Core`
- * and `Contracts`, so they must remain framework-free too in order to
- * preserve the standalone guarantee. Only the thin CI4 adapter layer
- * (Config/, Commands/, Models/, Database/, Helpers/, Providers/) is allowed
- * to depend on `codeigniter4/*`.
+ * `DTO`, `Enums`, `Exceptions` and `Registry` are transitively depended upon
+ * by `Core` and `Contracts`, so they must remain framework-free too in
+ * order to preserve the standalone guarantee. `National` (country-specific
+ * check-digit validators, e.g. Spain's mod-11) implements `Contracts` and
+ * is consumed by `Core\Validator`, so it must stay framework-free as well.
+ * Only the thin CI4 adapter layer (Config/, Commands/, Models/, Database/,
+ * Helpers/, Providers/) is allowed to depend on `codeigniter4/*`.
  *
  * @see docs/superpowers/specs/2026-07-10-daycry-iban-v1-design.md §3
  */
@@ -33,6 +35,7 @@ final class CoreIsFrameworkFreeTest extends TestCase
         'Enums',
         'Exceptions',
         'Registry',
+        'National',
     ];
 
     /** @var string[] */
