@@ -40,10 +40,10 @@ final class ParsedIbanTest extends TestCase
         $parsed = new ParsedIban(
             countryCode: 'DE',
             checkDigits: '89',
-            bban: '10070848728107148348',
+            bban: '100708487281071483',
             bankIdentifier: '10070848',
             branchIdentifier: null,
-            accountNumber: '728107148348',
+            accountNumber: '7281071483',
             nationalCheckDigit: null,
             sepaCountry: true,
             electronic: 'DE89100708487281071483',
@@ -52,6 +52,8 @@ final class ParsedIbanTest extends TestCase
         self::assertSame('DE', $parsed->countryCode);
         self::assertNull($parsed->branchIdentifier);
         self::assertTrue($parsed->sepaCountry);
+        self::assertSame('DE89100708487281071483', (string) $parsed);
+        self::assertSame('100708487281071483', $parsed->bankIdentifier . $parsed->accountNumber);
     }
 
     public function testToStringReturnsElectronic(): void
