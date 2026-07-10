@@ -13,6 +13,7 @@ use Daycry\Iban\Contracts\ValidatorInterface;
 use Daycry\Iban\Enums\IbanFormat;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
+use ReflectionNamedType;
 
 /**
  * Light reflection test to verify interface contracts.
@@ -42,7 +43,9 @@ final class InterfaceContractsTest extends TestCase
         // Check second parameter is bool with default false
         $secondParam = $method->getParameters()[1];
         self::assertSame('checkNational', $secondParam->getName());
-        self::assertTrue($secondParam->getType()?->getName() === 'bool');
+        $secondParamType = $secondParam->getType();
+        self::assertInstanceOf(ReflectionNamedType::class, $secondParamType);
+        self::assertSame('bool', $secondParamType->getName());
         self::assertTrue($secondParam->isDefaultValueAvailable());
         self::assertFalse($secondParam->getDefaultValue());
     }
@@ -115,7 +118,9 @@ final class InterfaceContractsTest extends TestCase
 
         $method = $reflection->getMethod('supports');
         self::assertCount(1, $method->getParameters());
-        self::assertTrue($method->getReturnType()?->getName() === 'bool');
+        $returnType = $method->getReturnType();
+        self::assertInstanceOf(ReflectionNamedType::class, $returnType);
+        self::assertSame('bool', $returnType->getName());
     }
 
     public function testProviderInterfaceHasFindByIbanMethod(): void
@@ -197,7 +202,9 @@ final class InterfaceContractsTest extends TestCase
 
         $method = $reflection->getMethod('supports');
         self::assertCount(1, $method->getParameters());
-        self::assertTrue($method->getReturnType()?->getName() === 'bool');
+        $returnType = $method->getReturnType();
+        self::assertInstanceOf(ReflectionNamedType::class, $returnType);
+        self::assertSame('bool', $returnType->getName());
     }
 
     public function testNationalCheckValidatorInterfaceHasVerifyMethod(): void
@@ -207,6 +214,8 @@ final class InterfaceContractsTest extends TestCase
 
         $method = $reflection->getMethod('verify');
         self::assertCount(1, $method->getParameters());
-        self::assertTrue($method->getReturnType()?->getName() === 'bool');
+        $returnType = $method->getReturnType();
+        self::assertInstanceOf(ReflectionNamedType::class, $returnType);
+        self::assertSame('bool', $returnType->getName());
     }
 }

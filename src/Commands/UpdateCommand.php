@@ -39,10 +39,6 @@ final class UpdateCommand extends BaseCommand
 
     public function run(array $params): int
     {
-        // PHPStan-visibility fallback for EXIT_SUCCESS; see the full
-        // rationale on ValidateCommand::run().
-        defined('EXIT_SUCCESS') || define('EXIT_SUCCESS', 0); // @codeCoverageIgnore
-
         CLI::write('SWIFT IBAN Registry is non-commercial/no-derivatives (not bundled).', 'yellow');
         CLI::write('SWIFT BIC Directory (SwiftRef) is proprietary (not bundled).', 'yellow');
         CLI::write('National lists require per-source attribution.', 'yellow');

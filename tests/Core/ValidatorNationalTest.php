@@ -54,12 +54,14 @@ final class ValidatorNationalTest extends TestCase
     {
         $iban = $this->esIbanWithBadNationalCheckDigits();
 
-        $result = $this->validator->validate($iban, checkNational: true);
+        $result    = $this->validator->validate($iban, checkNational: true);
+        $violation = $result->firstViolation();
 
         self::assertFalse($result->isValid());
-        self::assertSame(ViolationCode::NationalCheckFailed, $result->firstViolation()?->code);
-        self::assertSame('iban.violation.national_check_failed', $result->firstViolation()?->messageKey);
-        self::assertSame('The national check digits are invalid.', $result->firstViolation()?->message);
+        self::assertNotNull($violation);
+        self::assertSame(ViolationCode::NationalCheckFailed, $violation->code);
+        self::assertSame('iban.violation.national_check_failed', $violation->messageKey);
+        self::assertSame('The national check digits are invalid.', $violation->message);
     }
 
     public function testWrongNationalCheckDigitsAreIgnoredWhenCheckNationalIsNotRequested(): void

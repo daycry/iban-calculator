@@ -47,12 +47,14 @@ final class ValidatorTest extends TestCase
 
     public function testBlankIbanIsReportedAsBlank(): void
     {
-        $result = $this->validator->validate('   ');
+        $result    = $this->validator->validate('   ');
+        $violation = $result->firstViolation();
 
         self::assertFalse($result->isValid());
-        self::assertSame(ViolationCode::Blank, $result->firstViolation()?->code);
-        self::assertSame('iban.violation.blank', $result->firstViolation()?->messageKey);
-        self::assertSame('The IBAN is empty.', $result->firstViolation()?->message);
+        self::assertNotNull($violation);
+        self::assertSame(ViolationCode::Blank, $violation->code);
+        self::assertSame('iban.violation.blank', $violation->messageKey);
+        self::assertSame('The IBAN is empty.', $violation->message);
     }
 
     public function testEmptyStringIsReportedAsBlank(): void
@@ -64,56 +66,66 @@ final class ValidatorTest extends TestCase
 
     public function testTooShortIbanIsReportedAsTooShort(): void
     {
-        $result = $this->validator->validate('ES9');
+        $result    = $this->validator->validate('ES9');
+        $violation = $result->firstViolation();
 
         self::assertFalse($result->isValid());
-        self::assertSame(ViolationCode::TooShort, $result->firstViolation()?->code);
-        self::assertSame('iban.violation.too_short', $result->firstViolation()?->messageKey);
-        self::assertSame('The IBAN is too short.', $result->firstViolation()?->message);
+        self::assertNotNull($violation);
+        self::assertSame(ViolationCode::TooShort, $violation->code);
+        self::assertSame('iban.violation.too_short', $violation->messageKey);
+        self::assertSame('The IBAN is too short.', $violation->message);
     }
 
     public function testIllegalCharactersIsReported(): void
     {
-        $result = $this->validator->validate('ES91-2100');
+        $result    = $this->validator->validate('ES91-2100');
+        $violation = $result->firstViolation();
 
         self::assertFalse($result->isValid());
-        self::assertSame(ViolationCode::IllegalCharacters, $result->firstViolation()?->code);
-        self::assertSame('iban.violation.illegal_characters', $result->firstViolation()?->messageKey);
-        self::assertSame('The IBAN contains illegal characters.', $result->firstViolation()?->message);
+        self::assertNotNull($violation);
+        self::assertSame(ViolationCode::IllegalCharacters, $violation->code);
+        self::assertSame('iban.violation.illegal_characters', $violation->messageKey);
+        self::assertSame('The IBAN contains illegal characters.', $violation->message);
     }
 
     public function testUnknownCountryIsReported(): void
     {
         // 24 chars, all [A-Z0-9], but "ZZ" is not a registered country.
-        $result = $this->validator->validate('ZZ9121000418450200051332');
+        $result    = $this->validator->validate('ZZ9121000418450200051332');
+        $violation = $result->firstViolation();
 
         self::assertFalse($result->isValid());
-        self::assertSame(ViolationCode::UnknownCountry, $result->firstViolation()?->code);
-        self::assertSame('iban.violation.unknown_country', $result->firstViolation()?->messageKey);
-        self::assertSame('Unknown or unsupported IBAN country code.', $result->firstViolation()?->message);
+        self::assertNotNull($violation);
+        self::assertSame(ViolationCode::UnknownCountry, $violation->code);
+        self::assertSame('iban.violation.unknown_country', $violation->messageKey);
+        self::assertSame('Unknown or unsupported IBAN country code.', $violation->message);
     }
 
     public function testBadLengthIsReported(): void
     {
         // 23 chars: one digit short of the 24-char ES length.
-        $result = $this->validator->validate('ES912100041845020005133');
+        $result    = $this->validator->validate('ES912100041845020005133');
+        $violation = $result->firstViolation();
 
         self::assertFalse($result->isValid());
-        self::assertSame(ViolationCode::BadLength, $result->firstViolation()?->code);
-        self::assertSame('iban.violation.bad_length', $result->firstViolation()?->messageKey);
-        self::assertSame('The IBAN length is invalid for its country.', $result->firstViolation()?->message);
+        self::assertNotNull($violation);
+        self::assertSame(ViolationCode::BadLength, $violation->code);
+        self::assertSame('iban.violation.bad_length', $violation->messageKey);
+        self::assertSame('The IBAN length is invalid for its country.', $violation->message);
     }
 
     public function testMalformedStructureIsReportedWhenALetterReplacesADigitInTheBban(): void
     {
         // 24 chars (correct ES length), legal [A-Z0-9] chars, but the 'X'
         // sits in a digit-only slot of the BBAN structure (account field).
-        $result = $this->validator->validate('ES9121000418450200051X32');
+        $result    = $this->validator->validate('ES9121000418450200051X32');
+        $violation = $result->firstViolation();
 
         self::assertFalse($result->isValid());
-        self::assertSame(ViolationCode::MalformedStructure, $result->firstViolation()?->code);
-        self::assertSame('iban.violation.malformed_structure', $result->firstViolation()?->messageKey);
-        self::assertSame('The IBAN structure is malformed.', $result->firstViolation()?->message);
+        self::assertNotNull($violation);
+        self::assertSame(ViolationCode::MalformedStructure, $violation->code);
+        self::assertSame('iban.violation.malformed_structure', $violation->messageKey);
+        self::assertSame('The IBAN structure is malformed.', $violation->message);
     }
 
     public function testMalformedStructureIsReportedWhenCheckDigitsAreNotNumeric(): void
@@ -129,12 +141,14 @@ final class ValidatorTest extends TestCase
     public function testChecksumFailedIsReported(): void
     {
         // Correct length/structure, but check digits 91 -> 90 (invalid MOD-97).
-        $result = $this->validator->validate('ES9021000418450200051332');
+        $result    = $this->validator->validate('ES9021000418450200051332');
+        $violation = $result->firstViolation();
 
         self::assertFalse($result->isValid());
-        self::assertSame(ViolationCode::ChecksumFailed, $result->firstViolation()?->code);
-        self::assertSame('iban.violation.checksum_failed', $result->firstViolation()?->messageKey);
-        self::assertSame('The IBAN check digits are invalid.', $result->firstViolation()?->message);
+        self::assertNotNull($violation);
+        self::assertSame(ViolationCode::ChecksumFailed, $violation->code);
+        self::assertSame('iban.violation.checksum_failed', $violation->messageKey);
+        self::assertSame('The IBAN check digits are invalid.', $violation->message);
     }
 
     // -- Pipeline ORDER (first violation wins) ----------------------------

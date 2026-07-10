@@ -37,11 +37,6 @@ final class ResolveCommand extends BaseCommand
 
     public function run(array $params): int
     {
-        // PHPStan-visibility fallback for EXIT_SUCCESS/EXIT_ERROR; see the
-        // full rationale on ValidateCommand::run().
-        defined('EXIT_SUCCESS') || define('EXIT_SUCCESS', 0); // @codeCoverageIgnore
-        defined('EXIT_ERROR') || define('EXIT_ERROR', 1); // @codeCoverageIgnore
-
         $iban = $params[0] ?? CLI::prompt('IBAN');
 
         /** @var IbanService $svc */

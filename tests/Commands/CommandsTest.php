@@ -79,11 +79,15 @@ final class CommandsTest extends CIUnitTestCase
      */
     private function runSpark(array $argv): array
     {
-        $_SERVER['argv'] = array_merge(['spark'], $argv);
+        service('superglobals')->setServer('argv', array_merge(['spark'], $argv));
         CLI::init();
 
         $params  = array_merge(CLI::getSegments(), CLI::getOptions());
         $command = array_shift($params);
+
+        if ($command === null) {
+            self::fail('runSpark() was called with an empty $argv.');
+        }
 
         $this->resetStreamFilterBuffer();
 

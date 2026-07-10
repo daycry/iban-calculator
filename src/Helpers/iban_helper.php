@@ -31,35 +31,6 @@ use Daycry\Iban\Iban as IbanService;
  * @see docs/superpowers/specs/2026-07-10-daycry-iban-v1-design.md
  */
 
-if (! function_exists('service')) {
-    // @codeCoverageIgnoreStart
-    /**
-     * PHPStan-visibility fallback for CI4's `service()` global.
-     *
-     * `service()` is declared at runtime by
-     * `vendor/codeigniter4/framework/system/Common.php`, which this
-     * package's `phpstan.neon` (scoped to `paths: [src]`, no
-     * `bootstrapFiles`) never parses — without a real declaration
-     * somewhere under `src/`, PHPStan level 8 reports every call below as
-     * "Function service not found." This branch mirrors `service()`'s
-     * real signature purely so PHPStan can see it; it never actually
-     * runs; any real CodeIgniter 4 app (or the framework's own PHPUnit
-     * bootstrap, which every test in this repo goes through) requires
-     * `Common.php` — and therefore defines the real `service()` — long
-     * before this helper file is ever loaded via `helper('iban')`.
-     *
-     * @param mixed ...$params
-     */
-    function service(string $name, ...$params): ?object
-    {
-        throw new RuntimeException(
-            'CodeIgniter 4 is not bootstrapped: service() is unavailable. '
-            . 'This helper requires running inside a CodeIgniter 4 application.',
-        );
-    }
-    // @codeCoverageIgnoreEnd
-}
-
 if (! function_exists('iban_validate')) {
     /**
      * Validates an IBAN and returns the full result (including violations).

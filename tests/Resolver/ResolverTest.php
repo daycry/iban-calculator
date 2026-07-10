@@ -81,7 +81,7 @@ final class ResolverTest extends TestCase
                 return $countryCode === 'ES';
             }
 
-            public function findByIban(ParsedIban $iban): ?BankInfo
+            public function findByIban(ParsedIban $iban): BankInfo
             {
                 return $this->bankInfo;
             }
@@ -133,7 +133,7 @@ final class ResolverTest extends TestCase
                 return null;
             }
 
-            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): BankInfo
             {
                 return $this->bankInfo;
             }

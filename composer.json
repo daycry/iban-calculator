@@ -21,10 +21,11 @@
         "php": "^8.3"
     },
     "require-dev": {
+        "codeigniter/phpstan-codeigniter": "^2.1",
         "codeigniter4/framework": "^4.6",
-        "phpunit/phpunit": "^11",
+        "friendsofphp/php-cs-fixer": "^3",
         "phpstan/phpstan": "^2",
-        "friendsofphp/php-cs-fixer": "^3"
+        "phpunit/phpunit": "^11"
     },
     "autoload": {
         "psr-4": {

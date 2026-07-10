@@ -37,21 +37,6 @@ final class ValidateCommand extends BaseCommand
 
     public function run(array $params): int
     {
-        // PHPStan-visibility fallback: `EXIT_SUCCESS`/`EXIT_ERROR` are real
-        // global constants defined at runtime by
-        // `vendor/codeigniter4/framework/app/Config/Constants.php`, which
-        // this package's `phpstan.neon` (scoped to `paths: [src]`, no
-        // `bootstrapFiles`) never parses -- without a `define()` call
-        // somewhere under `src/`, PHPStan level 8 reports every reference
-        // below as "Constant ... not found." Any real CodeIgniter 4 bootstrap
-        // (including the framework's own PHPUnit bootstrap that every test in
-        // this repo goes through) already defines both constants long before
-        // this command ever runs, so these guarded `define()` calls are a
-        // no-op in practice; see the analogous `service()` fallback in
-        // `src/Helpers/iban_helper.php`.
-        defined('EXIT_SUCCESS') || define('EXIT_SUCCESS', 0); // @codeCoverageIgnore
-        defined('EXIT_ERROR') || define('EXIT_ERROR', 1); // @codeCoverageIgnore
-
         $iban = $params[0] ?? CLI::prompt('IBAN');
 
         /** @var IbanService $svc */

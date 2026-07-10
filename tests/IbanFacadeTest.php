@@ -87,7 +87,6 @@ final class IbanFacadeTest extends TestCase
     public function testFormatReturnsFormattedIban(): void
     {
         $formatted = $this->iban->format('ES9121000418450200051332', IbanFormat::Print);
-        self::assertIsString($formatted);
         // Print format should have spaces for readability
         self::assertStringContainsString(' ', $formatted);
     }
