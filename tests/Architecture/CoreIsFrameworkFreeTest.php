@@ -32,6 +32,7 @@ final class CoreIsFrameworkFreeTest extends TestCase
         'DTO',
         'Enums',
         'Exceptions',
+        'Registry',
     ];
 
     /** @var string[] */
