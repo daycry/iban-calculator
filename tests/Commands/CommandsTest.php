@@ -284,6 +284,17 @@ final class CommandsTest extends CIUnitTestCase
 
     // -- iban:update -------------------------------------------------------
 
+    /**
+     * V-6 rewrites `iban:update` to be functional (`ImporterRegistry` +
+     * `ImportRunner`), but `ImporterRegistry::registerDefaults()` is still
+     * intentionally empty in v1.1 -- V-7 is what bundles the concrete
+     * official-source importers. So with no `--country`/`--source`
+     * selection, today's only reachable outcome is: print the v1.0 licensing
+     * notices, list the (currently empty) registry, and note gracefully that
+     * nothing is bundled yet. The real import/dry-run/upsert path is proven
+     * end-to-end against a fake importer in `tests/Import/ImportRunnerTest.php`
+     * (the command itself has no injection point for a test registry).
+     */
     public function testUpdatePrintsLicenseNoticesImportersAndDeferralAndExitsSuccess(): void
     {
         [$exit, $output] = $this->runSpark(['iban:update']);
@@ -293,15 +304,29 @@ final class CommandsTest extends CIUnitTestCase
         self::assertStringContainsString('SWIFT BIC Directory', $output);
         self::assertStringContainsString('National lists require per-source attribution.', $output);
         self::assertStringContainsString('Registered importers: 0', $output);
-        self::assertStringContainsString('deferred to v1.1', $output);
+        self::assertStringContainsString('No bundled importers match', $output);
+        self::assertStringContainsString('v1.1 adds official-source importers', $output);
     }
 
-    public function testUpdateAcceptsDryRunAndCountryOptionsWithoutError(): void
+    public function testUpdateAcceptsDryRunAndCountryOptionsWithoutErrorAndReportsNoMatch(): void
     {
         [$exit, $output] = $this->runSpark(['iban:update', '--dry-run', '--country', 'ES']);
 
         self::assertSame(EXIT_SUCCESS, $exit);
-        self::assertStringContainsString('deferred to v1.1', $output);
+        self::assertStringContainsString('SWIFT IBAN Registry', $output);
+        self::assertStringContainsString('No bundled importers match', $output);
+        self::assertStringContainsString('v1.1 adds official-source importers', $output);
+        // A selection was made, so this is the "no match" branch, not the
+        // no-selection listing -- the registry-size line must NOT appear.
+        self::assertStringNotContainsString('Registered importers:', $output);
+    }
+
+    public function testUpdateWithSourceOptionAloneAlsoReportsNoMatchGracefully(): void
+    {
+        [$exit, $output] = $this->runSpark(['iban:update', '--source', 'oenb']);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('No bundled importers match', $output);
     }
 
     // -- Discovery -----------------------------------------------------------
