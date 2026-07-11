@@ -38,9 +38,10 @@ use Daycry\Iban\Contracts\ImporterInterface;
  *   zero (e.g. `"0049"`) is preserved.
  * - Encoding: the source is UTF-8 WITH a BOM (`España`, `Nicolás`,
  *   `A CORUÑA`, ... are already correctly-encoded multibyte UTF-8) --
- *   {@see self::rows()} strips the leading BOM (present at the very start
- *   of the raw bytes, before the header row) so it can never leak into a
- *   yielded field; it must NOT Latin-1-decode this source.
+ *   {@see self::rows()} strips the leading BOM defensively. It would in any
+ *   case only occupy the header row's first cell, which {@see self::rows()}
+ *   discards by position, so it cannot reach a yielded field either way; it
+ *   must NOT Latin-1-decode this source.
  * - Data reflects only currently-active entities -- de-registered entities
  *   (e.g. Banco Popular, `0075`) are absent, not tombstoned.
  *
@@ -163,7 +164,9 @@ final class BancoDeEspanaImporter implements ImporterInterface
 
     /**
      * Strips a leading UTF-8 BOM if present (this source always ships one).
-     * No Latin-1 fallback is applied: this source is UTF-8.
+     * Defensive: the BOM would otherwise only sit in the discarded header's
+     * first cell, but stripping it makes BOM-safety explicit rather than a
+     * side effect of header-discarding. No Latin-1 fallback: this is UTF-8.
      */
     private static function stripBom(string $raw): string
     {

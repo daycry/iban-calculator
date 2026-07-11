@@ -53,20 +53,27 @@ final class BancoDeEspanaImporterTest extends TestCase
 
     public function testFixtureReallyStartsWithAUtf8Bom(): void
     {
-        // Sanity check on the fixture itself: without a genuine raw BOM
-        // byte here, the BOM-strip assertions below would trivially pass
-        // even if SixImporter's stripBom() were broken/missing.
+        // Sanity check on the fixture itself: it must carry a genuine raw
+        // UTF-8 BOM byte so that the parsing test below genuinely exercises
+        // this importer against BOM-prefixed input (Banco de España's live
+        // MFI CSV always ships one).
         $raw = file_get_contents(self::FIXTURE);
         self::assertNotFalse($raw);
         self::assertStringStartsWith("\xEF\xBB\xBF", $raw);
     }
 
-    public function testRowsStripsTheBomAndSkipsMoneyMarketFundCodes(): void
+    public function testRowsParsesABomPrefixedFileAndSkipsMoneyMarketFundCodes(): void
     {
+        // End-to-end against a genuinely BOM-prefixed, comma-delimited,
+        // quote-escaped fixture: the importer must yield the 3 real
+        // credit-institution rows (0049/0182/2100) and skip the FI2680
+        // money-market-fund row. (The BOM only ever occupies the header's
+        // first cell, which rows() discards by position, so it cannot reach
+        // a yielded field -- there is nothing observable to assert about the
+        // BOM on the data rows themselves; this proves the importer parses a
+        // BOM-prefixed file correctly rather than choking on it.)
         $rows = iterator_to_array($this->importer->rows(self::FIXTURE), false);
 
-        // 3 real credit-institution rows (0049/0182/2100); the FI2680
-        // money-market-fund row must be skipped.
         self::assertCount(3, $rows);
 
         $santander = $rows[0];
@@ -74,10 +81,6 @@ final class BancoDeEspanaImporterTest extends TestCase
         self::assertSame('Banco Santander, S.A.', $santander['name']); // comma-in-quotes preserved
         self::assertSame('Ps de Pereda, 9-12, 39004, Santander', $santander['address']);
         self::assertNull($santander['branch_code']);
-
-        // No BOM/mojibake leakage into the first yielded field.
-        self::assertStringNotContainsString("\xEF\xBB\xBF", $santander['bank_code']);
-        self::assertStringNotContainsString('ï»¿', $santander['bank_code']);
 
         $bbva = $rows[1];
         self::assertSame('0182', $bbva['bank_code']);
