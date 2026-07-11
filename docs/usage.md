@@ -1,6 +1,6 @@
 # Usage
 
-Full API reference for `daycry/iban`, current through v1.1. Every example on this page has been run
+Full API reference for `daycry/iban`, current through v1.2. Every example on this page has been run
 against the real code (see `tests/` for the source of truth these examples are drawn from).
 
 - [The facade: `Daycry\Iban\Iban`](#the-facade-daycryibaniban)
@@ -243,12 +243,14 @@ app:
 
 2. **Run the migration** — the package ships `CreateBanksTable`
    (`src/Database/Migrations/2026-07-10-000001_CreateBanksTable.php`), discovered automatically via
-   the `Daycry\Iban\` Composer namespace:
+   the `Daycry\Iban\` Composer namespace. CI4's `migrate` command only recognizes the short `-n` flag
+   for a namespace (there is no `--namespace` long alias — passing that instead silently runs zero
+   package migrations):
 
    ```bash
-   php spark migrate --namespace "Daycry\Iban"
+   php spark migrate -n "Daycry\Iban"
    # or, to run every discovered namespace's pending migrations:
-   php spark migrate -all
+   php spark migrate --all
    ```
 
    The `banks` table has: `id`, `country_code`, `bank_code`, `branch_code`, `bic`, `name`,
@@ -364,14 +366,20 @@ bank_bic('ES9121000418450200051332');                  // null, same reason
 ## spark commands
 
 All 4 commands are grouped under `IBAN` in `php spark list` and are auto-discovered — no manual
-registration needed.
+registration needed. Every command's `<iban>` argument is optional on the command line: if omitted,
+the command falls back to an interactive `CLI::prompt('IBAN')` instead of failing outright.
 
 ### `iban:validate <iban> [--national] [--json]`
 
-Thin wrapper over `service('iban')->validate()`. Exit code mirrors the result: `0` for a valid IBAN,
-`1` otherwise — usable directly in shell scripts/CI. When `--national` is omitted, the effective
-`checkNational` value comes from `Config\Iban::$checkNationalByDefault` (default `false`); passing
-`--national` explicitly always forces it `true` regardless of the config.
+Thin wrapper over `service('iban')->validate()`.
+
+| Field | Description |
+|---|---|
+| Argument | `iban` — the IBAN to validate. |
+| `--national` | Also run the country-specific national check-digit validator, if one is registered. When omitted, the effective value comes from `Config\Iban::$checkNationalByDefault` (default `false`); passing `--national` explicitly always forces it `true` regardless of the config. |
+| `--json` | Emit the result as JSON instead of colored CLI text. |
+| Output | `VALID` (green) / `INVALID: <code> - <message>` (red) as plain text, or a `{"valid": ..., "violation": ...}` object for `--json`. |
+| Exit code | `0` (`EXIT_SUCCESS`) for a valid IBAN, `1` (`EXIT_ERROR`) otherwise — safe to use directly in shell scripts/CI. |
 
 ```bash
 $ php spark iban:validate "ES91 2100 0418 4502 0005 1332"
@@ -389,16 +397,50 @@ $ php spark iban:validate ES9021000418450200051332 --json
     }
 }
 
+$ php spark iban:validate ES9121000418450200051332 --json
+{
+    "valid": true,
+    "violation": null
+}
+
 $ php spark iban:validate ES2921000418460200051332 --national --json
+{
+    "valid": false,
+    "violation": {
+        "code": "national_check_failed",
+        "message": "The national check digits are invalid."
+    }
+}
 ```
 
 ### `iban:parse <iban> [--json]`
 
 Wraps `tryParse()`. Prints a CLI table of the 9 `ParsedIban` fields by default, or `--json` for
-machine-readable output. An invalid IBAN prints `CLI::error('Invalid IBAN')` and exits `1` (no
-exception is thrown).
+machine-readable output.
+
+| Field | Description |
+|---|---|
+| Argument | `iban` — the IBAN to parse. |
+| `--json` | Emit the parsed fields as JSON instead of a CLI table. |
+| Output | A `Field`/`Value` CLI table by default (booleans/`null` stringified as `'true'`/`'false'`/`''`), or the 9 fields as a JSON object with real types (`sepaCountry` a JSON boolean, absent fields `null`). |
+| Exit code | `0` on success; on an invalid IBAN, prints `CLI::error('Invalid IBAN')` (no exception thrown) and exits `1`. |
 
 ```bash
+$ php spark iban:parse ES9121000418450200051332
++---------------------+---------------------------+
+| Field               | Value                     |
++---------------------+---------------------------+
+| countryCode         | ES                        |
+| checkDigits         | 91                        |
+| bban                | 21000418450200051332      |
+| bankIdentifier      | 2100                      |
+| branchIdentifier    | 0418                      |
+| accountNumber       | 0200051332                |
+| nationalCheckDigit  | 45                        |
+| sepaCountry         | true                      |
+| electronic          | ES9121000418450200051332  |
++---------------------+---------------------------+
+
 $ php spark iban:parse ES9121000418450200051332 --json
 {
     "countryCode": "ES",
@@ -411,48 +453,213 @@ $ php spark iban:parse ES9121000418450200051332 --json
     "sepaCountry": true,
     "electronic": "ES9121000418450200051332"
 }
+
+$ php spark iban:parse ES9021000418450200051332
+Invalid IBAN
 ```
 
 ### `iban:resolve <iban> [--json]`
 
-Wraps `resolve()`. Prints the IBAN's structural fields (excluding `nationalCheckDigit` and `sepaCountry`—use `iban:parse` for those) plus the 12 bank-data fields and `isResolved`. With
-the default empty `banks` table, prints a yellow note that only structural fields are available.
+Wraps `resolve()`. Prints the IBAN's structural fields (excluding `nationalCheckDigit` and
+`sepaCountry` — use `iban:parse` for those) plus the 12 bank-data fields and `isResolved`.
+
+| Field | Description |
+|---|---|
+| Argument | `iban` — the IBAN to resolve. |
+| `--json` | Emit the result as JSON instead of a CLI table. |
+| Output | A `Field`/`Value` CLI table (with a yellow `Note: no provider data (empty bank DB) — structural fields only.` line whenever `isResolved` is `false`), or the 19 fields as a JSON object. |
+| Exit code | `0` on success; on an invalid IBAN, prints `CLI::error('Invalid IBAN')` and exits `1`. |
 
 ```bash
 $ php spark iban:resolve ES9121000418450200051332
-...
++-------------------+---------------------------+
+| Field             | Value                     |
++-------------------+---------------------------+
+| countryCode       | ES                        |
+| checkDigits       | 91                        |
+| bban              | 21000418450200051332      |
+| bankIdentifier    | 2100                      |
+| branchIdentifier  | 0418                      |
+| accountNumber     | 0200051332                |
+| electronic        | ES9121000418450200051332  |
+| bankName          |                           |
+| shortName         |                           |
+| bic               |                           |
+| city              |                           |
+| address           |                           |
+| sepaSct           |                           |
+| sepaSctInst       |                           |
+| sepaSddCore       |                           |
+| sepaSddB2b        |                           |
+| sourceId          |                           |
+| sourceVersion     |                           |
+| sourceLicense     |                           |
+| isResolved        | false                     |
++-------------------+---------------------------+
 Note: no provider data (empty bank DB) — structural fields only.
+
+$ php spark iban:resolve ES9121000418450200051332 --json
+{
+    "countryCode": "ES",
+    "checkDigits": "91",
+    "bban": "21000418450200051332",
+    "bankIdentifier": "2100",
+    "branchIdentifier": "0418",
+    "accountNumber": "0200051332",
+    "electronic": "ES9121000418450200051332",
+    "bankName": null,
+    "shortName": null,
+    "bic": null,
+    "city": null,
+    "address": null,
+    "sepaSct": null,
+    "sepaSctInst": null,
+    "sepaSddCore": null,
+    "sepaSddB2b": null,
+    "sourceId": null,
+    "sourceVersion": null,
+    "sourceLicense": null,
+    "isResolved": false
+}
 ```
 
-### `iban:update [--country=<cc>] [--source=<id>] [--dry-run] [--file=<path>]`
+(With `Config\Iban::$provider = 'database'` and a matching row seeded in `banks` — e.g. via
+`iban:update` — the bank-data fields and `isResolved` populate instead; see
+[Resolving bank data](#resolving-bank-data-nullprovider-vs-databaseprovider) above.)
 
-**Functional as of v1.1** — no longer a no-op. With no `--country`/`--source`, it lists the 5
-registered importers; given a selection, it runs each matching importer against the `banks` table and
-prints an import report plus the source's license/attribution. See
-[Bank-data importers (`iban:update`)](#bank-data-importers-ibanupdate) below for the full reference,
-including per-source example invocations.
+### `iban:update [--all] [--country=<cc>] [--source=<id>] [--dry-run] [--file=<path>]`
 
-```bash
-$ php spark iban:update
-SWIFT IBAN Registry is non-commercial/no-derivatives (not bundled).
-SWIFT BIC Directory (SwiftRef) is proprietary (not bundled).
-National lists require per-source attribution.
-Registered importers: 5
-...
-Select one with --country=/--source= to run it (add --dry-run to preview).
+Lists or runs the bundled bank-data importers against the `banks` table, printing licensing notices
+plus an import report per source.
+
+| Option | Meaning |
+|---|---|
+| `--all` | Run every bundled importer (all 30 countries/sources) in one invocation. Fetches live; combine with `--dry-run` to preview. **Cannot** be combined with `--file` (a single local file can't feed many importers) — that combination prints an error and exits `1` immediately. Combine with `--country=` to narrow to just that country's importer(s) instead of all 30 (`--source=` is ignored under `--all`). |
+| `--country=<cc>` | Restrict to importers for this ISO 3166-1 alpha-2 country code (e.g. `AT`). |
+| `--source=<id>` | Restrict to the importer with this source id (e.g. `oenb`). |
+| `--dry-run` | Preview: count what would be imported/skipped without writing to the `banks` table. |
+| `--file=<path>` | Import offline from this local file instead of fetching from the source live. |
+
+**Exit codes**: `0` in every normal case — including "no importer matched the selection" and the
+no-selection listing — except `--all` combined with `--file`, which exits `1`.
+
+**Workflow**:
+
+1. **Configure the database provider and create the `banks` table** — set
+   `Config\Iban::$provider = 'database'` (see [`Config\Iban`](#configiban) above), then run the
+   package's migration:
+
+   ```bash
+   php spark migrate -n "Daycry\Iban"
+   ```
+
+2. **List what's bundled** — with no `--all`/`--country`/`--source` at all, the command only lists the
+   registered importers; nothing runs:
+
+   ```bash
+   $ php spark iban:update
+   SWIFT IBAN Registry is non-commercial/no-derivatives (not bundled).
+   SWIFT BIC Directory (SwiftRef) is proprietary (not bundled).
+   National lists require per-source attribution.
+   Registered importers: 30
+   +---------+------------------+--------------------------------+-------------------------------+
+   | Country | Source           | Name                           | License                        |
+   +---------+------------------+--------------------------------+-------------------------------+
+   | AT      | oenb             | Oesterreichische Nationalbank  | CC-BY-4.0 (OeNB)                |
+   | DE      | bundesbank       | Deutsche Bundesbank            | Deutsche Bundesbank             |
+   | ...     | ...              | ... (28 more — see docs/importers.md) | ...                       |
+   +---------+------------------+--------------------------------+-------------------------------+
+   Select one with --country=/--source= to run it (add --dry-run to preview).
+   ```
+
+3. **Run one importer** — select by `--country`, `--source`, or both; add `--file=<path>` for an
+   offline import, or `--dry-run` to preview counts without writing anything:
+
+   ```bash
+   $ php spark iban:update --source=oenb
+   [AT/oenb] fetched=<N> imported=<N> skipped=0
+   Source: Oesterreichische Nationalbank — https://www.oenb.at/docroot/downloads_observ/bankstellenverzeichnis.csv (CC-BY-4.0 (OeNB))
+
+   $ php spark iban:update --country=AT --dry-run
+   [AT/oenb] fetched=<N> imported=<N> skipped=0 (dry-run — nothing written)
+   Source: Oesterreichische Nationalbank — https://www.oenb.at/docroot/downloads_observ/bankstellenverzeichnis.csv (CC-BY-4.0 (OeNB))
+
+   $ php spark iban:update --source=six --file=/path/to/bankmaster_V3.csv
+   [CH/six] fetched=... imported=... skipped=...
+   Source: SIX Interbank Clearing — https://api.six-group.com/api/epcd/bankmaster/v3/bankmaster_V3.csv (SIX Interbank Clearing (free use))
+   ```
+
+   A selection matching no registered importer prints `No bundled importer matches that selection.`
+   and exits `0` (not an error).
+
+4. **Run every bundled importer at once** — `--all` runs all 30 (or, combined with `--country`, only
+   that country's importer(s)) in a single invocation, live by default:
+
+   ```bash
+   $ php spark iban:update --all --dry-run
+   SWIFT IBAN Registry is non-commercial/no-derivatives (not bundled).
+   SWIFT BIC Directory (SwiftRef) is proprietary (not bundled).
+   National lists require per-source attribution.
+   [AT/oenb] fetched=<N> imported=<N> skipped=0 (dry-run — nothing written)
+   Source: Oesterreichische Nationalbank — ...
+   [DE/bundesbank] fetched=<N> imported=<N> skipped=0 (dry-run — nothing written)
+   Source: Deutsche Bundesbank — ...
+   ...
+   [GB/epc] fetched=<N> imported=<N> skipped=0 (dry-run — nothing written)
+   Source: European Payments Council (SEPA Register) — ...
+   Ran 30 importers: <N> with rows, <N> empty, <N> failed. (dry-run)
+
+   $ php spark iban:update --all --country=GB --dry-run
+   ...
+   [GB/epc] fetched=<N> imported=<N> skipped=0 (dry-run — nothing written)
+   Ran 1 importers: <N> with rows, <N> empty, <N> failed. (dry-run)
+
+   $ php spark iban:update --all --file=/path/to/x.csv
+   --all cannot be combined with --file (a single local file cannot feed multiple importers).
+   ```
+
+   Each importer's run is isolated in its own `try`/`catch`, so one failure (an unreachable portal, a
+   DB hiccup, ...) doesn't abort the rest — the closing `Ran N importers: ... with rows, ... empty,
+   ... failed.` line is an aggregate summary across all of them, not a guarantee every source
+   succeeded; a failed source is also reported inline (`CLI::error('[CC/source] failed: <message>')`).
+
+5. **Re-runs upsert, they don't duplicate** — `ImportRunner` upserts every yielded row by the natural
+   key `(country_code, bank_code, branch_code)`, so running the same importer again updates existing
+   rows in place instead of inserting duplicates. Every written row is stamped with `source_id`,
+   `source_version` (the run's date) and `source_license` — see
+   [Provenance](importers.md#provenance-how-imported-data-is-stored) in `docs/importers.md`. A few
+   sources have no stable, direct live URL (a landing page or portal instead of a fetchable file) and
+   are only reliably imported offline: **LU** (`abbl`), **NO** (`bits`), **GE** (`nbg`), **UA** (`nbu`)
+   and **KZ** (`nbk`) all need `--file=<path>` in practice — see
+   [`.xlsx` sources and offline-only imports](importers.md#xlsx-sources-and-offline-only-imports) for
+   why, per source.
+
+**All 30 `--source=` values at a glance** (`country=source`) — full publisher/format/license detail is
+in [the bundled-importer table in `docs/importers.md`](importers.md#the-30-bundled-importers):
+
 ```
+AT=oenb  DE=bundesbank  CH=six  NL=betaalvereniging  ES=bde  CZ=cnb  GR=hba  SI=bsi  SK=nbs  BG=bnb
+MD=bnm  PL=nbp  AZ=cbar  BE=nbb  HR=hnb  LU=abbl  MT=cbm  HU=mnb  NO=bits  GE=nbg  IL=boi  UA=nbu
+KZ=nbk  LI=six  BR=bcb  GB=epc  GI=epc  IE=epc  LV=epc  RO=epc
+```
+
+`--source=six` is shared by CH and LI (same source file, filtered by country); `--source=epc` is
+shared by GB/GI/IE/LV/RO (same importer class, parameterized per country) — disambiguate either with
+`--country=`.
 
 ## Bank-data importers (`iban:update`)
 
-v1.1 adds a bank-data importer framework (`Contracts\ImporterInterface`, `Import\ImportReport`,
-`Import\ImporterRegistry`, `Import\ImportRunner`) plus 5 bundled official-source importers — for
-Austria (OeNB), Germany (Bundesbank), Switzerland (SIX), the Netherlands (Betaalvereniging), and Spain
-(Banco de España). None of them bundle any actual data in the repository: `iban:update` lists/selects/
-runs them on demand, either fetching live or importing from a local `--file`, so the v1.0 licensing
-discipline (no redistributed third-party compilations — see [`docs/licensing.md`](licensing.md))
-holds unchanged.
+v1.1 introduced the bank-data importer framework (`Contracts\ImporterInterface`, `Import\ImportReport`,
+`Import\ImporterRegistry`, `Import\ImportRunner`) with 5 bundled official-source importers; v1.2 grew
+the bundled catalog to **30** (adding CZ/GR/SI/SK/BG/MD/PL/AZ/BE/HR/LU/MT/HU/NO/GE/IL/UA/KZ/LI/BR, plus
+the EPC SEPA Register for GB/GI/IE/LV/RO) and added `iban:update --all` to run every one of them in a
+single invocation — see the full workflow and the `--source=` cheat sheet in the `iban:update` entry of
+[spark commands](#spark-commands) above. None of them bundle any actual data in the repository:
+`iban:update` lists/selects/runs them on demand, either fetching live or importing from a local
+`--file`, so the v1.0 licensing discipline (no redistributed third-party compilations — see
+[`docs/licensing.md`](licensing.md)) holds unchanged.
 
 Full reference — the `ImporterInterface` contract, every `iban:update` flag with worked examples per
-source, the bundled-importer table (country/source id/format/license/URL), how provenance
-(`source_id`/`source_version`/`source_license`) is stored on each `banks` row, and how to write and
-register a custom importer — lives in [`docs/importers.md`](importers.md).
+source, the full bundled-importer table (country/source id/format/license/URL), the coverage matrix,
+how provenance (`source_id`/`source_version`/`source_license`) is stored on each `banks` row, and how
+to write and register a custom importer — lives in [`docs/importers.md`](importers.md).

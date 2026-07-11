@@ -53,11 +53,12 @@ branch-carrying IBAN still resolves against those rows.
 ## `iban:update` usage
 
 ```
-iban:update [--country=<cc>] [--source=<id>] [--dry-run] [--file=<path>]
+iban:update [--all] [--country=<cc>] [--source=<id>] [--dry-run] [--file=<path>]
 ```
 
 | Flag | Meaning |
 |---|---|
+| `--all` | v1.2: run **every** bundled importer (all 30) in one invocation instead of just one selected source — see the full `--all` reference (failure isolation, aggregate summary, the `--country`/`--file` interactions) in [`docs/usage.md`](usage.md#spark-commands)'s `iban:update` entry. |
 | `--country=<cc>` | Restrict to importers for this ISO 3166-1 alpha-2 country code (e.g. `AT`). |
 | `--source=<id>` | Restrict to the importer with this source id (e.g. `oenb`). |
 | `--dry-run` | Preview: count what would be imported/skipped without writing to the `banks` table. |
