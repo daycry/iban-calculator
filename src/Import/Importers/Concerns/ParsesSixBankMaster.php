@@ -96,7 +96,10 @@ trait ParsesSixBankMaster
         fwrite($stream, $raw);
         rewind($stream);
 
-        $header = fgetcsv($stream, 0, ';');
+        // Explicit enclosure + empty escape: required on PHP 8.4+ (omitting
+        // $escape is deprecated) and opts into the future no-legacy-escape
+        // default.
+        $header = fgetcsv($stream, 0, ';', '"', '');
 
         if ($header === false) {
             fclose($stream);
@@ -108,7 +111,7 @@ trait ParsesSixBankMaster
         // with no data-row counterpart) while data rows carry 21 -- it's
         // read here only to advance past it; it is never combined with a
         // data row (see this trait's docblock).
-        while (($fields = fgetcsv($stream, 0, ';')) !== false) {
+        while (($fields = fgetcsv($stream, 0, ';', '"', '')) !== false) {
             if ($fields === [null]) {
                 continue; // blank line
             }
