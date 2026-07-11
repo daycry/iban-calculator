@@ -6,6 +6,7 @@ namespace Daycry\Iban\Import\Importers;
 
 use DateTimeImmutable;
 use Daycry\Iban\Contracts\ImporterInterface;
+use Daycry\Iban\Import\Importers\Concerns\ReadsCsvSource;
 
 /**
  * Supranational importer for the European Payments Council's (EPC) SEPA
@@ -107,6 +108,8 @@ use Daycry\Iban\Contracts\ImporterInterface;
  */
 final class EpcRegisterImporter implements ImporterInterface
 {
+    use ReadsCsvSource;
+
     /** @var array<string, string> ISO2 -> the exact EPC `Country` column value it must match. */
     private const EPC_COUNTRY_NAMES = [
         'GB' => 'UNITED KINGDOM',
@@ -185,7 +188,7 @@ final class EpcRegisterImporter implements ImporterInterface
             return;
         }
 
-        $records = self::extractCountryRecords($raw, $this->epcCountryName());
+        $records = $this->extractCountryRecords($raw, $this->epcCountryName());
 
         foreach ($records as $bankCode => $record) {
             yield [
@@ -224,7 +227,7 @@ final class EpcRegisterImporter implements ImporterInterface
             }
 
             $fetchedByScheme[$schemeFlag] = true;
-            $recordsByScheme[$schemeFlag]  = self::extractCountryRecords($raw, $countryName);
+            $recordsByScheme[$schemeFlag]  = $this->extractCountryRecords($raw, $countryName);
         }
 
         /** @var array<string, true> $bankCodes union of every bank_code reachable in at least one scheme. */
@@ -280,34 +283,25 @@ final class EpcRegisterImporter implements ImporterInterface
      *
      * @return array<string, array{name: ?string, bic: string, city: ?string, address: ?string}> keyed by `bank_code`, in first-seen order.
      */
-    private static function extractCountryRecords(string $raw, string $countryName): array
+    private function extractCountryRecords(string $raw, string $countryName): array
     {
-        $raw = self::stripBom($raw);
-
-        $stream = fopen('php://temp', 'r+b');
-
-        if ($stream === false) {
-            return [];
-        }
-
-        fwrite($stream, $raw);
-        rewind($stream);
-
-        $header = fgetcsv($stream, 0, ',');
-
-        if ($header === false || $header === [null]) {
-            fclose($stream);
-
-            return [];
-        }
-
-        /** @var list<string> $header */
-        $header = array_map(static fn (?string $column): string => trim($column ?? ''), $header);
+        /** @var list<string>|null $header */
+        $header = null;
 
         /** @var array<string, array{name: ?string, bic: string, city: ?string, address: ?string}> $records */
         $records = [];
 
-        while (($fields = fgetcsv($stream, 0, ',')) !== false) {
+        foreach ($this->parseCsvBytes($raw, ',') as $fields) {
+            if ($header === null) {
+                if ($fields === [null]) {
+                    return [];
+                }
+
+                $header = array_map(static fn (?string $column): string => trim($column ?? ''), $fields);
+
+                continue;
+            }
+
             if ($fields === [null]) {
                 continue; // blank line
             }
@@ -350,8 +344,6 @@ final class EpcRegisterImporter implements ImporterInterface
             ];
         }
 
-        fclose($stream);
-
         return $records;
     }
 
@@ -376,22 +368,5 @@ final class EpcRegisterImporter implements ImporterInterface
         }
 
         return $leavingDate < new DateTimeImmutable('today');
-    }
-
-    private static function nullableTrim(string $value): ?string
-    {
-        $trimmed = trim($value);
-
-        return $trimmed !== '' ? $trimmed : null;
-    }
-
-    /**
-     * Strips a leading UTF-8 BOM if present. Defensive: the live `sct.csv`
-     * carries no BOM (confirmed 2026-07-11), but other EPC scheme exports
-     * are not independently confirmed, and stripping is harmless either way.
-     */
-    private static function stripBom(string $raw): string
-    {
-        return str_starts_with($raw, "\xEF\xBB\xBF") ? substr($raw, 3) : $raw;
     }
 }

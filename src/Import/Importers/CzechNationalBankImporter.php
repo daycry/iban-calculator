@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Daycry\Iban\Import\Importers;
 
 use Daycry\Iban\Contracts\ImporterInterface;
+use Daycry\Iban\Import\Importers\Concerns\ReadsCsvSource;
 
 /**
  * Official-source importer for Czechia (CZ): the Czech National Bank's
@@ -53,6 +54,8 @@ use Daycry\Iban\Contracts\ImporterInterface;
  */
 final class CzechNationalBankImporter implements ImporterInterface
 {
+    use ReadsCsvSource;
+
     private const INDEX_BANK_CODE = 0;
     private const INDEX_NAME      = 1;
     private const INDEX_BIC       = 2;
@@ -89,26 +92,7 @@ final class CzechNationalBankImporter implements ImporterInterface
      */
     public function rows(?string $localFile = null): iterable
     {
-        $raw = $localFile !== null
-            ? @file_get_contents($localFile)
-            : @file_get_contents($this->sourceUrl());
-
-        if ($raw === false || $raw === '') {
-            return;
-        }
-
-        $raw = self::stripBom($raw);
-
-        $stream = fopen('php://temp', 'r+b');
-
-        if ($stream === false) {
-            return;
-        }
-
-        fwrite($stream, $raw);
-        rewind($stream);
-
-        while (($fields = fgetcsv($stream, 0, ';')) !== false) {
+        foreach ($this->csvRecords($localFile, $this->sourceUrl(), ';') as $fields) {
             if ($fields === [null]) {
                 continue; // blank line
             }
@@ -126,23 +110,5 @@ final class CzechNationalBankImporter implements ImporterInterface
                 'bic'         => self::nullableTrim($fields[self::INDEX_BIC] ?? ''),
             ];
         }
-
-        fclose($stream);
-    }
-
-    private static function nullableTrim(?string $value): ?string
-    {
-        $trimmed = trim($value ?? '');
-
-        return $trimmed !== '' ? $trimmed : null;
-    }
-
-    /**
-     * Strips a leading UTF-8 BOM if present (this source always ships one).
-     * No Latin-1 fallback: this source is confirmed genuine UTF-8.
-     */
-    private static function stripBom(string $raw): string
-    {
-        return str_starts_with($raw, "\xEF\xBB\xBF") ? substr($raw, 3) : $raw;
     }
 }

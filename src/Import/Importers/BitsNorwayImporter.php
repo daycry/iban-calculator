@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Daycry\Iban\Import\Importers;
 
 use Daycry\Iban\Contracts\ImporterInterface;
+use Daycry\Iban\Import\Importers\Concerns\NormalizesStrings;
 use Daycry\Iban\Import\Importers\Concerns\ReadsXlsxSource;
 
 /**
@@ -58,6 +59,7 @@ use Daycry\Iban\Import\Importers\Concerns\ReadsXlsxSource;
  */
 final class BitsNorwayImporter implements ImporterInterface
 {
+    use NormalizesStrings;
     use ReadsXlsxSource;
 
     private const HEADER_CODE = 'Bank identifier';
@@ -158,13 +160,6 @@ final class BitsNorwayImporter implements ImporterInterface
         }
 
         return null;
-    }
-
-    private static function nullableTrim(string $value): ?string
-    {
-        $trimmed = trim($value);
-
-        return $trimmed !== '' ? $trimmed : null;
     }
 
     /**

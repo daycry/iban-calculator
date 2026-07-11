@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Daycry\Iban\Import\Importers;
 
 use Daycry\Iban\Contracts\ImporterInterface;
+use Daycry\Iban\Import\Importers\Concerns\NormalizesStrings;
 
 /**
  * Official-source importer for Germany (DE): the Deutsche Bundesbank's
@@ -80,6 +81,8 @@ use Daycry\Iban\Contracts\ImporterInterface;
  */
 final class BundesbankImporter implements ImporterInterface
 {
+    use NormalizesStrings;
+
     private const OFFSET_BLZ             = 0;
     private const LENGTH_BLZ             = 8;
     private const OFFSET_MERKMAL         = 8;
@@ -169,13 +172,6 @@ final class BundesbankImporter implements ImporterInterface
                 'city'        => self::nullableTrim(self::fromLatin1(substr($line, self::OFFSET_ORT, self::LENGTH_ORT))),
             ];
         }
-    }
-
-    private static function nullableTrim(string $value): ?string
-    {
-        $trimmed = trim($value);
-
-        return $trimmed !== '' ? $trimmed : null;
     }
 
     /**

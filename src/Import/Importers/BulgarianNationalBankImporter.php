@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Daycry\Iban\Import\Importers;
 
 use Daycry\Iban\Contracts\ImporterInterface;
+use Daycry\Iban\Import\Importers\Concerns\NormalizesStrings;
 use SimpleXMLElement;
 
 /**
@@ -65,6 +66,8 @@ use SimpleXMLElement;
  */
 final class BulgarianNationalBankImporter implements ImporterInterface
 {
+    use NormalizesStrings;
+
     private const BAE_CODE_PATTERN = '/^[A-Za-z]{4}[0-9]{4}$/';
 
     public function countryCode(): string
@@ -163,12 +166,5 @@ final class BulgarianNationalBankImporter implements ImporterInterface
         $bic  = isset($cells[3]) ? self::nullableTrim((string) $cells[3]->Data) : null;
 
         return [strtoupper(substr($baeCode, 0, 4)), $name, $bic];
-    }
-
-    private static function nullableTrim(string $value): ?string
-    {
-        $trimmed = trim($value);
-
-        return $trimmed !== '' ? $trimmed : null;
     }
 }

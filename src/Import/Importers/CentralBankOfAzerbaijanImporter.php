@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Daycry\Iban\Import\Importers;
 
 use Daycry\Iban\Contracts\ImporterInterface;
+use Daycry\Iban\Import\Importers\Concerns\NormalizesStrings;
 
 /**
  * Official-source importer for Azerbaijan (AZ): the Central Bank of
@@ -60,6 +61,8 @@ use Daycry\Iban\Contracts\ImporterInterface;
  */
 final class CentralBankOfAzerbaijanImporter implements ImporterInterface
 {
+    use NormalizesStrings;
+
     public function countryCode(): string
     {
         return 'AZ';
@@ -133,12 +136,5 @@ final class CentralBankOfAzerbaijanImporter implements ImporterInterface
                 }
             }
         }
-    }
-
-    private static function nullableTrim(string $value): ?string
-    {
-        $trimmed = trim($value);
-
-        return $trimmed !== '' ? $trimmed : null;
     }
 }

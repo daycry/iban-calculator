@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Daycry\Iban\Import\Importers;
 
 use Daycry\Iban\Contracts\ImporterInterface;
+use Daycry\Iban\Import\Importers\Concerns\NormalizesStrings;
 
 /**
  * Official-source importer for Ukraine (UA): the National Bank of Ukraine's
@@ -58,6 +59,8 @@ use Daycry\Iban\Contracts\ImporterInterface;
  */
 final class NationalBankOfUkraineImporter implements ImporterInterface
 {
+    use NormalizesStrings;
+
     public function countryCode(): string
     {
         return 'UA';
@@ -138,12 +141,5 @@ final class NationalBankOfUkraineImporter implements ImporterInterface
                 'name'        => is_string($name) ? self::nullableTrim($name) : null,
             ];
         }
-    }
-
-    private static function nullableTrim(string $value): ?string
-    {
-        $trimmed = trim($value);
-
-        return $trimmed !== '' ? $trimmed : null;
     }
 }

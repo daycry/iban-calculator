@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Daycry\Iban\Import\Importers;
 
 use Daycry\Iban\Contracts\ImporterInterface;
+use Daycry\Iban\Import\Importers\Concerns\NormalizesStrings;
 use Daycry\Iban\Import\Importers\Concerns\ReadsXlsxSource;
 
 /**
@@ -56,6 +57,7 @@ use Daycry\Iban\Import\Importers\Concerns\ReadsXlsxSource;
  */
 final class LuxembourgBankersAssociationImporter implements ImporterInterface
 {
+    use NormalizesStrings;
     use ReadsXlsxSource;
 
     private const BANK_CODE_PATTERN = '/^[0-9]{3}$/';
@@ -164,13 +166,6 @@ final class LuxembourgBankersAssociationImporter implements ImporterInterface
         }
 
         return null;
-    }
-
-    private static function nullableTrim(string $value): ?string
-    {
-        $trimmed = trim($value);
-
-        return $trimmed !== '' ? $trimmed : null;
     }
 
     private static function normalizeBic(string $value): ?string

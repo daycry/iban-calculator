@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Daycry\Iban\Import\Importers;
 
 use Daycry\Iban\Contracts\ImporterInterface;
+use Daycry\Iban\Import\Importers\Concerns\ReadsCsvSource;
 
 /**
  * Official-source importer for Greece (GR): the Hellenic Bank Association's
@@ -75,6 +76,8 @@ use Daycry\Iban\Contracts\ImporterInterface;
  */
 final class HellenicBankAssociationImporter implements ImporterInterface
 {
+    use ReadsCsvSource;
+
     private const INDEX_CODE_NUMBER = 0;
     private const INDEX_NAME        = 1;
 
@@ -110,26 +113,7 @@ final class HellenicBankAssociationImporter implements ImporterInterface
      */
     public function rows(?string $localFile = null): iterable
     {
-        $raw = $localFile !== null
-            ? @file_get_contents($localFile)
-            : @file_get_contents($this->sourceUrl());
-
-        if ($raw === false || $raw === '') {
-            return;
-        }
-
-        $raw = self::normalizeEncoding($raw);
-
-        $stream = fopen('php://temp', 'r+b');
-
-        if ($stream === false) {
-            return;
-        }
-
-        fwrite($stream, $raw);
-        rewind($stream);
-
-        while (($fields = fgetcsv($stream, 0, ';')) !== false) {
+        foreach ($this->csvRecords($localFile, $this->sourceUrl(), ';') as $fields) {
             if ($fields === [null]) {
                 continue; // blank line
             }
@@ -146,32 +130,21 @@ final class HellenicBankAssociationImporter implements ImporterInterface
                 'name'        => self::nullableTrim($fields[self::INDEX_NAME] ?? ''),
             ];
         }
-
-        fclose($stream);
-    }
-
-    private static function nullableTrim(?string $value): ?string
-    {
-        $trimmed = trim($value ?? '');
-
-        return $trimmed !== '' ? $trimmed : null;
     }
 
     /**
-     * Strips a leading UTF-8 BOM if present, and falls back to a
-     * Windows-1253 (Greek) -> UTF-8 conversion when the raw bytes aren't
-     * valid UTF-8 (this source is confirmed to ship as Windows-1253, not
-     * UTF-8 -- see the class docblock's ENCODING note). Uses `iconv()`
-     * rather than `mb_convert_encoding()` since not every platform's
-     * mbstring build ships a `Windows-1253` conversion table; if `iconv()`
-     * itself fails (e.g. a genuinely malformed byte sequence), the raw
-     * bytes are returned unconverted rather than throwing.
+     * Overrides {@see ReadsCsvSource::decodeCsvBytes()}'s default: this
+     * source's fallback codepage is a FIXED Windows-1253 (Greek), not the
+     * trait default's Windows-1252 guess -- see the class docblock's
+     * ENCODING note. Uses `iconv()` rather than `mb_convert_encoding()`
+     * since not every platform's mbstring build ships a `Windows-1253`
+     * conversion table; if `iconv()` itself fails (e.g. a genuinely
+     * malformed byte sequence), the raw bytes are returned unconverted
+     * rather than throwing.
      */
-    private static function normalizeEncoding(string $raw): string
+    protected function decodeCsvBytes(string $raw): string
     {
-        if (str_starts_with($raw, "\xEF\xBB\xBF")) {
-            $raw = substr($raw, 3);
-        }
+        $raw = self::stripBom($raw);
 
         if (! mb_check_encoding($raw, 'UTF-8')) {
             $converted = @iconv('Windows-1253', 'UTF-8', $raw);

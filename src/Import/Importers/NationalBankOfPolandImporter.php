@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Daycry\Iban\Import\Importers;
 
 use Daycry\Iban\Contracts\ImporterInterface;
+use Daycry\Iban\Import\Importers\Concerns\NormalizesStrings;
 
 /**
  * Official-source importer for Poland (PL): Narodowy Bank Polski's EWIB
@@ -59,6 +60,8 @@ use Daycry\Iban\Contracts\ImporterInterface;
  */
 final class NationalBankOfPolandImporter implements ImporterInterface
 {
+    use NormalizesStrings;
+
     public function countryCode(): string
     {
         return 'PL';
@@ -138,12 +141,5 @@ final class NationalBankOfPolandImporter implements ImporterInterface
                 ];
             }
         }
-    }
-
-    private static function nullableTrim(string $value): ?string
-    {
-        $trimmed = trim($value);
-
-        return $trimmed !== '' ? $trimmed : null;
     }
 }

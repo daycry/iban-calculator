@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Daycry\Iban\Import\Importers;
 
 use Daycry\Iban\Contracts\ImporterInterface;
+use Daycry\Iban\Import\Importers\Concerns\ReadsCsvSource;
 
 /**
  * Official-source importer for the Netherlands (NL): Betaalvereniging
@@ -71,6 +72,8 @@ use Daycry\Iban\Contracts\ImporterInterface;
  */
 final class BetaalverenigingImporter implements ImporterInterface
 {
+    use ReadsCsvSource;
+
     private const INDEX_BIC        = 0;
     private const INDEX_IDENTIFIER = 1;
     private const INDEX_NAME       = 2;
@@ -107,26 +110,7 @@ final class BetaalverenigingImporter implements ImporterInterface
      */
     public function rows(?string $localFile = null): iterable
     {
-        $raw = $localFile !== null
-            ? @file_get_contents($localFile)
-            : @file_get_contents($this->sourceUrl());
-
-        if ($raw === false || $raw === '') {
-            return;
-        }
-
-        $raw = self::stripBom($raw);
-
-        $stream = fopen('php://temp', 'r+b');
-
-        if ($stream === false) {
-            return;
-        }
-
-        fwrite($stream, $raw);
-        rewind($stream);
-
-        while (($fields = fgetcsv($stream, 0, ';')) !== false) {
+        foreach ($this->csvRecords($localFile, $this->sourceUrl(), ';') as $fields) {
             if ($fields === [null]) {
                 continue; // blank line
             }
@@ -144,23 +128,5 @@ final class BetaalverenigingImporter implements ImporterInterface
                 'name'        => self::nullableTrim($fields[self::INDEX_NAME] ?? ''),
             ];
         }
-
-        fclose($stream);
-    }
-
-    private static function nullableTrim(?string $value): ?string
-    {
-        $trimmed = trim($value ?? '');
-
-        return $trimmed !== '' ? $trimmed : null;
-    }
-
-    /**
-     * Strips a leading UTF-8 BOM if present. No Latin-1 fallback is applied:
-     * this source is UTF-8.
-     */
-    private static function stripBom(string $raw): string
-    {
-        return str_starts_with($raw, "\xEF\xBB\xBF") ? substr($raw, 3) : $raw;
     }
 }

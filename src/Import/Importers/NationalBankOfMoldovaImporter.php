@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Daycry\Iban\Import\Importers;
 
 use Daycry\Iban\Contracts\ImporterInterface;
+use Daycry\Iban\Import\Importers\Concerns\NormalizesStrings;
 
 /**
  * Official-source importer for Moldova (MD): the National Bank of Moldova's
@@ -54,6 +55,8 @@ use Daycry\Iban\Contracts\ImporterInterface;
  */
 final class NationalBankOfMoldovaImporter implements ImporterInterface
 {
+    use NormalizesStrings;
+
     public function countryCode(): string
     {
         return 'MD';
@@ -123,12 +126,5 @@ final class NationalBankOfMoldovaImporter implements ImporterInterface
                 ];
             }
         }
-    }
-
-    private static function nullableTrim(string $value): ?string
-    {
-        $trimmed = trim($value);
-
-        return $trimmed !== '' ? $trimmed : null;
     }
 }
