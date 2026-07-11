@@ -97,7 +97,11 @@ trait ReadsCsvSource
         fwrite($stream, $raw);
         rewind($stream);
 
-        while (($fields = fgetcsv($stream, 0, $delimiter)) !== false) {
+        // The explicit enclosure + empty escape are required on PHP 8.4+:
+        // omitting $escape triggers a deprecation ("the $escape parameter must
+        // be provided"), and '' opts into the future default (no legacy
+        // backslash un-escaping — none of these sources use it).
+        while (($fields = fgetcsv($stream, 0, $delimiter, '"', '')) !== false) {
             yield $fields;
         }
 

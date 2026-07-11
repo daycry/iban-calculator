@@ -5,6 +5,22 @@ All notable changes to `daycry/iban` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-07-11
+
+### Fixed
+
+- **PHP 8.4+ compatibility (`iban:update` memory exhaustion)**: the CSV-parsing traits
+  (`Import\Importers\Concerns\ReadsCsvSource` and `ParsesSixBankMaster`) called `fgetcsv()` without the
+  `$escape` argument, which raises an `E_DEPRECATED` on PHP 8.4+ ("the $escape parameter must be
+  provided"). In a debug-enabled CodeIgniter app that deprecation makes the framework `var_export()`
+  the entire raw CSV while rendering the backtrace, which exhausts memory on a real multi-MB source
+  file (reported via `spark iban:update --all`). All `fgetcsv()` calls now pass an explicit enclosure
+  and an empty escape (`fgetcsv($stream, 0, $delimiter, '"', '')`), opting into the future
+  no-legacy-backslash-escape behavior (none of the bundled sources use it). Added a regression test
+  that fails if either trait emits the `fgetcsv()` deprecation.
+
+[1.2.1]: https://github.com/daycry/iban-calculator/compare/1.2.0...1.2.1
+
 ## [1.2.0] - 2026-07-11
 
 ### Added
