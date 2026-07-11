@@ -30,16 +30,17 @@ IBAN validation, parsing, formatting and bank-entity resolution for CodeIgniter 
 composer require daycry/iban
 ```
 
-## Status: v1.0 — feature-complete
+## Status: v1.1 — feature-complete
 
 | | |
 |---|---|
-| Version | v1.0.0 |
-| Test suite | 686 tests / 1237 assertions, green |
-| Coverage | ~99% (project-wide) |
+| Version | v1.1.0 |
+| Test suite | 860 tests / 1720 assertions, green |
 | Static analysis | PHPStan level 8, clean (`src` + `tests`, with the CodeIgniter PHPStan extension) |
 | Code style | PSR-12 (PHP-CS-Fixer), clean |
 | Country coverage | 78 countries (structural registry) |
+| National check-digit validators | 9 countries: ES, BE, PT, SI, FI, FR (+MC), IT (+SM) |
+| Bundled bank-data importers | 5: OeNB (AT), Bundesbank (DE), SIX (CH), Betaalvereniging (NL), Banco de España (ES) — none bundle data, `iban:update` runs them on demand |
 | Design spec | [`docs/superpowers/specs/2026-07-10-daycry-iban-v1-design.md`](docs/superpowers/specs/2026-07-10-daycry-iban-v1-design.md) |
 | Changelog | [`CHANGELOG.md`](CHANGELOG.md) |
 | Roadmap | [`docs/roadmap.md`](docs/roadmap.md) |
@@ -99,24 +100,27 @@ bank_bic('ES9121000418450200051332');                      // null, same reason
 php spark iban:validate "ES91 2100 0418 4502 0005 1332" --national
 php spark iban:parse ES9121000418450200051332 --json
 php spark iban:resolve ES9121000418450200051332
-php spark iban:update
+php spark iban:update                          # lists the 5 bundled importers
+php spark iban:update --source=oenb --dry-run   # preview an import, write nothing
 ```
 
-Full API reference, the 8 `ViolationCode` cases, and the `Config\Iban` options: see [`docs/usage.md`](docs/usage.md).
+Full API reference, the 8 `ViolationCode` cases, the national validators, caching, and the `Config\Iban`
+options: see [`docs/usage.md`](docs/usage.md). Importer/`iban:update` reference: see [`docs/importers.md`](docs/importers.md).
 
 ## Features
 
 - **ISO 13616 + MOD-97 validation** over a structural registry covering 78 countries — length, BBAN token grammar, and field offsets, all compiled into PHP (no runtime data files, no network).
 - **Structural parsing**: country code, IBAN check digits, BBAN, bank identifier, branch identifier (where applicable), account number, and national check digit — all as a `ParsedIban` value object.
 - **Three output formats**: `Electronic` (canonical, no spaces), `Print` (space-grouped every 4 chars), `Anonymized` (country code + last 4 digits visible, rest masked). See [`docs/formatting.md`](docs/formatting.md).
-- **Pluggable bank-entity resolver**: `resolve()` always returns a `BankResult`; bank fields stay `null` with the default `NullProvider`, or get filled in by the optional `DatabaseProvider` once you seed the `banks` table.
-- **Spanish national check-digit validation** (mod-11, DC1/DC2) via `checkNational: true`, with the hook designed for more countries to register later.
-- **Zero-dependency core**: `Daycry\Iban\Iban` and everything under `Core/`, `Contracts/`, `DTO/`, `Enums/`, `Exceptions/`, `Registry/`, `National/`, `Resolver/` never import CodeIgniter — usable in a plain `php -r` script, a CLI tool, or any other framework.
+- **Pluggable bank-entity resolver**: `resolve()` always returns a `BankResult`; bank fields stay `null` with the default `NullProvider`, or get filled in by the optional `DatabaseProvider` once you seed the `banks` table — optionally cached via `Providers\CachedProvider` (`Config\Iban::$cacheTtl`).
+- **National check-digit validation for 9 countries** (`checkNational: true`): ES, BE, PT, SI, FI, FR (+MC), IT (+SM) — see [`docs/usage.md`](docs/usage.md#national-check-digit-validators) for the algorithm per country (Estonia is deliberately not covered — its real algorithm needs bank-specific data the IBAN doesn't carry).
+- **5 bundled bank-data importers**, none of them bundling any actual data: `iban:update` lists/runs official-source importers for Austria (OeNB), Germany (Bundesbank), Switzerland (SIX), the Netherlands (Betaalvereniging) and Spain (Banco de España), live or from a local `--file`. See [`docs/importers.md`](docs/importers.md).
+- **Zero-dependency core**: `Daycry\Iban\Iban` and everything under `Core/`, `Contracts/`, `DTO/`, `Enums/`, `Exceptions/`, `Registry/`, `National/`, `Resolver/` never import CodeIgniter — usable in a plain `php -r` script, a CLI tool, or any other framework. (The package as a whole additionally requires `ext-mbstring`, used by the bundled importers to normalize source encodings.)
 - **First-class CI4 integration**: `service('iban')`, `helper('iban')`, `Config\Iban`, and 4 spark commands (`iban:validate`, `iban:parse`, `iban:resolve`, `iban:update`) — auto-discovered, no manual wiring required.
 
 ## Standalone usage (outside CodeIgniter 4)
 
-The core has zero runtime dependencies, so you can use it without CI4 installed at all:
+The core has zero framework dependencies (PHP `^8.3` + `ext-mbstring` only), so you can use it without CI4 installed at all:
 
 ```php
 <?php
@@ -132,7 +136,7 @@ $parsed = $iban->parse('FR1420041010050500013M02606');
 echo $parsed->countryCode; // 'FR'
 ```
 
-`codeigniter4/framework` is only a `require-dev` (test/dev) dependency — it is never pulled in by a plain `composer require daycry/iban` for standalone use. `Config\Iban`, `Config\Services`, the spark commands, `Models\BankModel`, and the optional `DatabaseProvider` are the only pieces that need CI4; they simply aren't loaded unless CI4 itself is present in the consuming application.
+`codeigniter4/framework` is only a `require-dev` (test/dev) dependency — it is never pulled in by a plain `composer require daycry/iban` for standalone use. `Config\Iban`, `Config\Services`, the spark commands, `Models\BankModel`, the optional `DatabaseProvider`/`CachedProvider`, and `Import\ImportRunner` are the only pieces that need CI4; they simply aren't loaded unless CI4 itself is present in the consuming application. The bundled importers themselves (`Import\Importers/*`) and the `ImporterInterface`/`ImportReport`/`ImporterRegistry` framework stay CI4-free, fetching over plain PHP.
 
 ## Architecture
 
@@ -162,20 +166,21 @@ CodeIgniter 4 is optional (`require-dev` only) — the core works on plain PHP 8
 
 ## Documentation
 
-- [`docs/usage.md`](docs/usage.md) — full facade/helper/command API, the 8 `ViolationCode` cases, `resolve()` with `NullProvider` vs `DatabaseProvider`, `Config\Iban` reference.
+- [`docs/usage.md`](docs/usage.md) — full facade/helper/command API, the 8 `ViolationCode` cases, national check-digit validators, `resolve()` with `NullProvider`/`DatabaseProvider`/`CachedProvider`, `Config\Iban` reference.
+- [`docs/importers.md`](docs/importers.md) — the bank-data importer framework, `iban:update` reference, the 5 bundled official-source importers, and how to write a custom one.
 - [`docs/formatting.md`](docs/formatting.md) — `Electronic` / `Print` / `Anonymized` formats, with the exact `Anonymized` mask scheme.
 - [`docs/i18n.md`](docs/i18n.md) — why validation messages are English-only in the core, and how to translate them at the CI4 layer.
 - [`docs/licensing.md`](docs/licensing.md) — why no SWIFT/SwiftRef/globalcitizen/Wikipedia data is bundled, and how the registry was independently authored.
 - [`docs/registry-authoring.md`](docs/registry-authoring.md) — methodology for authoring/cross-checking the structural country registry.
 - [`docs/architecture.md`](docs/architecture.md) — the two-layer architecture and the enforced dependency rule.
-- [`docs/roadmap.md`](docs/roadmap.md) — what's planned for v1.1 and v2.0.
+- [`docs/roadmap.md`](docs/roadmap.md) — what shipped in v1.1, and what's planned for v2.0.
 - [`CHANGELOG.md`](CHANGELOG.md) — release history (Keep a Changelog format).
 
 ## Development
 
 ```bash
 composer update        # this package intentionally ships without composer.lock — see below
-composer test           # PHPUnit — 686 tests
+composer test           # PHPUnit — 860 tests
 composer analyze         # PHPStan, level 8 (src + tests, with the CI4 PHPStan extension)
 composer cs              # PHP-CS-Fixer, PSR-12, dry-run
 ```

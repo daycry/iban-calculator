@@ -10,12 +10,19 @@ resolution — that is also usable **standalone**, outside of any framework.
 - Composer package name: `daycry/iban`. GitHub repo slug: `daycry/iban-calculator`.
 - PHP `^8.3`. CodeIgniter 4 `^4.6` is a **dev-only peer dependency** (`require-dev`), never a hard
   `require` — the core works without CI4 installed at all.
-- **Current status: v1.0 is feature-complete.** 686 tests / 1237 assertions green, ~99% coverage,
-  PHPStan level 8 clean (`src` + `tests`, with the `codeigniter/phpstan-codeigniter` extension), PSR-12
-  clean. All 8 roadmap phases (`docs/roadmap/2026-07-10-daycry-iban-v1/tasks.md`) are done: structural
+- **Current status: v1.1 is feature-complete.** 860 tests / 1720 assertions green, PHPStan level 8
+  clean (`src` + `tests`, with the `codeigniter/phpstan-codeigniter` extension), PSR-12 clean. v1.0's
+  8 roadmap phases (`docs/roadmap/2026-07-10-daycry-iban-v1/tasks.md`) were done first: structural
   registry (78 countries), algorithmic core, Spanish national check-digit validator, resolver +
   providers + DB schema, CI4 integration (`Config\Iban`, `service('iban')`, `iban_helper`, 4 spark
-  commands), cross-cutting test fixtures, and this documentation set.
+  commands), cross-cutting test fixtures, and the doc set. v1.1 (see `CHANGELOG.md`'s `[1.1.0]`
+  section) added: 8 more national check-digit validators (ES/BE/PT/SI/FI/FR/MC/IT/SM, EE deliberately
+  omitted), an optional resolver cache (`Providers\CachedProvider`, `Config\Iban::$cacheTtl`), a
+  bank-data importer framework (`Contracts\ImporterInterface` + `Import\`) with 5 bundled
+  official-source importers (OeNB/Bundesbank/SIX/Betaalvereniging/Banco de España) that make
+  `iban:update` functional instead of a no-op, `Config\Iban::$defaultFormat`/`$checkNationalByDefault`
+  actually being honored, and a new `ext-mbstring` requirement (used by the CSV/fixed-width
+  importers).
 
 ## Layered architecture — the unidirectional dependency rule
 
@@ -34,8 +41,9 @@ flowing **one way only**:
 ```
 
 **Framework-free — must never import `codeigniter4/*` or reference `CodeIgniter\`:**
-- `src/Contracts` — six interfaces (`ValidatorInterface`, `ParserInterface`, `ProviderInterface`,
-  `ResolverInterface`, `RegistryLoaderInterface`, `NationalCheckValidatorInterface`).
+- `src/Contracts` — seven interfaces (`ValidatorInterface`, `ParserInterface`, `ProviderInterface`,
+  `ResolverInterface`, `RegistryLoaderInterface`, `NationalCheckValidatorInterface`,
+  `ImporterInterface`, added v1.1).
 - `src/Core` — `Normalizer`, `Mod97`, `StructureCompiler`, `Validator`, `Parser`, `Formatter`.
 - `src/DTO` — `Violation`, `ValidationResult`, `ParsedIban`, `BankInfo`, `BankResult`. All
   `final readonly`.
@@ -45,8 +53,12 @@ flowing **one way only**:
   carries the `ValidationResult` that caused a strict parse failure via `result()`).
 - `src/Registry` — `Registry`, `PhpRegistryLoader`, `CountryStructure`, plus the raw
   `src/Registry/data/countries.php` data array (78 countries).
-- `src/National` — country-specific national check-digit validators, e.g.
-  `SpanishNationalCheckValidator` (mod-11, ES-only in v1.0).
+- `src/National` — country-specific national check-digit validators: `SpanishNationalCheckValidator`
+  (ES, weighted mod-11), `BelgianNationalCheckValidator` (BE), `PortugueseNationalCheckValidator` (PT),
+  `SlovenianNationalCheckValidator` (SI), `FinnishNationalCheckValidator` (FI),
+  `FrenchNationalCheckValidator` (FR + MC), `ItalianNationalCheckValidator` (IT + SM) — 9 countries as
+  of v1.1, wired via `Core\Validator`'s `$nationalValidators` map. EE deliberately has no validator
+  (see that map's docblock in `src/Core/Validator.php`).
 - `src/Resolver` — `Resolver` (composes `BankResult` from a `ParsedIban` + a `ProviderInterface`
   overlay); must stay usable without CI4, so it is guarded even though `DatabaseProvider` (a
   `ProviderInterface` implementation it can be handed) is not.
@@ -57,7 +69,15 @@ flowing **one way only**:
   `src/Providers/DatabaseProvider`, `src/Helpers` (`iban_helper.php`).
 - `src/Providers/NullProvider` stays framework-free by design (it is the default, zero-dependency
   provider) even though `Providers/` as a directory is not itself guarded — `DatabaseProvider` lives
-  there too and does depend on CI4.
+  there too and does depend on CI4. `Providers/CachedProvider` (v1.1) also depends on CI4 (a
+  `CodeIgniter\Cache\CacheInterface`), same reasoning.
+- `src/Import` (v1.1, importer framework) is a **split directory, not itself guarded**:
+  `Contracts/ImporterInterface`, `Import/ImportReport` and `Import/ImporterRegistry` are written
+  framework-free by discipline (no `CodeIgniter\` import), and so are the 5 bundled importers under
+  `Import/Importers/` (they fetch via plain `file_get_contents()`/`fgetcsv()`, never a CI4 HTTP
+  client) — but `Import/ImportRunner` genuinely depends on CI4 (`Models\BankModel`), which is why the
+  whole `Import/` directory isn't in `GUARDED_DIRECTORIES`. Don't assume every file under `Import/` is
+  framework-free — check the individual file's own docblock, which states its status explicitly.
 
 **This rule is enforced by a test**, not just convention: `tests/Architecture/CoreIsFrameworkFreeTest.php`
 scans `Core/`, `Contracts/`, `DTO/`, `Enums/`, `Exceptions/`, `Registry/`, `National/`, `Resolver/` for
@@ -72,7 +92,7 @@ in. If it's one of the guarded ones, the dependency belongs one layer up instead
 
 ```bash
 composer update    # NOT `composer install` — see "No composer.lock" below
-composer test        # PHPUnit (tests/) — 686 tests / 1237 assertions
+composer test        # PHPUnit (tests/) — 860 tests / 1720 assertions
 composer analyze      # PHPStan, level 8, paths: src + tests (phpstan.neon)
 composer cs            # PHP-CS-Fixer, PSR-12 + strict_types, dry-run (add `fix` locally to apply)
 ```
@@ -94,17 +114,22 @@ platform resolution despite the missing lock file.
 
 ```
 src/
-  Contracts/    interfaces (framework-free)
+  Contracts/    7 interfaces (framework-free), incl. ImporterInterface (v1.1)
   Core/         algorithmic core: Normalizer, Mod97, StructureCompiler, Validator, Parser, Formatter
   DTO/          final readonly value objects: Violation, ValidationResult, ParsedIban, BankInfo, BankResult
   Enums/        ViolationCode (8 cases), IbanFormat (Electronic/Print/Anonymized)
   Exceptions/   IbanException, InvalidIbanException
   Registry/     Registry, PhpRegistryLoader, CountryStructure + data/countries.php (78 countries)
-  National/     national check-digit validators, e.g. SpanishNationalCheckValidator (mod-11)
+  National/     9 national check-digit validators (v1.1): ES, BE, PT, SI, FI, FR(+MC), IT(+SM)
   Resolver/     Resolver — composes BankResult from ParsedIban + ProviderInterface
-  Providers/    NullProvider (framework-free, default), DatabaseProvider (CI4, opt-in)
-  Config/       Config\Iban, Config\Services (service('iban') factory), Config\Registrar (CI4)
-  Commands/     spark commands: iban:validate, iban:parse, iban:resolve, iban:update (CI4)
+  Providers/    NullProvider (framework-free, default), DatabaseProvider (CI4, opt-in),
+                 CachedProvider (CI4, opt-in decorator, v1.1)
+  Import/       (v1.1) ImportReport, ImporterRegistry (framework-free); ImportRunner (CI4-dependent);
+                 Importers/ — 5 bundled official-source importers (framework-free), see docs/importers.md
+  Config/       Config\Iban ($cacheTtl added v1.1), Config\Services (service('iban') factory,
+                 wraps CachedProvider when cacheTtl>0), Config\Registrar (CI4)
+  Commands/     spark commands: iban:validate, iban:parse, iban:resolve, iban:update (CI4;
+                 iban:update functional since v1.1, drives ImporterRegistry/ImportRunner)
   Models/       BankModel (CI4)
   Database/     Migrations/ (CreateBanksTable), Seeds/ (BanksSeeder, intentionally empty) (CI4)
   Helpers/      iban_helper.php (CI4)
@@ -113,17 +138,20 @@ tests/          mirrors src/ (PHPUnit, CIUnitTestCase where CI4 is involved)
 bin/            generate-registry.php — regenerates src/Registry/data/countries.php from an
                  independently authored fact source (annual refresh tooling)
 docs/
-  usage.md                                facade/helper/command API, ViolationCode table, resolve()
+  usage.md                                facade/helper/command API, ViolationCode table, national
+                                            validators, resolve()/caching, Config\Iban reference
+  importers.md                            (v1.1) importer framework, iban:update reference, the 5
+                                            bundled importers, writing a custom importer
   formatting.md                           Electronic/Print/Anonymized format reference
   i18n.md                                 message i18n decision (English core, optional CI4 Language/)
   licensing.md                            data-licensing rationale for the registry
   registry-authoring.md                   methodology for authoring/cross-checking country data
   architecture.md                         concise architecture/status overview
-  roadmap.md                              v1.1 / v2.0 plans
+  roadmap.md                              v1.1 shipped summary + v2.0 plans
   superpowers/specs/2026-07-10-daycry-iban-v1-design.md   source design spec
   roadmap/2026-07-10-daycry-iban-v1/     spec.md, evaluation.md, improvement-plan.md, tasks.md
                                            (controller's own task-tracking; do not edit as "docs")
-CHANGELOG.md    Keep a Changelog history, starting at [1.0.0]
+CHANGELOG.md    Keep a Changelog history, starting at [1.0.0], [1.1.0] added 2026-07-11
 ```
 
 ## Coding standards
@@ -155,9 +183,12 @@ CHANGELOG.md    Keep a Changelog history, starting at [1.0.0]
   `resolver()`.
 - Helper (`helper('iban')`): `iban_validate()`, `iban_is_valid()`, `iban_parse()`, `iban_format()`,
   `iban_resolve()`, `bank_name()`, `bank_bic()`, `iban_country()`, `iban_valid()`.
-- Commands: `iban:validate`, `iban:parse`, `iban:resolve`, `iban:update` (documented no-op in v1.0 —
-  real bank-data importers are deferred to v1.1).
+- Commands: `iban:validate`, `iban:parse`, `iban:resolve`, `iban:update` (functional since v1.1 —
+  lists/runs the 5 bundled importers via `ImporterRegistry`/`ImportRunner`, `--country`/`--source`/
+  `--dry-run`/`--file` flags).
 - `Config\Iban`: `$provider` (`'null'|'database'|FQCN`), `$defaultFormat`, `$checkNationalByDefault`,
-  `$dbGroup`, `$table`.
+  `$dbGroup`, `$table`, `$cacheTtl` (v1.1, seconds; `0` disables `CachedProvider` wrapping).
+- `Contracts\ImporterInterface` (v1.1): `countryCode()`, `sourceId()`, `sourceName()`, `license()`,
+  `sourceUrl()`, `rows(?string $localFile = null): iterable` — see `docs/importers.md`.
 
 See `docs/usage.md` for the full reference with examples verified against the code.

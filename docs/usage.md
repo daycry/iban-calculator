@@ -1,16 +1,19 @@
 # Usage
 
-Full API reference for `daycry/iban` v1.0. Every example on this page has been run against the real
-code (see `tests/` for the source of truth these examples are drawn from).
+Full API reference for `daycry/iban`, current through v1.1. Every example on this page has been run
+against the real code (see `tests/` for the source of truth these examples are drawn from).
 
 - [The facade: `Daycry\Iban\Iban`](#the-facade-daycryibaniban)
 - [Validation and the 8 `ViolationCode` cases](#validation-and-the-8-violationcode-cases)
+- [National check-digit validators](#national-check-digit-validators)
 - [Parsing](#parsing)
 - [Formatting](#formatting)
 - [Resolving bank data: `NullProvider` vs `DatabaseProvider`](#resolving-bank-data-nullprovider-vs-databaseprovider)
+- [Caching resolved lookups: `CachedProvider`](#caching-resolved-lookups-cachedprovider)
 - [`Config\Iban`](#configiban)
 - [The `iban_helper`](#the-iban_helper)
 - [spark commands](#spark-commands)
+- [Bank-data importers (`iban:update`)](#bank-data-importers-ibanupdate)
 
 ## The facade: `Daycry\Iban\Iban`
 
@@ -112,7 +115,7 @@ $violation->message;         // 'The IBAN check digits are invalid.'
 | `BadLength` | `bad_length` | The normalized length doesn't match the registered IBAN length for that country. | `'ES912100041845020005133'` (23 chars, ES needs 24) |
 | `MalformedStructure` | `malformed_structure` | The check digits aren't numeric, or the BBAN doesn't match the country's SWIFT token grammar (e.g. a letter where a digit is required). | `'ES9121000418450200051X32'` |
 | `ChecksumFailed` | `checksum_failed` | Structurally sound, but the MOD-97 (ISO 7064) checksum over the check digits fails. | `'ES9021000418450200051332'` |
-| `NationalCheckFailed` | `national_check_failed` | `checkNational: true` was requested, a national validator is registered for the country (only `ES` in v1.0), and its check fails. | `$iban->validate('ES2921000418460200051332', checkNational: true)` (bank/branch/account of the canonical ES fixture, but national check digits `46` instead of the correct `45`) |
+| `NationalCheckFailed` | `national_check_failed` | `checkNational: true` was requested, a national validator is registered for the country (`ES`/`BE`/`PT`/`SI`/`FI`/`FR`/`MC`/`IT`/`SM` as of v1.1 — see [National check-digit validators](#national-check-digit-validators)), and its check fails. | `$iban->validate('ES2921000418460200051332', checkNational: true)` (bank/branch/account of the canonical ES fixture, but national check digits `46` instead of the correct `45`) |
 
 ```php
 // NationalCheckFailed only fires when explicitly requested:
@@ -123,6 +126,51 @@ $iban->validate('ES2921000418460200051332', checkNational: true)
 // Countries without a registered national validator silently skip the check:
 $iban->validate('DE89370400440532013000', checkNational: true)->isValid(); // true
 ```
+
+## National check-digit validators
+
+Beyond the whole-IBAN MOD-97 checksum (always checked), some countries embed their own *national*
+check digit(s) inside the BBAN — a second, country-specific arithmetic check. `Core\Validator`'s
+`$nationalValidators` map (`src/Core/Validator.php`) wires one `NationalCheckValidatorInterface`
+implementation (`src/National/`) per supported country code; `validate(..., checkNational: true)`
+consults it after the MOD-97 check passes.
+
+| Country | Class | Algorithm |
+|---|---|---|
+| `ES` | `SpanishNationalCheckValidator` | Weighted mod-11 over two check digits: DC1 over `00`+bank+branch, DC2 over the account number. |
+| `BE` | `BelgianNationalCheckValidator` | Mod-97 of the first 10 BBAN digits (3-digit bank + 7-digit account) as an integer; a `0` remainder maps to `97` (never `00`). |
+| `PT` | `PortugueseNationalCheckValidator` | Weighted mod-97 NIB check: `98 - (sum of the 19 bank+branch+account digits × fixed weights, mod 97)`, collapsing `98→0` and `97→1`. |
+| `SI` | `SlovenianNationalCheckValidator` | ISO 7064 MOD 97-10 style check over the 13 bank+account digits: `98 - ((13-digit number × 100) mod 97)`. |
+| `FI` | `FinnishNationalCheckValidator` | Luhn (mod-10) check digit over the 13 bank+account digits, computed right-to-left with every second digit doubled. |
+| `FR`, `MC` | `FrenchNationalCheckValidator` | RIB key: `97 - ((89×bank + 15×branch + 3×account) mod 97)`, with alphanumeric account characters mapped to digits via the RIB letter table first. Monaco shares France's exact BBAN structure and algorithm. |
+| `IT`, `SM` | `ItalianNationalCheckValidator` | CIN check letter: an odd/even weighted-sum mod-26 over the 22-character ABI+CAB+account tail, mapped to a letter (`0`→`A` … `25`→`Z`). San Marino shares Italy's exact BBAN structure and algorithm. |
+
+**Estonia (`EE`) is deliberately not covered.** Its real national check-digit algorithm depends on a
+bank-specific, variable-length raw domestic account number that can't be reconstructed from the
+fixed-width IBAN fields the registry exposes — shipping a generic implementation would incorrectly
+reject real, valid Estonian IBANs. `checkNational: true` on an `EE` IBAN silently skips the national
+check (same as any other country without a registered validator), which is the deliberately-correct
+behavior here, not a gap to be filled later.
+
+```php
+use Daycry\Iban\Iban;
+
+$iban = new Iban();
+
+// BE: mod-97 of the first 10 BBAN digits
+$iban->validate('BE68539007547034', checkNational: true)->isValid(); // true
+
+// IT/SM share the CIN algorithm; FR/MC share the RIB key algorithm
+$iban->validate('IT60X0542811101000000123456', checkNational: true)->isValid(); // true
+$iban->validate('MC5811222000010123456789030', checkNational: true)->isValid();  // true
+
+// EE: no registered validator — checkNational is a silent skip, not a failure
+$iban->isValid('EE382200221020145685'); // true, national check never runs
+```
+
+To add or override a validator per instance (e.g. a custom country), construct `Core\Validator`
+directly with your own `$nationalValidators` map — the constructor parameter is public API, not just
+an implementation detail (see `src/Core/Validator.php`).
 
 ## Parsing
 
@@ -138,7 +186,7 @@ $parsed->bban;                 // '21000418450200051332'
 $parsed->bankIdentifier;      // '2100'
 $parsed->branchIdentifier;    // '0418' (null for countries with no branch field, e.g. DE/NL/BE)
 $parsed->accountNumber;       // '0200051332'
-$parsed->nationalCheckDigit;  // '45' (structural extraction only in v1.0 — not the same as checkNational validation)
+$parsed->nationalCheckDigit;  // '45' (structural extraction only — not the same as checkNational validation)
 $parsed->sepaCountry;         // true — EPC409-09 country-level SEPA scope, from the registry
 $parsed->electronic;          // 'ES9121000418450200051332' — canonical normalized form
 (string) $parsed;              // same as ->electronic (ParsedIban::__toString())
@@ -215,8 +263,10 @@ app:
    php spark db:seed "Daycry\Iban\Database\Seeds\BanksSeeder"
    ```
 
-   To resolve real bank data, seed the `banks` table yourself (e.g. from your own licensed source) or
-   wait for the v1.1 importers described in [`docs/roadmap.md`](roadmap.md).
+   To resolve real bank data, seed the `banks` table yourself (e.g. from your own licensed source), or
+   run one of the v1.1 bundled importers via `iban:update` — see
+   [Bank-data importers (`iban:update`)](#bank-data-importers-ibanupdate) and
+   [`docs/importers.md`](importers.md).
 
 Once rows exist, `resolve()` finds them by IBAN (`findByIban()`, tried first) or by
 country+bank+branch code (`findByBankCode()`, fallback):
@@ -233,6 +283,35 @@ $bank->bic;          // e.g. 'CAIXESBBXXX'
 when nothing is seeded), so the resolver never skips the lookup outright the way it would for a
 provider scoped to specific countries.
 
+## Caching resolved lookups: `CachedProvider`
+
+`Providers\CachedProvider` is a `ProviderInterface` decorator that caches `findByBankCode()`/
+`findByIban()` results behind a CI4 `CacheInterface`, so repeated lookups of the same bank/branch code
+don't re-query the decorated provider (e.g. a `DatabaseProvider` hitting the `banks` table on every
+`resolve()` call for the same IBAN). It caches **misses too**, via an internal sentinel value — a
+lookup that resolves to nothing is remembered just as eagerly as one that resolves to a `BankInfo`, so
+repeatedly resolving an unregistered bank code doesn't keep re-querying the underlying provider.
+
+It's entirely opt-in and CI4-only, wired by `Config\Services::iban()`, not something you construct by
+hand in ordinary use:
+
+```php
+// app/Config/Iban.php
+namespace Config;
+
+class Iban extends \Daycry\Iban\Config\Iban
+{
+    public string $provider = 'database';
+    public int $cacheTtl    = 3600; // seconds; 0 (default) disables caching entirely
+}
+```
+
+With `$cacheTtl > 0`, `service('iban')` wraps the resolved provider in `CachedProvider` (backed by
+`service('cache')`) before handing it to the `Resolver`; with the default `$cacheTtl = 0`, the
+provider is left unwrapped and behavior is identical to a package with no cache at all.
+`NullProvider` is never wrapped even if `$cacheTtl > 0` — it never resolves anything, so caching it
+would just add a pointless cache round-trip to every `resolve()` call.
+
 ## `Config\Iban`
 
 Publishable, `.env`-overridable configuration (`Daycry\Iban\Config\Iban`, `BaseConfig` subclass). Every
@@ -245,6 +324,7 @@ property is overridable via `.env` using the `iban.<property>` prefix, e.g. `iba
 | `$checkNationalByDefault` | `false` | Whether national check-digit validation runs by default when a caller doesn't pass an explicit flag — consulted by the [`iban_validate()`/`iban_is_valid()`/`iban_valid()` helpers](#the-iban_helper) and by the [`iban:validate` command](#spark-commands) when `--national` is omitted. The facade's own `validate()` is a separate, frozen contract: it keeps its own explicit `bool $checkNational = false` parameter default and never reads this config. |
 | `$dbGroup` | `null` | The `Config\Database` connection group queried by `DatabaseProvider` / `BankModel` — wired by `Config\Services::iban()`'s `'database'` branch, which builds `new BankModel($config->table, $config->dbGroup)`. `null` means "no override": `BankModel` leaves its own `$DBGroup` unset, so CI4's environment-aware fallback applies transparently (`Database\Config::connect(null)` resolves to `'tests'` when `ENVIRONMENT === 'testing'`, otherwise the app's `Config\Database::$defaultGroup`). Set this only to force a specific connection group regardless of environment (e.g. a read replica). |
 | `$table` | `'banks'` | The table name queried by `DatabaseProvider` / `BankModel` — wired the same way as `$dbGroup` above. |
+| `$cacheTtl` | `0` | Cache TTL, in seconds, for resolved bank lookups (see [`CachedProvider`](#caching-resolved-lookups-cachedprovider)). `0` disables caching: the resolver's provider is left unwrapped. Any value `> 0` wraps the provider (except `NullProvider`) in a `CachedProvider` backed by `service('cache')`, with this TTL. |
 
 To override, publish your own `App\Config\Iban extends \Daycry\Iban\Config\Iban` (CI4's `Factories`
 resolution picks up the app's version automatically), or set the matching `.env` variables.
@@ -344,19 +424,35 @@ $ php spark iban:resolve ES9121000418450200051332
 Note: no provider data (empty bank DB) — structural fields only.
 ```
 
-### `iban:update [--source=<source>] [--country=<country>] [--dry-run]`
+### `iban:update [--country=<cc>] [--source=<id>] [--dry-run] [--file=<path>]`
 
-**Documented no-op in v1.0.** This package ships zero bank-data importers (see
-[`docs/licensing.md`](licensing.md) for why the SWIFT IBAN Registry / SwiftRef BIC Directory can't be
-bundled). Running it prints the licensing notices and confirms `Registered importers: 0`. The
-`--source`/`--country`/`--dry-run` flags are accepted for forward compatibility with the real importer
-command planned for v1.1 (see [`docs/roadmap.md`](roadmap.md)) but change nothing today.
+**Functional as of v1.1** — no longer a no-op. With no `--country`/`--source`, it lists the 5
+registered importers; given a selection, it runs each matching importer against the `banks` table and
+prints an import report plus the source's license/attribution. See
+[Bank-data importers (`iban:update`)](#bank-data-importers-ibanupdate) below for the full reference,
+including per-source example invocations.
 
 ```bash
 $ php spark iban:update
 SWIFT IBAN Registry is non-commercial/no-derivatives (not bundled).
 SWIFT BIC Directory (SwiftRef) is proprietary (not bundled).
 National lists require per-source attribution.
-Registered importers: 0
-No importers bundled — bank-data import is deferred to v1.1. This command is a documented no-op in v1.0.
+Registered importers: 5
+...
+Select one with --country=/--source= to run it (add --dry-run to preview).
 ```
+
+## Bank-data importers (`iban:update`)
+
+v1.1 adds a bank-data importer framework (`Contracts\ImporterInterface`, `Import\ImportReport`,
+`Import\ImporterRegistry`, `Import\ImportRunner`) plus 5 bundled official-source importers — for
+Austria (OeNB), Germany (Bundesbank), Switzerland (SIX), the Netherlands (Betaalvereniging), and Spain
+(Banco de España). None of them bundle any actual data in the repository: `iban:update` lists/selects/
+runs them on demand, either fetching live or importing from a local `--file`, so the v1.0 licensing
+discipline (no redistributed third-party compilations — see [`docs/licensing.md`](licensing.md))
+holds unchanged.
+
+Full reference — the `ImporterInterface` contract, every `iban:update` flag with worked examples per
+source, the bundled-importer table (country/source id/format/license/URL), how provenance
+(`source_id`/`source_version`/`source_license`) is stored on each `banks` row, and how to write and
+register a custom importer — lives in [`docs/importers.md`](importers.md).
