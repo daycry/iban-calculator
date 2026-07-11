@@ -247,6 +247,8 @@ without publishing an `App\Config\Iban`.
 | `$dbGroup` | `?string` | `null` | `iban.dbGroup` | `Config\Database` connection group for [DatabaseProvider](src/Providers/DatabaseProvider.php) / [BankModel](src/Models/BankModel.php). `null` = no override, so CI4's environment-aware fallback (`Config\Database::$defaultGroup`, or `'tests'` under `ENVIRONMENT === 'testing'`) applies. |
 | `$table` | `string` | `'banks'` | `iban.table` | Table queried by [DatabaseProvider](src/Providers/DatabaseProvider.php) / [BankModel](src/Models/BankModel.php). |
 | `$cacheTtl` | `int` | `0` | `iban.cacheTtl` | Cache TTL in seconds for resolved bank lookups. `0` disables caching (provider left unwrapped); any value `> 0` wraps the provider in a [CachedProvider](src/Providers/CachedProvider.php). |
+| `$ibanComApiKey` | `string` | `''` | `iban.ibanComApiKey` | Opt-in API key for the [iban.com Validation API](https://www.iban.com/validation-api). Empty (default) disables the fallback entirely; non-empty chains an [IbanComProvider](src/Providers/IbanComProvider.php) after the primary provider via [ChainProvider](src/Providers/ChainProvider.php). |
+| `$ibanComTimeout` | `int` | `5` | `iban.ibanComTimeout` | Request timeout, in seconds, for [IbanComProvider](src/Providers/IbanComProvider.php)'s HTTP call. Only relevant when `$ibanComApiKey` is non-empty. |
 
 ### `service('iban')`
 
@@ -271,6 +273,23 @@ constructor so app-level overrides are honored. The `default` arm treats `$provi
 `instantiateProvider()` throws `InvalidArgumentException` when the class does not exist or does not
 implement [ProviderInterface](src/Contracts/ProviderInterface.php).
 
+The opt-in iban.com fallback is chained next, only when `Config\Iban::$ibanComApiKey` is non-empty:
+
+```php
+if ($config->ibanComApiKey !== '') {
+    $provider = new ChainProvider([
+        $provider,
+        new IbanComProvider($config->ibanComApiKey, service('curlrequest'), $config->ibanComTimeout),
+    ]);
+}
+```
+
+This wraps the primary provider and an [IbanComProvider](src/Providers/IbanComProvider.php) in a
+[ChainProvider](src/Providers/ChainProvider.php), in that order — the primary (local) provider is
+always tried first, and [IbanComProvider](src/Providers/IbanComProvider.php) is only consulted when
+it returns nothing. With the default `$ibanComApiKey = ''`, this step is a no-op and `$provider` is
+left exactly as the `match` above produced it.
+
 Caching is then applied only when opted in ([src/Config/Services.php:77](src/Config/Services.php#L77)):
 
 ```php
@@ -280,8 +299,10 @@ if ($config->cacheTtl > 0 && ! $provider instanceof NullProvider) {
 ```
 
 Note the [NullProvider](src/Providers/NullProvider.php) skip: it never resolves anything, so
-wrapping it would only add a pointless cache round-trip per `resolve()`. The facade is finally
-built as `new IbanService(new Registry(), $provider)`.
+wrapping it would only add a pointless cache round-trip per `resolve()`. A
+[ChainProvider](src/Providers/ChainProvider.php) is never a `NullProvider`, so when the iban.com
+fallback is chained in, the combined local+iban.com chain is still cached correctly whenever
+`$cacheTtl > 0`. The facade is finally built as `new IbanService(new Registry(), $provider)`.
 
 > [src/Config/Registrar.php](src/Config/Registrar.php) intentionally declares no `Autoload()`
 > method — it would be dead code, since `Config\Autoload` does not extend `BaseConfig` and so is
@@ -289,7 +310,7 @@ built as `new IbanService(new Registry(), $provider)`.
 
 ### Providers
 
-All three implement [ProviderInterface](src/Contracts/ProviderInterface.php):
+All implement [ProviderInterface](src/Contracts/ProviderInterface.php):
 `supports(string $countryCode): bool`, `findByIban(ParsedIban $iban): ?BankInfo`,
 `findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo`.
 
@@ -298,6 +319,8 @@ All three implement [ProviderInterface](src/Contracts/ProviderInterface.php):
 | [NullProvider](src/Providers/NullProvider.php) | No (framework-free default) | always `false` | Null-object: every lookup returns `null` (always unresolved). |
 | [DatabaseProvider](src/Providers/DatabaseProvider.php) | Yes | always `true` | Queries the `banks` table via [BankModel::findByNaturalKey()](src/Models/BankModel.php#L86) on `(country_code, bank_code, branch_code)`, mapping the row into a [BankInfo](src/DTO/BankInfo.php); `null` when unseeded. `findByIban()` delegates to `findByBankCode()`. |
 | [CachedProvider](src/Providers/CachedProvider.php) | Yes | delegates to inner | Decorator over any inner provider, backed by CI4 `service('cache')`. |
+| [IbanComProvider](src/Providers/IbanComProvider.php) | Yes | `true` iff an API key was configured | Opt-in, paid fallback over the iban.com Validation API. `findByBankCode()` always `null` (see below). |
+| [ChainProvider](src/Providers/ChainProvider.php) | No (pure composition) | `true` if ANY chained provider supports the country | Tries an ordered `list<ProviderInterface>` and returns the first non-null result. |
 
 `DatabaseProvider::__construct(private BankModel $model = new BankModel())` defaults its model,
 but `service('iban')` passes an explicitly configured one. It returns `true` from `supports()`
@@ -328,6 +351,45 @@ back to `null` before returning (the sentinel never leaks to callers).
 
 Note the constructor's own `$ttl` default of `3600` is inert in the service path — `Config\Iban::$cacheTtl`
 (default `0`) always supplies the TTL, and the wrap only happens when that value is `> 0`.
+
+### IbanComProvider (opt-in iban.com fallback)
+
+```php
+public function __construct(
+    private readonly string $apiKey,
+    ?CURLRequest $client = null,
+    private readonly int $timeout = 5,
+) {}
+```
+
+`$client` defaults to `service('curlrequest')` when `null`, so it's injectable for tests. Backed by the
+[iban.com Validation API](https://www.iban.com/validation-api) — confirmed v4 shape:
+`POST https://api.iban.com/clients/api/v4/iban/`, form-encoded, with `format=json`, `api_key`, `iban`,
+and (always sent by this provider) `sci=1` to also request the SEPA Instant Credit Transfer marker.
+Response JSON has `bank_data` (mapped fields: `bank` → `bankName`, `bic`, `city`, `address`),
+`sepa_data` (`'YES'`/`'NO'` flags: `SCT` → `sepaSct`, `SDD` → `sepaSddCore`, `B2B` → `sepaSddB2b`,
+`SCI` → `sepaSctInst`), `validations` (not consumed), and `errors` (non-empty ⇒ failure). `sourceId` is
+hardcoded `'iban.com'`, `sourceVersion` is today's date (`Y-m-d`), `sourceLicense` is `'iban.com API'`.
+
+`findByIban()` **never throws**: the whole request + parse is wrapped in one `try`/`catch (Throwable)`,
+so a DNS failure, timeout, non-200 status, malformed JSON, a non-empty `errors` array, or an empty/
+missing `bank_data` all map to `null`. `supports()` returns `$this->apiKey !== ''` (key-gated, not
+country-gated). `findByBankCode()` always returns `null` — the API resolves a full IBAN, not a bare
+bank/branch code.
+
+### ChainProvider (composite)
+
+```php
+/** @param list<ProviderInterface> $providers */
+public function __construct(private readonly array $providers) {}
+```
+
+Framework-free (pure composition — no CI4 dependency, unlike `DatabaseProvider`/`IbanComProvider` which
+also live in this same, unguarded `Providers/` directory). `supports()` is `true` if any chained
+provider supports the country. `findByIban()`/`findByBankCode()` iterate `$providers` in order,
+skip any that don't `supports()` the country, and return the first non-null result — used by
+[Services::iban()](#serviceiban) to try the primary provider first and
+[IbanComProvider](#ibancomprovider-opt-in-ibancom-fallback) only as a fallback.
 
 ### resolve() walkthrough
 

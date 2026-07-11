@@ -11,7 +11,9 @@ use Daycry\Iban\Contracts\ProviderInterface;
 use Daycry\Iban\Iban as IbanService;
 use Daycry\Iban\Models\BankModel;
 use Daycry\Iban\Providers\CachedProvider;
+use Daycry\Iban\Providers\ChainProvider;
 use Daycry\Iban\Providers\DatabaseProvider;
+use Daycry\Iban\Providers\IbanComProvider;
 use Daycry\Iban\Providers\NullProvider;
 use Daycry\Iban\Registry\Registry;
 use InvalidArgumentException;
@@ -61,9 +63,22 @@ class Services extends BaseService
             default    => self::instantiateProvider($config->provider),
         };
 
+        // Opt-in iban.com fallback (Config\Iban::$ibanComApiKey non-empty):
+        // chained AFTER the primary provider above, so the remote,
+        // paid iban.com API is only queried once the primary provider has
+        // already failed to resolve the IBAN.
+        if ($config->ibanComApiKey !== '') {
+            $provider = new ChainProvider([
+                $provider,
+                new IbanComProvider($config->ibanComApiKey, service('curlrequest'), $config->ibanComTimeout),
+            ]);
+        }
+
         // Opt-in caching layer (Config\Iban::$cacheTtl > 0). Skipped for
         // NullProvider: it never resolves anything, so wrapping it would
-        // only add a pointless cache round-trip per resolve() call.
+        // only add a pointless cache round-trip per resolve() call. A
+        // ChainProvider (above) is never a NullProvider, so the combined
+        // local+iban.com chain is cached correctly when caching is enabled.
         if ($config->cacheTtl > 0 && ! $provider instanceof NullProvider) {
             $provider = new CachedProvider($provider, service('cache'), $config->cacheTtl);
         }
