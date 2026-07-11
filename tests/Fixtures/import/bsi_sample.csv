@@ -1,0 +1,6 @@
+NATIONAL ID;NAME;ADDRESS;ZIP CODE;CITY;BIC11
+01000;BANKA SLOVENIJE;SLOVENSKA 35;1505;LJUBLJANA;BSLJSI2XXXX
+10100;BANKA INTESA SANPAOLO D.D.;PRISTANIŠKA 14;6502;KOPER;BAKOSI2XXXX
+29000;UNICREDIT BANKA SLOVENIJA D.D.;AMERIŠKA ULICA 2;1000;LJUBLJANA;BACXSI22XXX
+# NOTE: NATIONAL ID 26330 below is not present in the live BSI snapshot (fetched 2026-07-11); it is the SI IBAN registry's own canonical example bank code (see src/Registry/data/countries.php 'SI' => 'example' => 'SI56263300012039086'), added here so ImportRunnerImportersTest's resolve() proof has a matching seeded row.
+26330;PRIMER BANKA D.D. (IBAN example fixture row);EXAMPLE CESTA 1;1000;LJUBLJANA;PRIMSI22XXX

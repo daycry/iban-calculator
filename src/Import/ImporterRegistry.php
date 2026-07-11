@@ -6,8 +6,12 @@ namespace Daycry\Iban\Import;
 
 use Daycry\Iban\Contracts\ImporterInterface;
 use Daycry\Iban\Import\Importers\BancoDeEspanaImporter;
+use Daycry\Iban\Import\Importers\BankOfSloveniaImporter;
 use Daycry\Iban\Import\Importers\BetaalverenigingImporter;
 use Daycry\Iban\Import\Importers\BundesbankImporter;
+use Daycry\Iban\Import\Importers\CzechNationalBankImporter;
+use Daycry\Iban\Import\Importers\HellenicBankAssociationImporter;
+use Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter;
 use Daycry\Iban\Import\Importers\OenbImporter;
 use Daycry\Iban\Import\Importers\SixImporter;
 
@@ -24,10 +28,14 @@ use Daycry\Iban\Import\Importers\SixImporter;
  * that task only built the framework. v1.1's V-7a registered the first two
  * bundled official-source importers there -- {@see \Daycry\Iban\Import\Importers\OenbImporter}
  * (AT) and {@see \Daycry\Iban\Import\Importers\BundesbankImporter} (DE) --
- * and v1.1's V-7b adds three more -- {@see \Daycry\Iban\Import\Importers\SixImporter}
+ * v1.1's V-7b added three more -- {@see \Daycry\Iban\Import\Importers\SixImporter}
  * (CH), {@see \Daycry\Iban\Import\Importers\BetaalverenigingImporter} (NL)
- * and {@see \Daycry\Iban\Import\Importers\BancoDeEspanaImporter} (ES) -- so
- * `new ImporterRegistry()` picks up all five automatically for every
+ * and {@see \Daycry\Iban\Import\Importers\BancoDeEspanaImporter} (ES) -- and
+ * v1.2 adds four more -- {@see \Daycry\Iban\Import\Importers\CzechNationalBankImporter}
+ * (CZ), {@see \Daycry\Iban\Import\Importers\HellenicBankAssociationImporter}
+ * (GR), {@see \Daycry\Iban\Import\Importers\BankOfSloveniaImporter} (SI) and
+ * {@see \Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter} (SK)
+ * -- so `new ImporterRegistry()` picks up all nine automatically for every
  * consumer (`iban:update` included) without any other call site changing.
  *
  * @see \Daycry\Iban\Commands\UpdateCommand
@@ -109,11 +117,15 @@ class ImporterRegistry
      * Was deliberately empty in v1.1's V-6 (the importer framework itself
      * had nothing to bundle yet). v1.1's V-7a filled this in with the first
      * two concrete official-source importers -- {@see OenbImporter} (AT) and
-     * {@see BundesbankImporter} (DE). v1.1's V-7b adds three more --
+     * {@see BundesbankImporter} (DE). v1.1's V-7b added three more --
      * {@see SixImporter} (CH), {@see BetaalverenigingImporter} (NL) and
-     * {@see BancoDeEspanaImporter} (ES) -- so every consumer (`iban:update`
-     * included) picks up all five automatically without any other call site
-     * changing.
+     * {@see BancoDeEspanaImporter} (ES). v1.2 adds four more --
+     * {@see CzechNationalBankImporter} (CZ),
+     * {@see HellenicBankAssociationImporter} (GR),
+     * {@see BankOfSloveniaImporter} (SI) and
+     * {@see NationalBankOfSlovakiaImporter} (SK) -- so every consumer
+     * (`iban:update` included) picks up all nine automatically without any
+     * other call site changing.
      */
     protected function registerDefaults(): void
     {
@@ -122,6 +134,10 @@ class ImporterRegistry
         $this->register(new SixImporter());
         $this->register(new BetaalverenigingImporter());
         $this->register(new BancoDeEspanaImporter());
+        $this->register(new CzechNationalBankImporter());
+        $this->register(new HellenicBankAssociationImporter());
+        $this->register(new BankOfSloveniaImporter());
+        $this->register(new NationalBankOfSlovakiaImporter());
     }
 
     private static function key(string $countryCode, string $sourceId): string

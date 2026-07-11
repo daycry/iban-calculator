@@ -1,0 +1,7 @@
+Prevodník identifikaèných kódov SR;;;
+Kód platobného styku;Poskytovate¾ platobných služieb;SWIFT kód 8;Systém SIPS
+200;Všeobecná úverová banka, a.s.;SUBASKBX;x
+900;Slovenská sporite¾òa, a.s.;GIBASKBX;x
+1100;Tatra banka, a.s.;TATRSKBX;x
+# NOTE: bank code 1200 below is not present in the live NBS snapshot (fetched 2026-07-11); it is the SK IBAN registry's own canonical example bank code (see src/Registry/data/countries.php 'SK' => 'example' => 'SK3112000000198742637541'), added here so ImportRunnerImportersTest's resolve() proof has a matching seeded row.
+1200;Príklad Banka, a.s. (fixture — SK registry example bank code);EXMPSKBX;x

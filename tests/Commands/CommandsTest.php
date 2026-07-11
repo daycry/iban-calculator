@@ -305,11 +305,15 @@ final class CommandsTest extends CIUnitTestCase
     /**
      * V-7a bundled the first two concrete official-source importers --
      * `OenbImporter` (AT) and `BundesbankImporter` (DE) -- into
-     * `ImporterRegistry::registerDefaults()` (empty since V-6). V-7b adds
+     * `ImporterRegistry::registerDefaults()` (empty since V-6). V-7b added
      * three more -- `SixImporter` (CH), `BetaalverenigingImporter` (NL) and
-     * `BancoDeEspanaImporter` (ES). So with no `--country`/`--source`
-     * selection, `iban:update` now lists all five alongside the v1.0
-     * licensing notices instead of the old "nothing bundled yet" deferral.
+     * `BancoDeEspanaImporter` (ES). v1.2 adds four more --
+     * `CzechNationalBankImporter` (CZ), `HellenicBankAssociationImporter`
+     * (GR), `BankOfSloveniaImporter` (SI) and
+     * `NationalBankOfSlovakiaImporter` (SK). So with no `--country`/
+     * `--source` selection, `iban:update` now lists all nine alongside the
+     * v1.0 licensing notices instead of the old "nothing bundled yet"
+     * deferral.
      */
     public function testUpdatePrintsLicenseNoticesAndListsTheBundledImportersAndExitsSuccess(): void
     {
@@ -319,24 +323,32 @@ final class CommandsTest extends CIUnitTestCase
         self::assertStringContainsString('SWIFT IBAN Registry', $output);
         self::assertStringContainsString('SWIFT BIC Directory', $output);
         self::assertStringContainsString('National lists require per-source attribution.', $output);
-        self::assertStringContainsString('Registered importers: 5', $output);
+        self::assertStringContainsString('Registered importers: 9', $output);
         self::assertStringContainsString('oenb', $output);
         self::assertStringContainsString('bundesbank', $output);
         self::assertStringContainsString('six', $output);
         self::assertStringContainsString('betaalvereniging', $output);
         self::assertStringContainsString('bde', $output);
+        self::assertStringContainsString('cnb', $output);
+        self::assertStringContainsString('hba', $output);
+        self::assertStringContainsString('bsi', $output);
+        self::assertStringContainsString('nbs', $output);
         self::assertStringContainsString('AT', $output);
         self::assertStringContainsString('DE', $output);
         self::assertStringContainsString('CH', $output);
         self::assertStringContainsString('NL', $output);
         self::assertStringContainsString('ES', $output);
+        self::assertStringContainsString('CZ', $output);
+        self::assertStringContainsString('GR', $output);
+        self::assertStringContainsString('SI', $output);
+        self::assertStringContainsString('SK', $output);
         self::assertStringContainsString('Select one with --country=/--source= to run it', $output);
     }
 
     public function testUpdateAcceptsDryRunAndCountryOptionsWithoutErrorAndReportsNoMatch(): void
     {
-        // 'FR' matches none of the 5 bundled importers (AT/DE/CH/NL/ES), so
-        // this stays the graceful "no match" branch -- and, crucially,
+        // 'FR' matches none of the 9 bundled importers (AT/DE/CH/NL/ES/CZ/GR/SI/SK),
+        // so this stays the graceful "no match" branch -- and, crucially,
         // never reaches the network/file fetch.
         [$exit, $output] = $this->runSpark(['iban:update', '--dry-run', '--country', 'FR']);
 
