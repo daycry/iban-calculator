@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Daycry\Iban\Config\Iban as IbanConfig;
+use Daycry\Iban\Config\Services;
 use Daycry\Iban\DTO\BankResult;
 use Daycry\Iban\DTO\ParsedIban;
 use Daycry\Iban\DTO\ValidationResult;
@@ -53,7 +53,7 @@ if (! function_exists('iban_validate')) {
         /** @var IbanService $svc */
         $svc = service('iban');
 
-        $checkNational ??= config(IbanConfig::class)->checkNationalByDefault;
+        $checkNational ??= Services::config()->checkNationalByDefault;
 
         return $svc->validate($iban, $checkNational);
     }
@@ -111,7 +111,7 @@ if (! function_exists('iban_format')) {
         /** @var IbanService $svc */
         $svc = service('iban');
 
-        $format ??= config(IbanConfig::class)->defaultFormat;
+        $format ??= Services::config()->defaultFormat;
 
         $f = match (strtolower($format)) {
             'electronic' => IbanFormat::Electronic,
