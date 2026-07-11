@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Daycry\Iban\Import;
 
 use Daycry\Iban\Contracts\ImporterInterface;
+use Daycry\Iban\Import\Importers\BundesbankImporter;
+use Daycry\Iban\Import\Importers\OenbImporter;
 
 /**
  * In-memory catalog of {@see ImporterInterface} instances, keyed by their
@@ -96,12 +98,17 @@ class ImporterRegistry
     /**
      * Registers this package's bundled default importers.
      *
-     * Deliberately empty in v1.1's V-6 (the importer framework itself has
-     * nothing to bundle yet): v1.1's V-7 is the clear extension point that
-     * fills this in with the concrete official-source importers.
+     * Was deliberately empty in v1.1's V-6 (the importer framework itself
+     * had nothing to bundle yet). v1.1's V-7a fills this in with the first
+     * two concrete official-source importers -- {@see OenbImporter} (AT) and
+     * {@see BundesbankImporter} (DE) -- so every consumer (`iban:update`
+     * included) picks them up automatically without any other call site
+     * changing. v1.1's V-7b is expected to add more (SIX/NL/ES/...).
      */
     protected function registerDefaults(): void
     {
+        $this->register(new OenbImporter());
+        $this->register(new BundesbankImporter());
     }
 
     private static function key(string $countryCode, string $sourceId): string

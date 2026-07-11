@@ -6,6 +6,8 @@ namespace Tests\Import;
 
 use Daycry\Iban\Contracts\ImporterInterface;
 use Daycry\Iban\Import\ImporterRegistry;
+use Daycry\Iban\Import\Importers\BundesbankImporter;
+use Daycry\Iban\Import\Importers\OenbImporter;
 use PHPUnit\Framework\TestCase;
 use Tests\_support\FakeAtImporter;
 
@@ -18,14 +20,30 @@ use Tests\_support\FakeAtImporter;
  */
 final class ImporterRegistryTest extends TestCase
 {
-    public function testDefaultConstructionRegistersNoImportersInV6(): void
+    /**
+     * v1.1's V-6 shipped the importer *framework* only, with an
+     * intentionally empty `registerDefaults()`. v1.1's V-7a fills it in with
+     * the first two bundled official-source importers -- {@see OenbImporter}
+     * (AT) and {@see BundesbankImporter} (DE) -- so a plain `new
+     * ImporterRegistry()` now finds both without any extra registration.
+     */
+    public function testDefaultConstructionRegistersTheBundledOenbAndBundesbankImporters(): void
     {
-        // v1.1's V-6 ships the importer *framework* only; V-7 fills in the
-        // concrete official-source importers via registerDefaults().
         $registry = new ImporterRegistry();
 
-        self::assertSame([], $registry->all());
-        self::assertSame([], $registry->sources());
+        $all = $registry->all();
+
+        self::assertCount(2, $all);
+        self::assertInstanceOf(OenbImporter::class, $all[0]);
+        self::assertInstanceOf(BundesbankImporter::class, $all[1]);
+
+        self::assertSame([
+            ['country' => 'AT', 'source' => 'oenb', 'name' => 'Oesterreichische Nationalbank', 'license' => 'CC-BY-4.0 (OeNB)'],
+            ['country' => 'DE', 'source' => 'bundesbank', 'name' => 'Deutsche Bundesbank', 'license' => 'Deutsche Bundesbank'],
+        ], $registry->sources());
+
+        self::assertNotNull($registry->get('AT', 'oenb'));
+        self::assertNotNull($registry->get('DE', 'bundesbank'));
     }
 
     public function testRegisterAddsAnImporterFindableViaAll(): void
@@ -35,7 +53,9 @@ final class ImporterRegistryTest extends TestCase
 
         $registry->register($importer);
 
-        self::assertSame([$importer], $registry->all());
+        // assertContains rather than assertSame([$importer], ...): the
+        // registry now also carries the bundled AT/DE defaults (V-7a).
+        self::assertContains($importer, $registry->all());
     }
 
     public function testForCountryFiltersByCountryCodeCaseInsensitively(): void
@@ -45,9 +65,12 @@ final class ImporterRegistryTest extends TestCase
 
         $registry->register($importer);
 
-        self::assertSame([$importer], $registry->forCountry('AT'));
-        self::assertSame([$importer], $registry->forCountry('at'));
-        self::assertSame([], $registry->forCountry('DE'));
+        // assertContains/assertNotContains rather than exact-array equality:
+        // 'AT' now also matches the bundled OenbImporter default, and 'DE'
+        // now matches the bundled BundesbankImporter default (V-7a).
+        self::assertContains($importer, $registry->forCountry('AT'));
+        self::assertContains($importer, $registry->forCountry('at'));
+        self::assertNotContains($importer, $registry->forCountry('DE'));
     }
 
     public function testGetLooksUpByExactCountryAndSourceCaseInsensitively(): void
@@ -72,7 +95,10 @@ final class ImporterRegistryTest extends TestCase
         $registry->register($first);
         $registry->register($second);
 
-        self::assertSame([$second], $registry->all(), 'Re-registering the same (country, source) must replace, not duplicate.');
+        $all = $registry->all();
+
+        self::assertNotContains($first, $all, 'Re-registering the same (country, source) must replace, not duplicate.');
+        self::assertContains($second, $all);
         self::assertSame($second, $registry->get('AT', 'fake'));
     }
 
@@ -81,13 +107,11 @@ final class ImporterRegistryTest extends TestCase
         $registry = new ImporterRegistry();
         $registry->register(new FakeAtImporter());
 
-        self::assertSame([
-            [
-                'country' => 'AT',
-                'source'  => 'fake',
-                'name'    => 'Fake Test Importer',
-                'license' => 'Public Domain (test fixture)',
-            ],
+        self::assertContains([
+            'country' => 'AT',
+            'source'  => 'fake',
+            'name'    => 'Fake Test Importer',
+            'license' => 'Public Domain (test fixture)',
         ], $registry->sources());
     }
 
@@ -131,7 +155,15 @@ final class ImporterRegistryTest extends TestCase
         $registry->register($at);
         $registry->register($de);
 
-        self::assertSame([$at, $de], $registry->all());
+        // Registration order is preserved: the bundled AT/DE defaults
+        // (V-7a) register first (in the constructor), then $at and $de.
+        $all = $registry->all();
+
+        self::assertCount(4, $all);
+        self::assertInstanceOf(OenbImporter::class, $all[0]);
+        self::assertInstanceOf(BundesbankImporter::class, $all[1]);
+        self::assertSame($at, $all[2]);
+        self::assertSame($de, $all[3]);
     }
 
     public function testAllReturnValueIsAListOfImporterInterfaceInstances(): void

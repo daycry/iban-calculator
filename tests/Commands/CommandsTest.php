@@ -6,6 +6,7 @@ namespace Tests\Commands;
 
 use CodeIgniter\CLI\CLI;
 use CodeIgniter\Test\CIUnitTestCase;
+use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\StreamFilterTrait;
 use Daycry\Iban\Commands\ParseCommand;
 use Daycry\Iban\Commands\ResolveCommand;
@@ -46,9 +47,23 @@ use Daycry\Iban\Enums\ViolationCode;
  */
 final class CommandsTest extends CIUnitTestCase
 {
+    use DatabaseTestTrait;
     use StreamFilterTrait;
 
+    // `iban:update`'s file-based import tests (V-7a) write to the real
+    // `banks` table via `BankModel`/`ImportRunner`, so this class also
+    // migrates/refreshes the `tests` SQLite `:memory:` database, same setup
+    // as `tests/Import/ImportRunnerTest.php`.
+    protected $namespace   = 'Daycry\Iban';
+    protected $DBGroup     = 'tests';
+    protected $migrate     = true;
+    protected $migrateOnce = false;
+    protected $refresh     = true;
+
     private const VALID_ES_IBAN = 'ES9121000418450200051332';
+
+    private const OENB_FIXTURE       = __DIR__ . '/../Fixtures/import/oenb_sample.csv';
+    private const BUNDESBANK_FIXTURE = __DIR__ . '/../Fixtures/import/bundesbank_sample.txt';
 
     // Same length/structure as VALID_ES_IBAN but with the check digits
     // ('91' -> '90') broken, so MOD-97 fails: deterministic ChecksumFailed.
@@ -285,17 +300,14 @@ final class CommandsTest extends CIUnitTestCase
     // -- iban:update -------------------------------------------------------
 
     /**
-     * V-6 rewrites `iban:update` to be functional (`ImporterRegistry` +
-     * `ImportRunner`), but `ImporterRegistry::registerDefaults()` is still
-     * intentionally empty in v1.1 -- V-7 is what bundles the concrete
-     * official-source importers. So with no `--country`/`--source`
-     * selection, today's only reachable outcome is: print the v1.0 licensing
-     * notices, list the (currently empty) registry, and note gracefully that
-     * nothing is bundled yet. The real import/dry-run/upsert path is proven
-     * end-to-end against a fake importer in `tests/Import/ImportRunnerTest.php`
-     * (the command itself has no injection point for a test registry).
+     * V-7a bundles the first two concrete official-source importers --
+     * `OenbImporter` (AT) and `BundesbankImporter` (DE) -- into
+     * `ImporterRegistry::registerDefaults()` (empty since V-6). So with no
+     * `--country`/`--source` selection, `iban:update` now lists both
+     * alongside the v1.0 licensing notices instead of the old "nothing
+     * bundled yet" deferral.
      */
-    public function testUpdatePrintsLicenseNoticesImportersAndDeferralAndExitsSuccess(): void
+    public function testUpdatePrintsLicenseNoticesAndListsTheBundledImportersAndExitsSuccess(): void
     {
         [$exit, $output] = $this->runSpark(['iban:update']);
 
@@ -303,19 +315,24 @@ final class CommandsTest extends CIUnitTestCase
         self::assertStringContainsString('SWIFT IBAN Registry', $output);
         self::assertStringContainsString('SWIFT BIC Directory', $output);
         self::assertStringContainsString('National lists require per-source attribution.', $output);
-        self::assertStringContainsString('Registered importers: 0', $output);
-        self::assertStringContainsString('No bundled importers match', $output);
-        self::assertStringContainsString('v1.1 adds official-source importers', $output);
+        self::assertStringContainsString('Registered importers: 2', $output);
+        self::assertStringContainsString('oenb', $output);
+        self::assertStringContainsString('bundesbank', $output);
+        self::assertStringContainsString('AT', $output);
+        self::assertStringContainsString('DE', $output);
+        self::assertStringContainsString('Select one with --country=/--source= to run it', $output);
     }
 
     public function testUpdateAcceptsDryRunAndCountryOptionsWithoutErrorAndReportsNoMatch(): void
     {
+        // 'ES' matches neither the bundled OenbImporter (AT) nor
+        // BundesbankImporter (DE), so this stays the graceful "no match"
+        // branch -- and, crucially, never reaches the network/file fetch.
         [$exit, $output] = $this->runSpark(['iban:update', '--dry-run', '--country', 'ES']);
 
         self::assertSame(EXIT_SUCCESS, $exit);
         self::assertStringContainsString('SWIFT IBAN Registry', $output);
         self::assertStringContainsString('No bundled importers match', $output);
-        self::assertStringContainsString('v1.1 adds official-source importers', $output);
         // A selection was made, so this is the "no match" branch, not the
         // no-selection listing -- the registry-size line must NOT appear.
         self::assertStringNotContainsString('Registered importers:', $output);
@@ -323,10 +340,53 @@ final class CommandsTest extends CIUnitTestCase
 
     public function testUpdateWithSourceOptionAloneAlsoReportsNoMatchGracefully(): void
     {
-        [$exit, $output] = $this->runSpark(['iban:update', '--source', 'oenb']);
+        // A source id that isn't bundled by any registered importer -- kept
+        // distinct from 'oenb'/'bundesbank' (V-7a) so this stays a genuine
+        // no-match case instead of triggering a live network fetch.
+        [$exit, $output] = $this->runSpark(['iban:update', '--source', 'not-a-real-source']);
 
         self::assertSame(EXIT_SUCCESS, $exit);
         self::assertStringContainsString('No bundled importers match', $output);
+    }
+
+    /**
+     * V-7a acceptance criterion: `iban:update --source=oenb --country=AT
+     * --file=<fixture>` actually imports (offline, no network) and reports
+     * non-zero `imported`. The DB-level assertions (rows/provenance) live in
+     * `tests/Import/ImportRunnerImportersTest.php`; this test only proves
+     * the command wiring (selection + `--file` + report printing) end-to-end.
+     */
+    public function testUpdateWithFileOptionImportsTheOenbFixtureAndReportsImportedCount(): void
+    {
+        [$exit, $output] = $this->runSpark([
+            'iban:update', '--source', 'oenb', '--country', 'AT', '--file', self::OENB_FIXTURE,
+        ]);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('[AT/oenb] fetched=2 imported=2 skipped=0', $output);
+        self::assertStringContainsString('CC-BY-4.0 (OeNB)', $output);
+    }
+
+    public function testUpdateWithFileOptionImportsTheBundesbankFixtureAndReportsImportedCount(): void
+    {
+        [$exit, $output] = $this->runSpark([
+            'iban:update', '--source', 'bundesbank', '--country', 'DE', '--file', self::BUNDESBANK_FIXTURE,
+        ]);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('[DE/bundesbank] fetched=2 imported=2 skipped=0', $output);
+        self::assertStringContainsString('Deutsche Bundesbank', $output);
+    }
+
+    public function testUpdateWithFileOptionAndDryRunDoesNotWriteToTheBanksTable(): void
+    {
+        [$exit, $output] = $this->runSpark([
+            'iban:update', '--source', 'oenb', '--country', 'AT', '--file', self::OENB_FIXTURE, '--dry-run',
+        ]);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('(dry-run — nothing written)', $output);
+        self::assertSame(0, $this->db->table('banks')->countAllResults());
     }
 
     // -- Discovery -----------------------------------------------------------

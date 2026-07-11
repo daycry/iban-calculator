@@ -1,0 +1,4 @@
+﻿Bankenname;Identnummer;Identnummer der Hauptanstalt;Bankleitzahl;Straße;PLZ;Ort;Kennzeichen;Sektor;Firmenbuchnummer;Postadresse / Straße;Postadresse / PLZ;Postadresse / Ort;Postfach;Bundesland;Telefon;Fax;E-Mail;Homepage;LEI
+Bank Austria;100001;;12000;Rothschildplatz 1;1020;Wien;Hauptanstalt;Aktienbanken;123456a;;;;;Wien;05 05 05-0;;info@bankaustria.at;www.bankaustria.at;PSTG9GS1JN8LKS9V6Q30
+Bank Austria Zweigstelle Praterstraße;100002;100001;12000;Praterstraße 15;1020;Wien;Zweigstelle;Aktienbanken;123456a;;;;;Wien;05 05 05-1;;praterstrasse@bankaustria.at;www.bankaustria.at;
+Erste Bank der oesterreichischen Sparkassen AG;100010;;20111;Am Belvedere 1;1100;Wien;Hauptanstalt;Aktienbanken;33209m;;;;;Wien;05 0100-0;;info@erstebank.at;www.sparkasse.at;PQOH26KWDF7CG10L6792
