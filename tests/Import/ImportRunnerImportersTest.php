@@ -13,8 +13,12 @@ use Daycry\Iban\Import\Importers\BetaalverenigingImporter;
 use Daycry\Iban\Import\Importers\BulgarianNationalBankImporter;
 use Daycry\Iban\Import\Importers\BundesbankImporter;
 use Daycry\Iban\Import\Importers\CentralBankOfAzerbaijanImporter;
+use Daycry\Iban\Import\Importers\CentralBankOfMaltaImporter;
+use Daycry\Iban\Import\Importers\CroatianNationalBankImporter;
 use Daycry\Iban\Import\Importers\CzechNationalBankImporter;
 use Daycry\Iban\Import\Importers\HellenicBankAssociationImporter;
+use Daycry\Iban\Import\Importers\LuxembourgBankersAssociationImporter;
+use Daycry\Iban\Import\Importers\NationalBankOfBelgiumImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfMoldovaImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfPolandImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter;
@@ -24,6 +28,7 @@ use Daycry\Iban\Import\ImportReport;
 use Daycry\Iban\Import\ImportRunner;
 use Daycry\Iban\Models\BankModel;
 use Daycry\Iban\Providers\DatabaseProvider;
+use Tests\_support\XlsxFixtureFactory;
 
 /**
  * End-to-end DB test: runs the real `OenbImporter` (AT) / `BundesbankImporter`
@@ -47,6 +52,11 @@ use Daycry\Iban\Providers\DatabaseProvider;
  * any IBAN of that bank, even for countries whose IBAN carries a branch
  * segment (e.g. GR).
  *
+ * This v1.2 BE/HR/LU/MT batch adds four more, XLSX-sourced importers --
+ * their fixtures are generated on the fly with {@see XlsxFixtureFactory}
+ * (in {@see self::setUp()}) rather than committed as binary files, unlike
+ * every CSV/XML fixture above.
+ *
  * @see \Daycry\Iban\Import\Importers\OenbImporter
  * @see \Daycry\Iban\Import\Importers\BundesbankImporter
  * @see \Daycry\Iban\Import\Importers\SixImporter
@@ -60,6 +70,10 @@ use Daycry\Iban\Providers\DatabaseProvider;
  * @see \Daycry\Iban\Import\Importers\NationalBankOfMoldovaImporter
  * @see \Daycry\Iban\Import\Importers\NationalBankOfPolandImporter
  * @see \Daycry\Iban\Import\Importers\CentralBankOfAzerbaijanImporter
+ * @see \Daycry\Iban\Import\Importers\NationalBankOfBelgiumImporter
+ * @see \Daycry\Iban\Import\Importers\CroatianNationalBankImporter
+ * @see \Daycry\Iban\Import\Importers\LuxembourgBankersAssociationImporter
+ * @see \Daycry\Iban\Import\Importers\CentralBankOfMaltaImporter
  * @see \Daycry\Iban\Import\ImportRunner
  * @see \Daycry\Iban\Resolver\Resolver
  */
@@ -95,6 +109,80 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const MD_EXAMPLE_IBAN = 'MD24AG000225100013104168';
     private const PL_EXAMPLE_IBAN = 'PL61109010140000071219812874';
     private const AZ_EXAMPLE_IBAN = 'AZ21NABZ00000000137010001944';
+    private const BE_EXAMPLE_IBAN = 'BE68539007547034';
+    private const HR_EXAMPLE_IBAN = 'HR1210010051863000160';
+    private const LU_EXAMPLE_IBAN = 'LU280019400644750000';
+    private const MT_EXAMPLE_IBAN = 'MT84MALT011000012345MTLCAST001S';
+
+    private ?string $nbbFixture = null;
+
+    private ?string $hnbFixture = null;
+
+    private ?string $abblFixture = null;
+
+    private ?string $cbmFixture = null;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->nbbFixture = XlsxFixtureFactory::write([
+            ['Version 06/05/2026'],
+            [
+                'T_Identification_Number',
+                'Biccode',
+                'T_Institutions_Dutch',
+                'T_Institutions_French',
+                'T_Institutions_German',
+                'T_Institutions_English',
+            ],
+            ['000', 'GEBA BE BB', 'BNP Paribas Fortis', '', '', ''],
+            ['539', 'GEBA BE BB', 'Voorbeeldbank NV (fixture — BE registry example bank code)', '', '', ''],
+            ['995', 'N/A', 'VRIJ', 'LIBRE', '', ''],
+        ]);
+
+        $this->hnbFixture = XlsxFixtureFactory::write([
+            ['', 'Payment service provider codes', '', '', ''],
+            ['', '', '', '', ''],
+            ['', 'Payment service provider', 'Code', "SWIFT adresa\n(BIC)", ''],
+            ['', 'ADDIKO BANK d.d. Zagreb', '2500009', 'HAAB HR 22', ''],
+            ['', 'AIRCASH d.o.o. Zagreb', '4501006', '', ''],
+            ['', 'HRVATSKA NARODNA BANKA', '1001005', 'NBHR HR 2X ', ''],
+        ]);
+
+        $this->abblFixture = XlsxFixtureFactory::write([
+            ['ABBL' . "\n\n" . 'List of IBAN and BIC codes of Luxembourg credit institutions' . "\n"],
+            ['Credit institution', 'IBAN Code ', ' BIC Code'],
+            ["Banque et Caisse d'Epargne de l'Etat, Luxembourg (Spuerkeess)", '001', 'BCEE LU LL'],
+            ['Banque Internationale à Luxembourg', '002', 'BILL LU LL'],
+            ['Bank Julius Baer Europe S.A.', '032', 'BAERLULU'],
+        ]);
+
+        $this->cbmFixture = XlsxFixtureFactory::write([
+            ['BIC Code', 'Financial Institution Name', 'National ID (Sort Code)', 'Branch', 'Remarks'],
+            ['MALTMTMT', 'Central Bank of Malta', '01100', 'Valletta', ''],
+            ['LBMAMTMT', 'Lombard Bank Malta plc.', '05000', 'Head Office', 'Used in all IBANs'],
+            ['', '', '05016', 'Valletta', ''],
+            ['PYMXMTMTXXX', 'Finance Incorporated Ltd.', '09014', 'Swatar', ''],
+            ['PYMXMTMTMAL', 'Finance Incorporated Ltd.', '09025', 'Swatar', ''],
+        ]);
+    }
+
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+
+        foreach ([$this->nbbFixture, $this->hnbFixture, $this->abblFixture, $this->cbmFixture] as $path) {
+            if ($path !== null && is_file($path)) {
+                unlink($path);
+            }
+        }
+
+        $this->nbbFixture  = null;
+        $this->hnbFixture  = null;
+        $this->abblFixture = null;
+        $this->cbmFixture  = null;
+    }
 
     public function testOenbImporterImportsHeadOfficeRowsWithProvenance(): void
     {
@@ -563,6 +651,142 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
         self::assertSame('AR Mərkəzi Bankı', $result->bankName);
     }
 
+    public function testNationalBankOfBelgiumImporterImportsRowsWithProvenanceAndResolvesTheExampleIban(): void
+    {
+        $report = (new ImportRunner())->run(new NationalBankOfBelgiumImporter(), new BankModel(), false, $this->nbbFixture);
+
+        self::assertSame('BE', $report->countryCode);
+        self::assertSame('nbb', $report->sourceId);
+        self::assertSame(3, $report->fetched);
+        self::assertSame(3, $report->imported);
+        self::assertSame(0, $report->skipped);
+
+        self::assertSame(3, $this->db->table('banks')->countAllResults());
+
+        $this->seeInDatabase('banks', [
+            'country_code'   => 'BE',
+            'bank_code'      => '539',
+            'branch_code'    => null,
+            'name'           => 'Voorbeeldbank NV (fixture — BE registry example bank code)',
+            'bic'            => 'GEBABEBB', // spaces stripped
+            'source_id'      => 'nbb',
+            'source_license' => 'National Bank of Belgium',
+        ]);
+
+        // The real proof: resolving the BE registry's own example IBAN
+        // (bank code '539') against the seeded bank-level row.
+        $iban   = new Iban(provider: new DatabaseProvider(new BankModel()));
+        $result = $iban->resolve(self::BE_EXAMPLE_IBAN);
+
+        self::assertTrue($result->isResolved());
+        self::assertSame('Voorbeeldbank NV (fixture — BE registry example bank code)', $result->bankName);
+    }
+
+    public function testCroatianNationalBankImporterImportsRowsWithProvenanceAndResolvesTheExampleIban(): void
+    {
+        $report = (new ImportRunner())->run(new CroatianNationalBankImporter(), new BankModel(), false, $this->hnbFixture);
+
+        self::assertSame('HR', $report->countryCode);
+        self::assertSame('hnb', $report->sourceId);
+        self::assertSame(3, $report->fetched);
+        self::assertSame(3, $report->imported);
+        self::assertSame(0, $report->skipped);
+
+        self::assertSame(3, $this->db->table('banks')->countAllResults());
+
+        $this->seeInDatabase('banks', [
+            'country_code'   => 'HR',
+            'bank_code'      => '1001005',
+            'branch_code'    => null,
+            'name'           => 'HRVATSKA NARODNA BANKA',
+            'bic'            => 'NBHRHR2X', // trailing/internal spaces stripped
+            'source_id'      => 'hnb',
+            'source_license' => 'Croatian National Bank (cite source, no changes)',
+        ]);
+
+        // A row with no published BIC must yield a null `bic`, not an empty string.
+        $this->seeInDatabase('banks', [
+            'country_code' => 'HR',
+            'bank_code'    => '4501006',
+            'name'         => 'AIRCASH d.o.o. Zagreb',
+            'bic'          => null,
+        ]);
+
+        // The real proof: resolving the HNB registry's own example IBAN
+        // (bank code '1001005') against the seeded bank-level row.
+        $iban   = new Iban(provider: new DatabaseProvider(new BankModel()));
+        $result = $iban->resolve(self::HR_EXAMPLE_IBAN);
+
+        self::assertTrue($result->isResolved());
+        self::assertSame('HRVATSKA NARODNA BANKA', $result->bankName);
+    }
+
+    public function testLuxembourgBankersAssociationImporterImportsRowsWithProvenanceAndResolvesTheExampleIban(): void
+    {
+        $report = (new ImportRunner())->run(new LuxembourgBankersAssociationImporter(), new BankModel(), false, $this->abblFixture);
+
+        self::assertSame('LU', $report->countryCode);
+        self::assertSame('abbl', $report->sourceId);
+        self::assertSame(3, $report->fetched);
+        self::assertSame(3, $report->imported);
+        self::assertSame(0, $report->skipped);
+
+        self::assertSame(3, $this->db->table('banks')->countAllResults());
+
+        $this->seeInDatabase('banks', [
+            'country_code'   => 'LU',
+            'bank_code'      => '001',
+            'branch_code'    => null,
+            'name'           => "Banque et Caisse d'Epargne de l'Etat, Luxembourg (Spuerkeess)",
+            'bic'            => 'BCEELULL', // spaces stripped
+            'source_id'      => 'abbl',
+            'source_license' => 'ABBL Luxembourg IBAN/BIC Register',
+        ]);
+
+        // The real proof: resolving the ABBL registry's own example IBAN
+        // (bank code '001') against the seeded bank-level row.
+        $iban   = new Iban(provider: new DatabaseProvider(new BankModel()));
+        $result = $iban->resolve(self::LU_EXAMPLE_IBAN);
+
+        self::assertTrue($result->isResolved());
+        self::assertSame("Banque et Caisse d'Epargne de l'Etat, Luxembourg (Spuerkeess)", $result->bankName);
+    }
+
+    public function testCentralBankOfMaltaImporterImportsRowsWithProvenanceAndResolvesTheExampleIban(): void
+    {
+        $report = (new ImportRunner())->run(new CentralBankOfMaltaImporter(), new BankModel(), false, $this->cbmFixture);
+
+        self::assertSame('MT', $report->countryCode);
+        self::assertSame('cbm', $report->sourceId);
+        self::assertSame(3, $report->fetched);
+        self::assertSame(3, $report->imported);
+        self::assertSame(0, $report->skipped);
+
+        self::assertSame(3, $this->db->table('banks')->countAllResults());
+
+        $this->seeInDatabase('banks', [
+            'country_code'   => 'MT',
+            'bank_code'      => 'MALT',
+            'branch_code'    => null,
+            'name'           => 'Central Bank of Malta',
+            'bic'            => 'MALTMTMT',
+            'source_id'      => 'cbm',
+            'source_license' => 'Central Bank of Malta',
+        ]);
+
+        // The deduped sibling ('PYMXMTMTMAL') must not have overwritten the
+        // first ('PYMXMTMTXXX') row.
+        $this->dontSeeInDatabase('banks', ['bank_code' => 'PYMX', 'bic' => 'PYMXMTMTMAL']);
+
+        // The real proof: resolving the CBM registry's own example IBAN
+        // (bank code 'MALT') against the seeded bank-level row.
+        $iban   = new Iban(provider: new DatabaseProvider(new BankModel()));
+        $result = $iban->resolve(self::MT_EXAMPLE_IBAN);
+
+        self::assertTrue($result->isResolved());
+        self::assertSame('Central Bank of Malta', $result->bankName);
+    }
+
     public function testBothImportersCanCoexistInTheSameBanksTable(): void
     {
         $runner = new ImportRunner();
@@ -581,7 +805,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
         self::assertSame('ING-DiBa', $deModel['name']);
     }
 
-    public function testAllThirteenImportersCanCoexistInTheSameBanksTable(): void
+    public function testAllSeventeenImportersCanCoexistInTheSameBanksTable(): void
     {
         $runner = new ImportRunner();
         $model  = new BankModel();
@@ -599,10 +823,15 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
         $runner->run(new NationalBankOfMoldovaImporter(), $model, false, self::BNM_FIXTURE);
         $runner->run(new NationalBankOfPolandImporter(), $model, false, self::NBP_FIXTURE);
         $runner->run(new CentralBankOfAzerbaijanImporter(), $model, false, self::CBAR_FIXTURE);
+        $runner->run(new NationalBankOfBelgiumImporter(), $model, false, $this->nbbFixture);
+        $runner->run(new CroatianNationalBankImporter(), $model, false, $this->hnbFixture);
+        $runner->run(new LuxembourgBankersAssociationImporter(), $model, false, $this->abblFixture);
+        $runner->run(new CentralBankOfMaltaImporter(), $model, false, $this->cbmFixture);
 
         // 2 (AT) + 3 (DE) + 2 (CH) + 3 (NL) + 3 (ES) + 8 (CZ) + 5 (GR) + 4 (SI)
-        // + 4 (SK) + 5 (BG) + 5 (MD) + 3 (PL) + 5 (AZ) = 52.
-        self::assertSame(52, $this->db->table('banks')->countAllResults());
+        // + 4 (SK) + 5 (BG) + 5 (MD) + 3 (PL) + 5 (AZ) + 3 (BE) + 3 (HR)
+        // + 3 (LU) + 3 (MT) = 64.
+        self::assertSame(64, $this->db->table('banks')->countAllResults());
 
         $chModel = (new BankModel())->findByNaturalKey('CH', '09000', null);
         self::assertIsArray($chModel);
@@ -647,5 +876,21 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
         $azModel = (new BankModel())->findByNaturalKey('AZ', 'NABZ', null);
         self::assertIsArray($azModel);
         self::assertSame('AR Mərkəzi Bankı', $azModel['name']);
+
+        $beModel = (new BankModel())->findByNaturalKey('BE', '539', null);
+        self::assertIsArray($beModel);
+        self::assertSame('Voorbeeldbank NV (fixture — BE registry example bank code)', $beModel['name']);
+
+        $hrModel = (new BankModel())->findByNaturalKey('HR', '1001005', null);
+        self::assertIsArray($hrModel);
+        self::assertSame('HRVATSKA NARODNA BANKA', $hrModel['name']);
+
+        $luModel = (new BankModel())->findByNaturalKey('LU', '001', null);
+        self::assertIsArray($luModel);
+        self::assertSame("Banque et Caisse d'Epargne de l'Etat, Luxembourg (Spuerkeess)", $luModel['name']);
+
+        $mtModel = (new BankModel())->findByNaturalKey('MT', 'MALT', null);
+        self::assertIsArray($mtModel);
+        self::assertSame('Central Bank of Malta', $mtModel['name']);
     }
 }

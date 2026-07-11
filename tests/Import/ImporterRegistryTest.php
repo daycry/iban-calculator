@@ -12,8 +12,12 @@ use Daycry\Iban\Import\Importers\BetaalverenigingImporter;
 use Daycry\Iban\Import\Importers\BulgarianNationalBankImporter;
 use Daycry\Iban\Import\Importers\BundesbankImporter;
 use Daycry\Iban\Import\Importers\CentralBankOfAzerbaijanImporter;
+use Daycry\Iban\Import\Importers\CentralBankOfMaltaImporter;
+use Daycry\Iban\Import\Importers\CroatianNationalBankImporter;
 use Daycry\Iban\Import\Importers\CzechNationalBankImporter;
 use Daycry\Iban\Import\Importers\HellenicBankAssociationImporter;
+use Daycry\Iban\Import\Importers\LuxembourgBankersAssociationImporter;
+use Daycry\Iban\Import\Importers\NationalBankOfBelgiumImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfMoldovaImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfPolandImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter;
@@ -46,17 +50,22 @@ final class ImporterRegistryTest extends TestCase
      * {@see BulgarianNationalBankImporter} (BG),
      * {@see NationalBankOfMoldovaImporter} (MD),
      * {@see NationalBankOfPolandImporter} (PL) and
-     * {@see CentralBankOfAzerbaijanImporter} (AZ) -- so a plain `new
-     * ImporterRegistry()` now finds all thirteen without any extra
+     * {@see CentralBankOfAzerbaijanImporter} (AZ) -- and this v1.2 BE/HR/LU/MT
+     * batch adds four more, XLSX-sourced importers --
+     * {@see NationalBankOfBelgiumImporter} (BE),
+     * {@see CroatianNationalBankImporter} (HR),
+     * {@see LuxembourgBankersAssociationImporter} (LU) and
+     * {@see CentralBankOfMaltaImporter} (MT) -- so a plain `new
+     * ImporterRegistry()` now finds all seventeen without any extra
      * registration.
      */
-    public function testDefaultConstructionRegistersTheThirteenBundledImporters(): void
+    public function testDefaultConstructionRegistersTheSeventeenBundledImporters(): void
     {
         $registry = new ImporterRegistry();
 
         $all = $registry->all();
 
-        self::assertCount(13, $all);
+        self::assertCount(17, $all);
         self::assertInstanceOf(OenbImporter::class, $all[0]);
         self::assertInstanceOf(BundesbankImporter::class, $all[1]);
         self::assertInstanceOf(SixImporter::class, $all[2]);
@@ -70,6 +79,10 @@ final class ImporterRegistryTest extends TestCase
         self::assertInstanceOf(NationalBankOfMoldovaImporter::class, $all[10]);
         self::assertInstanceOf(NationalBankOfPolandImporter::class, $all[11]);
         self::assertInstanceOf(CentralBankOfAzerbaijanImporter::class, $all[12]);
+        self::assertInstanceOf(NationalBankOfBelgiumImporter::class, $all[13]);
+        self::assertInstanceOf(CroatianNationalBankImporter::class, $all[14]);
+        self::assertInstanceOf(LuxembourgBankersAssociationImporter::class, $all[15]);
+        self::assertInstanceOf(CentralBankOfMaltaImporter::class, $all[16]);
 
         self::assertSame([
             ['country' => 'AT', 'source' => 'oenb', 'name' => 'Oesterreichische Nationalbank', 'license' => 'CC-BY-4.0 (OeNB)'],
@@ -85,6 +98,10 @@ final class ImporterRegistryTest extends TestCase
             ['country' => 'MD', 'source' => 'bnm', 'name' => 'National Bank of Moldova', 'license' => 'National Bank of Moldova'],
             ['country' => 'PL', 'source' => 'nbp', 'name' => 'Narodowy Bank Polski (EWIB)', 'license' => 'Narodowy Bank Polski (public sector information, free reuse)'],
             ['country' => 'AZ', 'source' => 'cbar', 'name' => 'Central Bank of Azerbaijan', 'license' => 'Central Bank of Azerbaijan'],
+            ['country' => 'BE', 'source' => 'nbb', 'name' => 'National Bank of Belgium', 'license' => 'National Bank of Belgium'],
+            ['country' => 'HR', 'source' => 'hnb', 'name' => 'Croatian National Bank', 'license' => 'Croatian National Bank (cite source, no changes)'],
+            ['country' => 'LU', 'source' => 'abbl', 'name' => 'ABBL (Luxembourg Register of IBAN/BIC)', 'license' => 'ABBL Luxembourg IBAN/BIC Register'],
+            ['country' => 'MT', 'source' => 'cbm', 'name' => 'Central Bank of Malta', 'license' => 'Central Bank of Malta'],
         ], $registry->sources());
 
         self::assertNotNull($registry->get('AT', 'oenb'));
@@ -100,6 +117,10 @@ final class ImporterRegistryTest extends TestCase
         self::assertNotNull($registry->get('MD', 'bnm'));
         self::assertNotNull($registry->get('PL', 'nbp'));
         self::assertNotNull($registry->get('AZ', 'cbar'));
+        self::assertNotNull($registry->get('BE', 'nbb'));
+        self::assertNotNull($registry->get('HR', 'hnb'));
+        self::assertNotNull($registry->get('LU', 'abbl'));
+        self::assertNotNull($registry->get('MT', 'cbm'));
     }
 
     public function testRegisterAddsAnImporterFindableViaAll(): void
@@ -211,12 +232,12 @@ final class ImporterRegistryTest extends TestCase
         $registry->register($at);
         $registry->register($de);
 
-        // Registration order is preserved: the 13 bundled defaults (V-7a +
-        // V-7b + v1.2 + v1.2 follow-up) register first (in the constructor),
-        // then $at and $de.
+        // Registration order is preserved: the 17 bundled defaults (V-7a +
+        // V-7b + v1.2 + v1.2 follow-up + this v1.2 BE/HR/LU/MT batch)
+        // register first (in the constructor), then $at and $de.
         $all = $registry->all();
 
-        self::assertCount(15, $all);
+        self::assertCount(19, $all);
         self::assertInstanceOf(OenbImporter::class, $all[0]);
         self::assertInstanceOf(BundesbankImporter::class, $all[1]);
         self::assertInstanceOf(SixImporter::class, $all[2]);
@@ -230,8 +251,12 @@ final class ImporterRegistryTest extends TestCase
         self::assertInstanceOf(NationalBankOfMoldovaImporter::class, $all[10]);
         self::assertInstanceOf(NationalBankOfPolandImporter::class, $all[11]);
         self::assertInstanceOf(CentralBankOfAzerbaijanImporter::class, $all[12]);
-        self::assertSame($at, $all[13]);
-        self::assertSame($de, $all[14]);
+        self::assertInstanceOf(NationalBankOfBelgiumImporter::class, $all[13]);
+        self::assertInstanceOf(CroatianNationalBankImporter::class, $all[14]);
+        self::assertInstanceOf(LuxembourgBankersAssociationImporter::class, $all[15]);
+        self::assertInstanceOf(CentralBankOfMaltaImporter::class, $all[16]);
+        self::assertSame($at, $all[17]);
+        self::assertSame($de, $all[18]);
     }
 
     public function testAllReturnValueIsAListOfImporterInterfaceInstances(): void
