@@ -72,4 +72,32 @@ class Iban extends BaseConfig
      * served from cache instead of re-querying the underlying provider.
      */
     public int $cacheTtl = 0;
+
+    /**
+     * Opt-in API key for the iban.com Validation API
+     * (`https://api.iban.com/clients/api/v4/iban/`), used as a last-resort
+     * bank-data fallback.
+     *
+     * Empty string (the default) disables the fallback entirely — behavior
+     * is identical to a package with no knowledge of iban.com. When
+     * non-empty, {@see \Daycry\Iban\Config\Services::iban()} chains a
+     * {@see \Daycry\Iban\Providers\IbanComProvider} AFTER the primary
+     * provider (via {@see \Daycry\Iban\Providers\ChainProvider}), so
+     * iban.com is only queried once the primary provider (e.g. the local
+     * `banks` table) has already failed to resolve the IBAN. Set it via
+     * `.env` (`iban.ibanComApiKey = <key>`) — never commit a real key to the
+     * repository.
+     *
+     * Note this is a **paid, external** API: every fallback lookup sends the
+     * full IBAN to iban.com over the network. See
+     * [docs/usage.md](../../docs/usage.md) for the privacy/cost caveat.
+     */
+    public string $ibanComApiKey = '';
+
+    /**
+     * Request timeout, in seconds, for {@see \Daycry\Iban\Providers\IbanComProvider}'s
+     * HTTP call to the iban.com Validation API. Only relevant when
+     * {@see self::$ibanComApiKey} is non-empty.
+     */
+    public int $ibanComTimeout = 5;
 }

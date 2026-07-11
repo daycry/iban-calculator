@@ -12,6 +12,7 @@ enum case, exception, and contract — see [`docs/api-reference.md`](api-referen
 - [Formatting](#formatting)
 - [Resolving bank data: `NullProvider` vs `DatabaseProvider`](#resolving-bank-data-nullprovider-vs-databaseprovider)
 - [Caching resolved lookups: `CachedProvider`](#caching-resolved-lookups-cachedprovider)
+- [iban.com fallback: `IbanComProvider` + `ChainProvider`](#ibancom-fallback-ibancomprovider--chainprovider)
 - [`Config\Iban`](#configiban)
 - [The `iban_helper`](#the-iban_helper)
 - [spark commands](#spark-commands)
@@ -316,6 +317,59 @@ provider is left unwrapped and behavior is identical to a package with no cache 
 `NullProvider` is never wrapped even if `$cacheTtl > 0` — it never resolves anything, so caching it
 would just add a pointless cache round-trip to every `resolve()` call.
 
+## iban.com fallback: `IbanComProvider` + `ChainProvider`
+
+`Providers\IbanComProvider` is an **opt-in, last-resort** `ProviderInterface` backed by the
+[iban.com Validation API](https://www.iban.com/validation-api) (`POST
+https://api.iban.com/clients/api/v4/iban/`) — a paid, external, third-party service. It's disabled by
+default; set `Config\Iban::$ibanComApiKey` (or the `iban.ibanComApiKey` `.env` key) to enable it:
+
+```php
+// app/Config/Iban.php
+namespace Config;
+
+class Iban extends \Daycry\Iban\Config\Iban
+{
+    public string $provider       = 'database';
+    public string $ibanComApiKey  = ''; // set via .env, never commit a real key
+    public int $ibanComTimeout    = 5;  // seconds
+}
+```
+
+```bash
+# .env
+iban.ibanComApiKey = 'your-real-api-key-here'
+```
+
+With a non-empty `$ibanComApiKey`, `service('iban')` chains an `IbanComProvider` **after** the
+primary provider (`$provider`, e.g. `DatabaseProvider`) via `Providers\ChainProvider` — a small
+`ProviderInterface` composite that tries an ordered list of providers and returns the first non-null
+result. In practice this means: the local `banks` table (or whatever `$provider` is configured to) is
+always tried first; iban.com is only queried when the primary provider has nothing for that IBAN. With
+the default `$ibanComApiKey = ''`, no chaining happens at all — behavior is identical to a package with
+no knowledge of iban.com.
+
+```php
+$bank = $iban->resolve('DE89370400440532013000');
+// 1. DatabaseProvider (or whatever $provider is set to) is tried first.
+// 2. Only if that resolves to nothing, IbanComProvider queries the iban.com API.
+```
+
+If `Config\Iban::$cacheTtl > 0`, the combined chain (local lookup + iban.com fallback) is wrapped in
+`CachedProvider` as usual — a `ChainProvider` is never a `NullProvider`, so it caches like any other
+provider, meaning a successful iban.com response is cached exactly like a local one and isn't re-fetched
+on every `resolve()` call for the same IBAN.
+
+**`IbanComProvider::findByIban()` never throws.** A DNS failure, timeout, non-200 response, malformed
+JSON, a non-empty `errors` array, or an empty/missing `bank_data` in the response all fold to `null`, so
+`resolve()` degrades to an unresolved `BankResult` instead of ever propagating a network failure.
+`findByBankCode()` always returns `null` — the iban.com API resolves a full IBAN, not a bare bank code,
+so `findByIban()` is the only useful entry point.
+
+**Privacy and cost note:** every fallback lookup sends the full IBAN to iban.com over the network, and
+the API is a paid, metered third-party service — only enable it if you've reviewed iban.com's terms and
+are comfortable with IBANs leaving your infrastructure for unresolved lookups.
+
 ## `Config\Iban`
 
 Publishable, `.env`-overridable configuration (`Daycry\Iban\Config\Iban`, `BaseConfig` subclass). Every
@@ -329,6 +383,8 @@ property is overridable via `.env` using the `iban.<property>` prefix, e.g. `iba
 | `$dbGroup` | `null` | The `Config\Database` connection group queried by `DatabaseProvider` / `BankModel` — wired by `Config\Services::iban()`'s `'database'` branch, which builds `new BankModel($config->table, $config->dbGroup)`. `null` means "no override": `BankModel` leaves its own `$DBGroup` unset, so CI4's environment-aware fallback applies transparently (`Database\Config::connect(null)` resolves to `'tests'` when `ENVIRONMENT === 'testing'`, otherwise the app's `Config\Database::$defaultGroup`). Set this only to force a specific connection group regardless of environment (e.g. a read replica). |
 | `$table` | `'banks'` | The table name queried by `DatabaseProvider` / `BankModel` — wired the same way as `$dbGroup` above. |
 | `$cacheTtl` | `0` | Cache TTL, in seconds, for resolved bank lookups (see [`CachedProvider`](#caching-resolved-lookups-cachedprovider)). `0` disables caching: the resolver's provider is left unwrapped. Any value `> 0` wraps the provider (except `NullProvider`) in a `CachedProvider` backed by `service('cache')`, with this TTL. |
+| `$ibanComApiKey` | `''` | Opt-in API key for the [iban.com fallback](#ibancom-fallback-ibancomprovider--chainprovider). Empty (the default) disables it entirely; non-empty chains an `IbanComProvider` after the primary provider via `ChainProvider`. |
+| `$ibanComTimeout` | `5` | Request timeout, in seconds, for `IbanComProvider`'s HTTP call to the iban.com Validation API. Only relevant when `$ibanComApiKey` is non-empty. |
 
 To override, publish your own `App\Config\Iban extends \Daycry\Iban\Config\Iban` (CI4's `Factories`
 resolution picks up the app's version automatically), or set the matching `.env` variables.

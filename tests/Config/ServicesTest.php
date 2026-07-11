@@ -9,7 +9,9 @@ use Daycry\Iban\Config\Iban as IbanConfig;
 use Daycry\Iban\Config\Services as IbanServices;
 use Daycry\Iban\Iban as IbanService;
 use Daycry\Iban\Models\BankModel;
+use Daycry\Iban\Providers\ChainProvider;
 use Daycry\Iban\Providers\DatabaseProvider;
+use Daycry\Iban\Providers\IbanComProvider;
 use Daycry\Iban\Providers\NullProvider;
 use Daycry\Iban\Resolver\Resolver;
 use InvalidArgumentException;
@@ -35,9 +37,11 @@ final class ServicesTest extends CIUnitTestCase
         // $table/$dbGroup wiring); undo that so later tests keep seeing
         // the documented defaults, and drop any shared `service('iban')`
         // instance built against it.
-        config(IbanConfig::class)->provider = 'null';
-        config(IbanConfig::class)->table    = 'banks';
-        config(IbanConfig::class)->dbGroup  = null;
+        config(IbanConfig::class)->provider       = 'null';
+        config(IbanConfig::class)->table          = 'banks';
+        config(IbanConfig::class)->dbGroup        = null;
+        config(IbanConfig::class)->ibanComApiKey  = '';
+        config(IbanConfig::class)->ibanComTimeout = 5;
         $this->resetServices();
     }
 
@@ -134,7 +138,7 @@ final class ServicesTest extends CIUnitTestCase
         self::assertSame('tests', self::dbGroupOf($model));
     }
 
-    public function testConfigIbanHasTheFiveDocumentedDefaults(): void
+    public function testConfigIbanHasTheDocumentedDefaults(): void
     {
         $config = new IbanConfig();
 
@@ -143,6 +147,46 @@ final class ServicesTest extends CIUnitTestCase
         self::assertFalse($config->checkNationalByDefault);
         self::assertNull($config->dbGroup);
         self::assertSame('banks', $config->table);
+        self::assertSame(0, $config->cacheTtl);
+        self::assertSame('', $config->ibanComApiKey);
+        self::assertSame(5, $config->ibanComTimeout);
+    }
+
+    /**
+     * Proves the opt-in iban.com fallback wiring: a non-empty
+     * `Config\Iban::$ibanComApiKey` chains an `IbanComProvider` AFTER the
+     * primary provider via `ChainProvider`, in that order.
+     */
+    public function testServicesIbanChainsAnIbanComProviderAfterThePrimaryWhenApiKeyIsConfigured(): void
+    {
+        config(IbanConfig::class)->provider       = 'null';
+        config(IbanConfig::class)->ibanComApiKey  = 'test-api-key';
+        config(IbanConfig::class)->ibanComTimeout = 9;
+
+        $iban = IbanServices::iban(false);
+
+        $provider = self::resolverProviderOf($iban);
+        self::assertInstanceOf(ChainProvider::class, $provider);
+
+        $chained = self::chainedProvidersOf($provider);
+        self::assertCount(2, $chained);
+        self::assertInstanceOf(NullProvider::class, $chained[0], 'The primary provider must be tried first.');
+        self::assertInstanceOf(IbanComProvider::class, $chained[1], 'iban.com must be the last, fallback provider.');
+    }
+
+    /**
+     * Default `Config\Iban::$ibanComApiKey` (empty string) must leave
+     * `Services::iban()`'s behavior unchanged: no `ChainProvider`/
+     * `IbanComProvider` is wired in at all.
+     */
+    public function testServicesIbanDoesNotWireAnIbanComProviderWhenNoApiKeyIsConfigured(): void
+    {
+        config(IbanConfig::class)->provider      = 'database';
+        config(IbanConfig::class)->ibanComApiKey = '';
+
+        $iban = IbanServices::iban(false);
+
+        self::assertInstanceOf(DatabaseProvider::class, self::resolverProviderOf($iban));
     }
 
     /**
@@ -157,6 +201,23 @@ final class ServicesTest extends CIUnitTestCase
         $property->setAccessible(true);
 
         return $property->getValue($iban->resolver());
+    }
+
+    /**
+     * Reaches into `ChainProvider`'s private `$providers` list to assert
+     * the order `Services::iban()` wired it up in.
+     *
+     * @return list<object>
+     */
+    private static function chainedProvidersOf(ChainProvider $provider): array
+    {
+        $property = new ReflectionProperty(ChainProvider::class, 'providers');
+        $property->setAccessible(true);
+
+        /** @var list<object> $providers */
+        $providers = $property->getValue($provider);
+
+        return $providers;
     }
 
     /**
