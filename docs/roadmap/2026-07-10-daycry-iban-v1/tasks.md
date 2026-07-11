@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Estado** | 📝 borrador |
+| **Estado** | ✅ completado — v1.0 (55/55 tareas · 686 tests · ~99% cobertura) |
 | **Fecha** | 2026-07-10 |
 | **Plan** | [`improvement-plan.md`](./improvement-plan.md) |
 
@@ -15,40 +15,40 @@
 
 | Fase | Completadas | Total | Progreso | Horas (real/est) | Tokens (real/est) |
 |------|------------|-------|----------|------------------|-------------------|
-| Fase 1 — Fundaciones [C-01,C-02] | 0 | 12 | 0% | 0 / 20h | 0 / 450k |
-| Fase 2 — Registro estructural [C-04] | 0 | 7 | 0% | 0 / 36h | 0 / 1.080k |
-| Fase 3 — Core algorítmico [C-03] | 0 | 6 | 0% | 0 / 24h | 0 / 620k |
-| Fase 4 — Check ES + generador [C-06,C-05] | 0 | 5 | 0% | 0 / 13h | 0 / 435k |
-| Fase 5 — Resolver + BD [C-07] | 0 | 6 | 0% | 0 / 14h | 0 / 440k |
-| Fase 6 — Integración CI4 [C-08] | 0 | 7 | 0% | 0 / 16h | 0 / 560k |
-| Fase 7 — Tests transversales [C-09] | 0 | 7 | 0% | 0 / 24h | 0 / 750k |
-| Fase 8 — Documentación [C-10] | 0 | 5 | 0% | 0 / 10h | 0 / 340k |
-| **TOTAL** | **0** | **55** | **0%** | **0 / 157h** | **0 / 4,68M** |
+| Fase 1 — Fundaciones [C-01,C-02] | 12 | 12 | ✅ 100% | — / 20h | ~1,01M / 450k |
+| Fase 2 — Registro estructural [C-04] | 7 | 7 | ✅ 100% | — / 36h | ~1,0M / 1.080k |
+| Fase 3 — Core algorítmico [C-03] | 6 | 6 | ✅ 100% | — / 24h | ~0,9M / 620k |
+| Fase 4 — Check ES + generador [C-06,C-05] | 5 | 5 | ✅ 100% | — / 13h | ~0,6M / 435k |
+| Fase 5 — Resolver + BD [C-07] | 6 | 6 | ✅ 100% | — / 14h | ~0,8M / 440k |
+| Fase 6 — Integración CI4 [C-08] | 7 | 7 | ✅ 100% | — / 16h | ~1,3M / 560k |
+| Fase 7 — Tests transversales [C-09] | 7 | 7 | ✅ 100% | — / 24h | ~1,3M / 750k |
+| Fase 8 — Documentación [C-10] | 5 | 5 | ✅ 100% | — / 10h | ~0,7M / 340k |
+| **TOTAL** | **55** | **55** | **✅ 100%** | **— / 157h** | **~8,3M / 4,68M** |
 
 ---
 
 ## 🏗️ Fase 1 — Fundaciones: tooling/CI + dominio/contratos [C-01, C-02]
 
-**Estado**: 📝 borrador · **Estimado**: 20h · **Real**: — · **Coste est.**: 1.012 € · **Tokens est.**: 450k
+**Estado**: ✅ completa (12/12) · **Estimado**: 20h · **Real**: — · **Coste est.**: 1.012 € · **Tokens est.**: 450k
 
 ### T-01 — `composer.json` y autoload PSR-4
 
 - **Descripción**: Crear el `composer.json` del paquete `daycry/iban`: `require { "php": "^8.3" }`, `require-dev { "codeigniter4/framework": "^4.6", "phpunit/phpunit", "phpstan/phpstan", "friendsofphp/php-cs-fixer" }` (CI4 como **peer**, no dependencia dura). Autoload PSR-4 `Daycry\\Iban\\ → src/`, `autoload-dev` `Tests\\ → tests/`, scripts `test`/`analyze`/`cs`.
-- **Estado**: 📝 borrador
+- **Estado**: ✅ hecho (commit 03fccbb · review Approved)
 - **Tiempo**: est. 2h · real —
 - **Previsión IA**: 30k in / 8k out tok · 0,97 €
 - **Dependencias**: ninguna
 - **Archivos**: `composer.json`, `LICENSE`
 
 **Criterios de aceptación**
-- [ ] `composer validate` pasa sin warnings.
-- [ ] `composer install` resuelve con PHP 8.3 y CI4 4.6 en require-dev.
-- [ ] Autoload PSR-4 `Daycry\Iban\ → src/` activo; `LICENSE` MIT presente.
+- [x] `composer validate` pasa sin warnings.
+- [x] `composer install` resuelve con PHP 8.3 y CI4 4.6 en require-dev.
+- [x] Autoload PSR-4 `Daycry\Iban\ → src/` activo; `LICENSE` MIT presente.
 
 **Subtareas**
-- [ ] Escribir `composer.json` con require/require-dev/autoload/scripts.
-- [ ] Añadir `LICENSE` (MIT) con titularidad del autor.
-- [ ] `composer validate` + `composer install` y commit.
+- [x] Escribir `composer.json` con require/require-dev/autoload/scripts.
+- [x] Añadir `LICENSE` (MIT) con titularidad del autor.
+- [x] `composer validate` + `composer install` y commit.
 
 **Notas**: CI4 en require-dev honra "usable fuera de CI" (§3). Rector es opcional (incógnita C-01), se difiere.
 
@@ -57,21 +57,21 @@
 ### T-02 — Layout del repositorio y skeleton PSR-4
 
 - **Descripción**: Crear la estructura de directorios de `src/` (Contracts, DTO, Enums, Exceptions, Core, Registry/data, Resolver, Providers, National, Config, Commands, Models, Database/{Migrations,Seeds}, Helpers), `tests/`, `bin/`, `docs/`, con `.gitignore`, `.gitkeep` donde haga falta y `README.md` stub.
-- **Estado**: 📝 borrador
+- **Estado**: ✅ hecho (commit 58ad7e4 · review Approved, falso-positivo `tests/.gitkeep` adjudicado: existe desde T-01)
 - **Tiempo**: est. 1,5h · real —
 - **Previsión IA**: 22k in / 6k out tok · 0,72 €
 - **Dependencias**: T-01
 - **Archivos**: `src/**` (dirs), `tests/`, `bin/`, `.gitignore`, `README.md`
 
 **Criterios de aceptación**
-- [ ] El árbol coincide con el layout del spec §3.
-- [ ] `.gitignore` excluye `vendor/`, `.phpunit.cache`, `build/`.
-- [ ] `README.md` stub con nombre, badges placeholder e instalación mínima.
+- [x] El árbol coincide con el layout del spec §3.
+- [x] `.gitignore` excluye `vendor/`, `.phpunit.cache`, `build/`.
+- [x] `README.md` stub con nombre, badges placeholder e instalación mínima.
 
 **Subtareas**
-- [ ] Crear directorios y `.gitkeep`.
-- [ ] Escribir `.gitignore` y `README.md` stub.
-- [ ] Commit del skeleton.
+- [x] Crear directorios y `.gitkeep`.
+- [x] Escribir `.gitignore` y `README.md` stub.
+- [x] Commit del skeleton.
 
 **Notas**: —
 
@@ -80,20 +80,20 @@
 ### T-03 — PHPStan (nivel alto) + regla de dependencia unidireccional
 
 - **Descripción**: Configurar `phpstan.neon` a **nivel 8** con `phpstan/phpstan` y añadir una regla/comprobación que **prohíba imports `codeigniter4/*` en `src/Contracts/` y `src/Core/`** (regla de arquitectura, §3). Baseline vacía inicial.
-- **Estado**: 📝 borrador
+- **Estado**: ✅ hecho (commit 4857fcf · review Approved · pendiente: quitar wrapper phpstan en T-06)
 - **Tiempo**: est. 2h · real —
 - **Previsión IA**: 30k in / 8k out tok · 0,97 €
 - **Dependencias**: T-02
-- **Archivos**: `phpstan.neon`, `tests/Architecture/CoreIsFrameworkFreeTest.php`
+- **Archivos**: `phpstan.neon`, `tests/Architecture/CoreIsFrameworkFreeTest.php`, `phpunit.xml`, `phpstan-analyse.php` (wrapper temporal)
 
 **Criterios de aceptación**
-- [ ] `composer analyze` (PHPStan nivel 8) pasa sobre el skeleton.
-- [ ] Un test/regla falla si se introduce un `use CodeIgniter\...` en `Core/` o `Contracts/`.
+- [x] `composer analyze` (PHPStan nivel 8) pasa sobre el skeleton.
+- [x] Un test/regla falla si se introduce un `use CodeIgniter\...` en `Core/` o `Contracts/`.
 
 **Subtareas**
-- [ ] Escribir `phpstan.neon` (nivel 8, paths `src`).
-- [ ] Añadir test de arquitectura que escanea `use codeigniter4` en Core/Contracts.
-- [ ] Verificar rojo→verde con un import de prueba y commit.
+- [x] Escribir `phpstan.neon` (nivel 8, paths `src`).
+- [x] Añadir test de arquitectura que escanea `use codeigniter4` en Core/Contracts.
+- [x] Verificar rojo→verde con un import de prueba y commit.
 
 **Notas**: Cumple la mitigación "fuga de acoplamiento CI4 hacia el Core".
 
@@ -102,19 +102,19 @@
 ### T-04 — PHP-CS-Fixer / CodingStandard (PSR-12)
 
 - **Descripción**: Configurar `.php-cs-fixer.dist.php` con reglas PSR-12 (o CodeIgniter CodingStandard) y el script `cs`.
-- **Estado**: 📝 borrador
+- **Estado**: ✅ hecho (commit 1418590 · review Approved)
 - **Tiempo**: est. 1,5h · real —
 - **Previsión IA**: 23k in / 6k out tok · 0,73 €
 - **Dependencias**: T-02
 - **Archivos**: `.php-cs-fixer.dist.php`
 
 **Criterios de aceptación**
-- [ ] `composer cs` (dry-run) pasa sin diferencias sobre el skeleton.
-- [ ] Reglas PSR-12 aplicadas a `src/` y `tests/`.
+- [x] `composer cs` (dry-run) pasa sin diferencias sobre el skeleton.
+- [x] Reglas PSR-12 aplicadas a `src/` y `tests/`.
 
 **Subtareas**
-- [ ] Escribir `.php-cs-fixer.dist.php`.
-- [ ] Ejecutar `cs` y commit.
+- [x] Escribir `.php-cs-fixer.dist.php`.
+- [x] Ejecutar `cs` y commit.
 
 **Notas**: —
 
@@ -123,21 +123,21 @@
 ### T-05 — GitHub Actions: matriz PHP 8.3/8.4 × CI4 4.6
 
 - **Descripción**: Workflow `ci.yml` con matriz **PHP 8.3/8.4 × CI4 4.6**; jobs de tests (PHPUnit), análisis estático (PHPStan) y estilo (CS). Cache de Composer.
-- **Estado**: 📝 borrador
+- **Estado**: ✅ hecho (commits 0574abb + 4c7866d · review Approved · push real diferido sin remoto)
 - **Tiempo**: est. 3h · real —
 - **Previsión IA**: 45k in / 12k out tok · 1,45 €
 - **Dependencias**: T-01, T-03, T-04
 - **Archivos**: `.github/workflows/ci.yml`
 
 **Criterios de aceptación**
-- [ ] El workflow define matriz `php: [8.3, 8.4]` con CI4 `^4.6`.
-- [ ] Corre `test`, `analyze` y `cs` en cada combinación.
-- [ ] Verde en un push de prueba (con un test trivial).
+- [x] El workflow define matriz `php: [8.3, 8.4]` con CI4 `^4.6`.
+- [x] Corre `test`, `analyze` y `cs` en cada combinación.
+- [ ] Verde en un push de prueba — DIFERIDO: validado localmente (YAML + los 3 scripts composer pasan); push real a GitHub pendiente de configurar remoto.
 
 **Subtareas**
-- [ ] Escribir `ci.yml` (setup-php, composer cache, matriz).
-- [ ] Añadir test trivial para validar el pipeline.
-- [ ] Verificar CI verde y commit.
+- [x] Escribir `ci.yml` (setup-php, composer cache, matriz).
+- [ ] ~~Añadir test trivial~~ — omitido a propósito: el arch test (T-03) ya valida el pipeline (evita un test que no asevera nada).
+- [x] Verificar pipeline en local y commit.
 
 **Notas**: Riesgo bajo de fricción por versiones cruzadas (evaluación C-01).
 
@@ -146,7 +146,7 @@
 ### T-06 — Enums `ViolationCode` e `IbanFormat`
 
 - **Descripción**: Crear los enums del dominio con las firmas exactas del spec §4.
-- **Estado**: 📝 borrador
+- **Estado**: ✅ hecho (commit 2e9f8e9 · review Approved · wrapper PHPStan retirado)
 - **Tiempo**: est. 1h · real —
 - **Previsión IA**: 20k in / 6k out tok · 0,69 €
 - **Dependencias**: T-02
@@ -169,13 +169,13 @@ enum IbanFormat { case Electronic; case Print; case Anonymized; }
 ```
 
 **Criterios de aceptación**
-- [ ] `ViolationCode` es backed-enum `string` con los 8 casos y valores exactos.
-- [ ] `IbanFormat` es enum puro con `Electronic`/`Print`/`Anonymized`.
-- [ ] Test que confirma `ViolationCode::from('too_short')` y el conteo de casos.
+- [x] `ViolationCode` es backed-enum `string` con los 8 casos y valores exactos.
+- [x] `IbanFormat` es enum puro con `Electronic`/`Print`/`Anonymized`.
+- [x] Test que confirma `ViolationCode::from('too_short')` y el conteo de casos.
 
 **Subtareas**
-- [ ] Test de casos y valores (rojo).
-- [ ] Implementar enums (verde) y commit.
+- [x] Test de casos y valores (rojo).
+- [x] Implementar enums (verde) y commit.
 
 **Notas**: —
 
@@ -184,7 +184,7 @@ enum IbanFormat { case Electronic; case Print; case Anonymized; }
 ### T-07 — Excepciones `IbanException` e `InvalidIbanException`
 
 - **Descripción**: Jerarquía de excepciones; `InvalidIbanException` transporta el `ValidationResult` que provocó el fallo de parseo estricto.
-- **Estado**: 📝 borrador
+- **Estado**: ✅ hecho (commit e3545b3 · review Approved)
 - **Tiempo**: est. 1h · real —
 - **Previsión IA**: 20k in / 6k out tok · 0,69 €
 - **Dependencias**: T-08 (usa `ValidationResult`)
@@ -200,13 +200,13 @@ final class InvalidIbanException extends IbanException {
 ```
 
 **Criterios de aceptación**
-- [ ] `IbanException extends \RuntimeException`.
-- [ ] `InvalidIbanException` es `final`, guarda y devuelve el `ValidationResult` vía `result()`.
-- [ ] Test: `new InvalidIbanException(...)->result()` devuelve el `ValidationResult` inyectado.
+- [x] `IbanException extends \RuntimeException`.
+- [x] `InvalidIbanException` es `final`, guarda y devuelve el `ValidationResult` vía `result()`.
+- [x] Test: `new InvalidIbanException(...)->result()` devuelve el `ValidationResult` inyectado.
 
 **Subtareas**
-- [ ] Test de `result()` (rojo).
-- [ ] Implementar excepciones (verde) y commit.
+- [x] Test de `result()` (rojo).
+- [x] Implementar excepciones (verde) y commit.
 
 **Notas**: Puede solaparse con T-08 en el mismo commit si conviene; se lista aparte para trazabilidad.
 
@@ -215,7 +215,7 @@ final class InvalidIbanException extends IbanException {
 ### T-08 — DTOs `Violation` y `ValidationResult`
 
 - **Descripción**: DTOs `final readonly` del resultado de validación.
-- **Estado**: 📝 borrador
+- **Estado**: ✅ hecho (commit 2bc1d1d · review Approved)
 - **Tiempo**: est. 1,5h · real —
 - **Previsión IA**: 30k in / 9k out tok · 1,04 €
 - **Dependencias**: T-06
@@ -236,13 +236,13 @@ final readonly class Violation {
 ```
 
 **Criterios de aceptación**
-- [ ] `ValidationResult::isValid()`, `violations()`, `firstViolation()` con semántica del spec.
-- [ ] `firstViolation()` devuelve `null` cuando `violations` está vacío.
-- [ ] Ambos son `final readonly`.
+- [x] `ValidationResult::isValid()`, `violations()`, `firstViolation()` con semántica del spec.
+- [x] `firstViolation()` devuelve `null` cuando `violations` está vacío.
+- [x] Ambos son `final readonly`.
 
 **Subtareas**
-- [ ] Tests de `isValid`/`firstViolation` (rojo).
-- [ ] Implementar DTOs (verde) y commit.
+- [x] Tests de `isValid`/`firstViolation` (rojo).
+- [x] Implementar DTOs (verde) y commit.
 
 **Notas**: `messageKey` en inglés en el core (supuesto §Supuestos); i18n opcional en la capa CI4.
 
@@ -251,7 +251,7 @@ final readonly class Violation {
 ### T-09 — DTO `ParsedIban`
 
 - **Descripción**: DTO estructural producido por `Parser::parse` y por `Validator` cuando el IBAN es válido. `__toString()` devuelve `$electronic`; `format()` se **cablea en la Fase 3** (T-25) delegando en `Formatter`.
-- **Estado**: 📝 borrador
+- **Estado**: ✅ hecho (commits d0ca783 + fix bba6124 · review Approved · format() inline, TODO T-25→Formatter)
 - **Tiempo**: est. 2h · real —
 - **Previsión IA**: 40k in / 12k out tok · 1,38 €
 - **Dependencias**: T-06
@@ -278,13 +278,13 @@ final readonly class ParsedIban {
 ```
 
 **Criterios de aceptación**
-- [ ] 9 propiedades con tipos y nulabilidad exactos; `?string` en `branchIdentifier`/`nationalCheckDigit`.
-- [ ] `__toString()` devuelve `$electronic`.
-- [ ] Test de construcción y `(string) $parsed === $electronic`.
+- [x] 9 propiedades con tipos y nulabilidad exactos; `?string` en `branchIdentifier`/`nationalCheckDigit`.
+- [x] `__toString()` devuelve `$electronic`.
+- [x] Test de construcción y `(string) $parsed === $electronic`.
 
 **Subtareas**
-- [ ] Test de props y `__toString` (rojo).
-- [ ] Implementar DTO; `format()` documentado como pendiente de T-25 (verde) y commit.
+- [x] Test de props y `__toString` (rojo).
+- [x] Implementar DTO; `format()` inline (TODO T-25 extraer a `Formatter`) (verde) y commit.
 
 **Notas**: El `?string` distingue "el país no tiene ese campo" (null estructural) de "lookup sin resolver" (§4 notas).
 
@@ -293,7 +293,7 @@ final readonly class ParsedIban {
 ### T-10 — DTOs `BankInfo` y `BankResult`
 
 - **Descripción**: DTO interno `BankInfo` (salida de `ProviderInterface`) y `BankResult` (salida de `Resolver::resolve`, compone `ParsedIban` + datos de banco nulables).
-- **Estado**: 📝 borrador
+- **Estado**: ✅ hecho (commit 034b88d · review Approved)
 - **Tiempo**: est. 1,5h · real —
 - **Previsión IA**: 30k in / 9k out tok · 1,04 €
 - **Dependencias**: T-09
@@ -324,13 +324,13 @@ final readonly class BankInfo {
 ```
 
 **Criterios de aceptación**
-- [ ] `BankResult` compone `ParsedIban $iban` + campos de banco nulables.
-- [ ] `isResolved()` = `true` sii algún campo de banco no es `null`; `false` con todos `null`.
-- [ ] `BankInfo` con las 12 propiedades nulables exactas.
+- [x] `BankResult` compone `ParsedIban $iban` + campos de banco nulables.
+- [x] `isResolved()` = `true` sii algún campo de banco no es `null`; `false` con todos `null`.
+- [x] `BankInfo` con las 12 propiedades nulables exactas.
 
 **Subtareas**
-- [ ] Test de `isResolved()` (todos null → false; uno no-null → true) (rojo).
-- [ ] Implementar DTOs (verde) y commit.
+- [x] Test de `isResolved()` (todos null → false; uno no-null → true) (rojo).
+- [x] Implementar DTOs (verde) y commit.
 
 **Notas**: `sepaSct*` es reachability per-PSP, solo se rellena si un provider tiene datos.
 
@@ -339,7 +339,7 @@ final readonly class BankInfo {
 ### T-11 — Contratos `ValidatorInterface` y `ParserInterface`
 
 - **Descripción**: Interfaces framework-free del núcleo de validación/parseo (namespace `Daycry\Iban\Contracts`).
-- **Estado**: 📝 borrador
+- **Estado**: ✅ hecho (commit c61b0aa · review Approved)
 - **Tiempo**: est. 1,5h · real —
 - **Previsión IA**: 30k in / 9k out tok · 1,04 €
 - **Dependencias**: T-09
@@ -361,13 +361,13 @@ interface ParserInterface {
 ```
 
 **Criterios de aceptación**
-- [ ] Ambas interfaces con firmas exactas (tipos union, defaults).
-- [ ] Namespace `Daycry\Iban\Contracts`; sin imports de `codeigniter4/*`.
-- [ ] PHPStan verde.
+- [x] Ambas interfaces con firmas exactas (tipos union, defaults).
+- [x] Namespace `Daycry\Iban\Contracts`; sin imports de `codeigniter4/*`.
+- [x] PHPStan verde.
 
 **Subtareas**
-- [ ] Escribir las interfaces.
-- [ ] Verificar con el test de arquitectura (T-03) y commit.
+- [x] Escribir las interfaces.
+- [x] Verificar con el test de arquitectura (T-03) y commit.
 
 **Notas**: —
 
@@ -376,7 +376,7 @@ interface ParserInterface {
 ### T-12 — Contratos `Provider`/`Resolver`/`RegistryLoader`/`NationalCheckValidator`
 
 - **Descripción**: Las 4 interfaces restantes framework-free.
-- **Estado**: 📝 borrador
+- **Estado**: ✅ hecho (commit cdb5f07 · review Approved · contratos congelados)
 - **Tiempo**: est. 1,5h · real —
 - **Previsión IA**: 30k in / 9k out tok · 1,04 €
 - **Dependencias**: T-10
@@ -403,13 +403,13 @@ interface NationalCheckValidatorInterface {
 ```
 
 **Criterios de aceptación**
-- [ ] Las 4 interfaces con firmas exactas.
-- [ ] Contratos **congelados** al cierre de la Fase 1 (base contractual de todo el paquete).
-- [ ] PHPStan verde; sin imports CI4.
+- [x] Las 4 interfaces con firmas exactas.
+- [x] Contratos **congelados** al cierre de la Fase 1 (base contractual de todo el paquete).
+- [x] PHPStan verde; sin imports CI4.
 
 **Subtareas**
-- [ ] Escribir las 4 interfaces.
-- [ ] Marcar contratos como congelados en `docs/` (nota) y commit.
+- [x] Escribir las 4 interfaces.
+- [x] Marcar contratos como congelados (nota en ledger/resumen Fase 1) y commit.
 
 **Notas**: Congelar aquí mitiga el riesgo de cambios de firma tardíos (C-02).
 
@@ -417,7 +417,7 @@ interface NationalCheckValidatorInterface {
 
 ## 🗂️ Fase 2 — Registro estructural + infraestructura Registry [C-04] ⭐
 
-**Estado**: 📝 borrador · **Estimado**: 36h · **Real**: — · **Coste est.**: 1.825 € · **Tokens est.**: 1.080k
+**Estado**: ✅ completa (7/7 · 78 países validados por T-19) · **Estimado**: 36h · **Coste est.**: 1.825 € · **Tokens est.**: 1.080k
 
 > Hito de **datos**, la partida más cara y arriesgada. Autoría **independiente** de hechos (longitudes/offsets), cross-check contra `cmpayments/iban` e `ixnode/php-iban` (MIT); **nunca** copiar bytes de SWIFT/globalcitizen/Wikipedia/SwiftRef. Se construye por hitos incrementales (SEPA primero).
 
@@ -600,7 +600,7 @@ final readonly class CountryStructure {
 
 ## ⚙️ Fase 3 — Core algorítmico [C-03]
 
-**Estado**: 📝 borrador · **Estimado**: 24h · **Real**: — · **Coste est.**: 1.215 € · **Tokens est.**: 620k
+**Estado**: ✅ completa (6/6 · core funcional: validate/parse/format) · **Estimado**: 24h · **Coste est.**: 1.215 € · **Tokens est.**: 620k
 
 ### T-20 — `Normalizer`
 
@@ -739,7 +739,7 @@ final readonly class CountryStructure {
 
 ## 🇪🇸 Fase 4 — Check nacional ES (mod-11) + generador `bin/` [C-06, C-05]
 
-**Estado**: 📝 borrador · **Estimado**: 13h · **Real**: — · **Coste est.**: 661 € · **Tokens est.**: 435k
+**Estado**: ✅ completa (5/5 · check nacional ES + generador bin/) · **Estimado**: 13h · **Coste est.**: 661 € · **Tokens est.**: 435k
 
 ### T-26 — `SpanishNationalCheckValidator` (mod-11)
 
@@ -852,7 +852,7 @@ final readonly class CountryStructure {
 
 ## 🔌 Fase 5 — Resolver + Providers + esquema BD [C-07]
 
-**Estado**: 📝 borrador · **Estimado**: 14h · **Real**: — · **Coste est.**: 711 € · **Tokens est.**: 440k
+**Estado**: ✅ completa (6/6 · resolver + DatabaseProvider + facade, tests BD reales) · **Estimado**: 14h · **Coste est.**: 711 € · **Tokens est.**: 440k
 
 ### T-31 — `NullProvider` (default)
 
@@ -989,7 +989,7 @@ final readonly class CountryStructure {
 
 ## 🧩 Fase 6 — Integración CodeIgniter 4 (adaptador fino) [C-08]
 
-**Estado**: 📝 borrador · **Estimado**: 16h · **Real**: — · **Coste est.**: 814 € · **Tokens est.**: 560k
+**Estado**: ✅ completa (7/7 · Config/Services/Registrar + helper + 4 comandos) · **Estimado**: 16h · **Coste est.**: 814 € · **Tokens est.**: 560k
 
 ### T-37 — `Config\Iban`
 
@@ -1143,7 +1143,7 @@ final readonly class CountryStructure {
 
 ## 🧪 Fase 7 — Suite de tests transversal [C-09]
 
-**Estado**: 📝 borrador · **Estimado**: 24h · **Real**: — · **Coste est.**: 1.219 € · **Tokens est.**: 750k
+**Estado**: ✅ completa (7/7 · 686 tests, cobertura 99,3% global, phpstan lvl8 src+tests) · **Estimado**: 24h · **Coste est.**: 1.219 € · **Tokens est.**: 750k
 
 > Transversal: los tests unitarios TDD viven en sus tareas (Fases 1–6). Esta fase consolida infraestructura y fixtures **cross-cutting**, y fija los umbrales de cobertura.
 
@@ -1300,7 +1300,7 @@ final readonly class CountryStructure {
 
 ## 📚 Fase 8 — Documentación [C-10]
 
-**Estado**: 📝 borrador · **Estimado**: 10h · **Real**: — · **Coste est.**: 510 € · **Tokens est.**: 340k
+**Estado**: ✅ completa (5/5 · README v1.0 + usage/formatting/i18n/licensing + CHANGELOG + roadmap) · **Estimado**: 10h · **Coste est.**: 510 € · **Tokens est.**: 340k
 
 ### T-51 — README completo
 

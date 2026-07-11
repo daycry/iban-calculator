@@ -1,0 +1,13 @@
+# Composer
+/vendor/
+composer.phar
+.composer/
+# Library convention: do not commit the lock file; CI uses `composer update`
+composer.lock
+
+# PHPUnit
+.phpunit.cache
+build/
+
+# PHP-CS-Fixer
+.php-cs-fixer.cache
