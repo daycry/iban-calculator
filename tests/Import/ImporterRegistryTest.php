@@ -18,6 +18,7 @@ use Daycry\Iban\Import\Importers\CentralBankOfAzerbaijanImporter;
 use Daycry\Iban\Import\Importers\CentralBankOfMaltaImporter;
 use Daycry\Iban\Import\Importers\CroatianNationalBankImporter;
 use Daycry\Iban\Import\Importers\CzechNationalBankImporter;
+use Daycry\Iban\Import\Importers\EpcRegisterImporter;
 use Daycry\Iban\Import\Importers\HellenicBankAssociationImporter;
 use Daycry\Iban\Import\Importers\LiechtensteinImporter;
 use Daycry\Iban\Import\Importers\LuxembourgBankersAssociationImporter;
@@ -69,19 +70,20 @@ final class ImporterRegistryTest extends TestCase
      * {@see NationalBankOfGeorgiaImporter} (GE) -- and this v1.2 IL/UA/KZ
      * batch adds three more, JSON-sourced importers --
      * {@see BankOfIsraelImporter} (IL), {@see NationalBankOfUkraineImporter}
-     * (UA) and {@see NationalBankOfKazakhstanImporter} (KZ) -- and this final
-     * v1.2 BR/LI batch adds two more -- {@see LiechtensteinImporter} (LI) and
-     * {@see BrazilianCentralBankImporter} (BR) -- so a plain
-     * `new ImporterRegistry()` now finds all twenty-five without any extra
-     * registration.
+     * (UA) and {@see NationalBankOfKazakhstanImporter} (KZ) -- and the v1.2
+     * BR/LI batch adds two more -- {@see LiechtensteinImporter} (LI) and
+     * {@see BrazilianCentralBankImporter} (BR) -- and this v1.2 EPC SEPA
+     * Register batch registers {@see EpcRegisterImporter} five times -- once
+     * each for GB, GI, IE, LV and RO -- so a plain `new ImporterRegistry()`
+     * now finds all thirty without any extra registration.
      */
-    public function testDefaultConstructionRegistersTheTwentyFiveBundledImporters(): void
+    public function testDefaultConstructionRegistersTheThirtyBundledImporters(): void
     {
         $registry = new ImporterRegistry();
 
         $all = $registry->all();
 
-        self::assertCount(25, $all);
+        self::assertCount(30, $all);
         self::assertInstanceOf(OenbImporter::class, $all[0]);
         self::assertInstanceOf(BundesbankImporter::class, $all[1]);
         self::assertInstanceOf(SixImporter::class, $all[2]);
@@ -107,6 +109,11 @@ final class ImporterRegistryTest extends TestCase
         self::assertInstanceOf(NationalBankOfKazakhstanImporter::class, $all[22]);
         self::assertInstanceOf(LiechtensteinImporter::class, $all[23]);
         self::assertInstanceOf(BrazilianCentralBankImporter::class, $all[24]);
+        self::assertInstanceOf(EpcRegisterImporter::class, $all[25]);
+        self::assertInstanceOf(EpcRegisterImporter::class, $all[26]);
+        self::assertInstanceOf(EpcRegisterImporter::class, $all[27]);
+        self::assertInstanceOf(EpcRegisterImporter::class, $all[28]);
+        self::assertInstanceOf(EpcRegisterImporter::class, $all[29]);
 
         self::assertSame([
             ['country' => 'AT', 'source' => 'oenb', 'name' => 'Oesterreichische Nationalbank', 'license' => 'CC-BY-4.0 (OeNB)'],
@@ -134,6 +141,11 @@ final class ImporterRegistryTest extends TestCase
             ['country' => 'KZ', 'source' => 'nbk', 'name' => 'National Bank of Kazakhstan', 'license' => 'National Bank of Kazakhstan (open data)'],
             ['country' => 'LI', 'source' => 'six', 'name' => 'SIX Interbank Clearing (Liechtenstein)', 'license' => 'SIX Interbank Clearing (free use)'],
             ['country' => 'BR', 'source' => 'bcb', 'name' => 'Banco Central do Brasil', 'license' => 'Banco Central do Brasil (ODbL)'],
+            ['country' => 'GB', 'source' => 'epc', 'name' => 'European Payments Council (SEPA Register)', 'license' => 'EPC SEPA Register (credit EPC, no resale as-is)'],
+            ['country' => 'GI', 'source' => 'epc', 'name' => 'European Payments Council (SEPA Register)', 'license' => 'EPC SEPA Register (credit EPC, no resale as-is)'],
+            ['country' => 'IE', 'source' => 'epc', 'name' => 'European Payments Council (SEPA Register)', 'license' => 'EPC SEPA Register (credit EPC, no resale as-is)'],
+            ['country' => 'LV', 'source' => 'epc', 'name' => 'European Payments Council (SEPA Register)', 'license' => 'EPC SEPA Register (credit EPC, no resale as-is)'],
+            ['country' => 'RO', 'source' => 'epc', 'name' => 'European Payments Council (SEPA Register)', 'license' => 'EPC SEPA Register (credit EPC, no resale as-is)'],
         ], $registry->sources());
 
         self::assertNotNull($registry->get('AT', 'oenb'));
@@ -161,6 +173,11 @@ final class ImporterRegistryTest extends TestCase
         self::assertNotNull($registry->get('KZ', 'nbk'));
         self::assertNotNull($registry->get('LI', 'six'));
         self::assertNotNull($registry->get('BR', 'bcb'));
+        self::assertNotNull($registry->get('GB', 'epc'));
+        self::assertNotNull($registry->get('GI', 'epc'));
+        self::assertNotNull($registry->get('IE', 'epc'));
+        self::assertNotNull($registry->get('LV', 'epc'));
+        self::assertNotNull($registry->get('RO', 'epc'));
 
         // LI and CH share the 'six' sourceId but are keyed separately by
         // country, so both coexist as distinct registry entries.
@@ -276,13 +293,14 @@ final class ImporterRegistryTest extends TestCase
         $registry->register($at);
         $registry->register($de);
 
-        // Registration order is preserved: the 25 bundled defaults (V-7a +
+        // Registration order is preserved: the 30 bundled defaults (V-7a +
         // V-7b + v1.2 + v1.2 follow-up + v1.2 BE/HR/LU/MT batch + v1.2
-        // HU/NO/GE batch + v1.2 IL/UA/KZ batch + this final v1.2 BR/LI
-        // batch) register first (in the constructor), then $at and $de.
+        // HU/NO/GE batch + v1.2 IL/UA/KZ batch + v1.2 BR/LI batch + this
+        // v1.2 EPC SEPA Register batch) register first (in the constructor),
+        // then $at and $de.
         $all = $registry->all();
 
-        self::assertCount(27, $all);
+        self::assertCount(32, $all);
         self::assertInstanceOf(OenbImporter::class, $all[0]);
         self::assertInstanceOf(BundesbankImporter::class, $all[1]);
         self::assertInstanceOf(SixImporter::class, $all[2]);
@@ -308,8 +326,13 @@ final class ImporterRegistryTest extends TestCase
         self::assertInstanceOf(NationalBankOfKazakhstanImporter::class, $all[22]);
         self::assertInstanceOf(LiechtensteinImporter::class, $all[23]);
         self::assertInstanceOf(BrazilianCentralBankImporter::class, $all[24]);
-        self::assertSame($at, $all[25]);
-        self::assertSame($de, $all[26]);
+        self::assertInstanceOf(EpcRegisterImporter::class, $all[25]);
+        self::assertInstanceOf(EpcRegisterImporter::class, $all[26]);
+        self::assertInstanceOf(EpcRegisterImporter::class, $all[27]);
+        self::assertInstanceOf(EpcRegisterImporter::class, $all[28]);
+        self::assertInstanceOf(EpcRegisterImporter::class, $all[29]);
+        self::assertSame($at, $all[30]);
+        self::assertSame($de, $all[31]);
     }
 
     public function testAllReturnValueIsAListOfImporterInterfaceInstances(): void

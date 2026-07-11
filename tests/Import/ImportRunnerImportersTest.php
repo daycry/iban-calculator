@@ -19,6 +19,7 @@ use Daycry\Iban\Import\Importers\CentralBankOfAzerbaijanImporter;
 use Daycry\Iban\Import\Importers\CentralBankOfMaltaImporter;
 use Daycry\Iban\Import\Importers\CroatianNationalBankImporter;
 use Daycry\Iban\Import\Importers\CzechNationalBankImporter;
+use Daycry\Iban\Import\Importers\EpcRegisterImporter;
 use Daycry\Iban\Import\Importers\HellenicBankAssociationImporter;
 use Daycry\Iban\Import\Importers\LiechtensteinImporter;
 use Daycry\Iban\Import\Importers\LuxembourgBankersAssociationImporter;
@@ -133,6 +134,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const NBU_FIXTURE              = __DIR__ . '/../Fixtures/import/nbu_sample.json';
     private const NBK_FIXTURE              = __DIR__ . '/../Fixtures/import/nbk_sample.json';
     private const BCB_FIXTURE              = __DIR__ . '/../Fixtures/import/bcb_sample.csv';
+    private const EPC_FIXTURE              = __DIR__ . '/../Fixtures/import/epc_sct_sample.csv';
 
     private const CZ_EXAMPLE_IBAN = 'CZ6508000000192000145399';
     private const GR_EXAMPLE_IBAN = 'GR1601101250000000012300695';
@@ -154,6 +156,17 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const KZ_EXAMPLE_IBAN = 'KZ86125KZT5004100100';
     private const LI_EXAMPLE_IBAN = 'LI21088100002324013AA';
     private const BR_EXAMPLE_IBAN = 'BR9700360305000010009795493P1';
+
+    // MOD-97-valid test IBANs for the EPC SEPA Register importer's seeded
+    // banks. GB's is the SRLG example handed down with the task brief
+    // (confirmed valid); IE/RO/LV/GI are built with Mod97::checkDigits()
+    // against each seeded bank's real bank_code (see EpcRegisterImporterTest
+    // for where these BICs/names come from).
+    private const GB_EXAMPLE_IBAN = 'GB31SRLG60837107670802';
+    private const IE_EXAMPLE_IBAN = 'IE73AIBK93086212345678';
+    private const RO_EXAMPLE_IBAN = 'RO63BTRL0000123456789012';
+    private const LV_EXAMPLE_IBAN = 'LV48HABA0000123456789';
+    private const GI_EXAMPLE_IBAN = 'GI29XAPO000000012345678';
 
     private ?string $nbbFixture = null;
 
@@ -1309,5 +1322,148 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
         $kzModel = (new BankModel())->findByNaturalKey('KZ', '125', null);
         self::assertIsArray($kzModel);
         self::assertSame('ForteBank JSC (fixture — KZ registry example bank code)', $kzModel['name']);
+    }
+
+    public function testEpcRegisterImporterImportsGbRowsWithProvenanceAndResolvesStarling(): void
+    {
+        $report = (new ImportRunner())->run(new EpcRegisterImporter('GB'), new BankModel(), false, self::EPC_FIXTURE);
+
+        self::assertSame('GB', $report->countryCode);
+        self::assertSame('epc', $report->sourceId);
+        // The importer itself already dedups (LOYD) and skips (a past
+        // Scheme Leaving Date row, an empty-BIC row) before ImportRunner
+        // ever sees a row -- so `fetched` reflects the 3 GB rows the
+        // importer actually yields, not the 6 raw GB lines in the fixture.
+        self::assertSame(3, $report->fetched);
+        self::assertSame(3, $report->imported);
+        self::assertSame(0, $report->skipped);
+
+        self::assertSame(3, $this->db->table('banks')->countAllResults());
+
+        $this->seeInDatabase('banks', [
+            'country_code'   => 'GB',
+            'bank_code'      => 'SRLG',
+            'branch_code'    => null,
+            'name'           => 'Starling Bank Limited',
+            'bic'            => 'SRLGGB3LXXX',
+            'source_id'      => 'epc',
+            'source_license' => 'EPC SEPA Register (credit EPC, no resale as-is)',
+            'sepa_sct'       => 1,
+        ]);
+
+        $this->seeInDatabase('banks', [
+            'country_code' => 'GB',
+            'bank_code'    => 'LOYD',
+            'name'         => 'Lloyds Bank plc', // first occurrence wins over the deduped LOYDJES1XXX sibling
+        ]);
+
+        // The real proof: resolving a MOD-97-valid GB IBAN for Starling's
+        // bank_code ('SRLG') against the seeded bank-level row, including
+        // the SEPA SCT reachability flag this importer is the whole point of.
+        $iban   = new Iban(provider: new DatabaseProvider(new BankModel()));
+        $result = $iban->resolve(self::GB_EXAMPLE_IBAN);
+
+        self::assertTrue($result->isResolved());
+        self::assertSame('Starling Bank Limited', $result->bankName);
+        self::assertTrue($result->sepaSct);
+    }
+
+    public function testEpcRegisterImporterImportsIeRowsWithProvenanceAndResolvesAlliedIrishBanks(): void
+    {
+        $report = (new ImportRunner())->run(new EpcRegisterImporter('IE'), new BankModel(), false, self::EPC_FIXTURE);
+
+        self::assertSame('IE', $report->countryCode);
+        self::assertSame('epc', $report->sourceId);
+        self::assertSame(2, $report->fetched);
+        self::assertSame(2, $report->imported);
+        self::assertSame(0, $report->skipped);
+
+        self::assertSame(2, $this->db->table('banks')->countAllResults());
+
+        $this->seeInDatabase('banks', [
+            'country_code'   => 'IE',
+            'bank_code'      => 'AIBK',
+            'branch_code'    => null,
+            'name'           => 'Allied Irish Banks plc',
+            'bic'            => 'AIBKIE2DXXX',
+            'source_id'      => 'epc',
+            'source_license' => 'EPC SEPA Register (credit EPC, no resale as-is)',
+            'sepa_sct'       => 1,
+        ]);
+
+        // The real proof: resolving a MOD-97-valid IE IBAN for AIB's
+        // bank_code ('AIBK') against the seeded bank-level row.
+        $iban   = new Iban(provider: new DatabaseProvider(new BankModel()));
+        $result = $iban->resolve(self::IE_EXAMPLE_IBAN);
+
+        self::assertTrue($result->isResolved());
+        self::assertSame('Allied Irish Banks plc', $result->bankName);
+        self::assertTrue($result->sepaSct);
+    }
+
+    /**
+     * Proves the remaining three of the five EPC-registered countries
+     * (RO/LV/GI) end-to-end too, alongside GB/IE above -- all five are the
+     * whole point of this importer's registration batch.
+     */
+    public function testEpcRegisterImporterResolvesRomaniaLatviaAndGibraltarExampleIbans(): void
+    {
+        $runner = new ImportRunner();
+        $model  = new BankModel();
+
+        $runner->run(new EpcRegisterImporter('RO'), $model, false, self::EPC_FIXTURE);
+        $runner->run(new EpcRegisterImporter('LV'), $model, false, self::EPC_FIXTURE);
+        $runner->run(new EpcRegisterImporter('GI'), $model, false, self::EPC_FIXTURE);
+
+        $this->seeInDatabase('banks', [
+            'country_code' => 'RO',
+            'bank_code'    => 'BTRL',
+            'source_id'    => 'epc',
+            'sepa_sct'     => 1,
+        ]);
+        $this->seeInDatabase('banks', [
+            'country_code' => 'LV',
+            'bank_code'    => 'HABA',
+            'source_id'    => 'epc',
+            'sepa_sct'     => 1,
+        ]);
+        $this->seeInDatabase('banks', [
+            'country_code' => 'GI',
+            'bank_code'    => 'XAPO',
+            'source_id'    => 'epc',
+            'sepa_sct'     => 1,
+        ]);
+
+        $iban = new Iban(provider: new DatabaseProvider(new BankModel()));
+
+        $ro = $iban->resolve(self::RO_EXAMPLE_IBAN);
+        self::assertTrue($ro->isResolved());
+        self::assertSame('Banca Transilvania S.A.', $ro->bankName);
+        self::assertTrue($ro->sepaSct);
+
+        $lv = $iban->resolve(self::LV_EXAMPLE_IBAN);
+        self::assertTrue($lv->isResolved());
+        self::assertSame('AS Swedbank', $lv->bankName);
+        self::assertTrue($lv->sepaSct);
+
+        $gi = $iban->resolve(self::GI_EXAMPLE_IBAN);
+        self::assertTrue($gi->isResolved());
+        self::assertSame('XAPO Bank Limited', $gi->bankName);
+        self::assertTrue($gi->sepaSct);
+    }
+
+    public function testEpcRegisterImporterExcludesTheFrenchRowFromEveryTargetCountryImport(): void
+    {
+        $runner = new ImportRunner();
+        $model  = new BankModel();
+
+        $runner->run(new EpcRegisterImporter('GB'), $model, false, self::EPC_FIXTURE);
+        $runner->run(new EpcRegisterImporter('IE'), $model, false, self::EPC_FIXTURE);
+        $runner->run(new EpcRegisterImporter('RO'), $model, false, self::EPC_FIXTURE);
+        $runner->run(new EpcRegisterImporter('LV'), $model, false, self::EPC_FIXTURE);
+        $runner->run(new EpcRegisterImporter('GI'), $model, false, self::EPC_FIXTURE);
+
+        $this->dontSeeInDatabase('banks', ['bank_code' => 'BNPA']);
+        $this->dontSeeInDatabase('banks', ['name' => 'BNP Paribas SA']);
     }
 }

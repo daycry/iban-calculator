@@ -17,6 +17,7 @@ use Daycry\Iban\Import\Importers\CentralBankOfAzerbaijanImporter;
 use Daycry\Iban\Import\Importers\CentralBankOfMaltaImporter;
 use Daycry\Iban\Import\Importers\CroatianNationalBankImporter;
 use Daycry\Iban\Import\Importers\CzechNationalBankImporter;
+use Daycry\Iban\Import\Importers\EpcRegisterImporter;
 use Daycry\Iban\Import\Importers\HellenicBankAssociationImporter;
 use Daycry\Iban\Import\Importers\LiechtensteinImporter;
 use Daycry\Iban\Import\Importers\LuxembourgBankersAssociationImporter;
@@ -69,12 +70,18 @@ use Daycry\Iban\Import\Importers\SixImporter;
  * {@see \Daycry\Iban\Import\Importers\BankOfIsraelImporter} (IL),
  * {@see \Daycry\Iban\Import\Importers\NationalBankOfUkraineImporter} (UA)
  * and {@see \Daycry\Iban\Import\Importers\NationalBankOfKazakhstanImporter}
- * (KZ) -- and v1.2's final BR/LI batch adds two more --
+ * (KZ) -- and v1.2's BR/LI batch adds two more --
  * {@see \Daycry\Iban\Import\Importers\BrazilianCentralBankImporter} (BR) and
  * {@see \Daycry\Iban\Import\Importers\LiechtensteinImporter} (LI, which
  * shares {@see \Daycry\Iban\Import\Importers\SixImporter}'s `'six'` source
- * ID and CSV source but is keyed separately by country) -- so
- * `new ImporterRegistry()` picks up all twenty-five automatically for every
+ * ID and CSV source but is keyed separately by country) -- and this v1.2
+ * EPC SEPA Register batch registers one supranational, PARAMETERIZED-PER-
+ * COUNTRY importer -- {@see \Daycry\Iban\Import\Importers\EpcRegisterImporter} --
+ * five times, once each for GB, GI, IE, LV and RO: the SEPA countries whose
+ * IBAN `bank_code` is the BIC's 4-letter prefix and that have no dedicated
+ * national importer already registered here (BG/MT/NL share that same
+ * bank-code shape but already have one, so are not double-registered) -- so
+ * `new ImporterRegistry()` picks up all thirty automatically for every
  * consumer (`iban:update` included) without any other call site changing.
  *
  * @see \Daycry\Iban\Commands\UpdateCommand
@@ -179,11 +186,12 @@ class ImporterRegistry
      * batch adds three more, JSON-sourced importers --
      * {@see BankOfIsraelImporter} (IL), {@see NationalBankOfUkraineImporter}
      * (UA) and {@see NationalBankOfKazakhstanImporter} (KZ) -- and this
-     * v1.2 final BR/LI batch adds two more --
-     * {@see BrazilianCentralBankImporter} (BR) and
-     * {@see LiechtensteinImporter} (LI) -- so every consumer (`iban:update`
-     * included) picks up all twenty-five automatically without any other
-     * call site changing.
+     * v1.2 BR/LI batch adds two more -- {@see BrazilianCentralBankImporter}
+     * (BR) and {@see LiechtensteinImporter} (LI) -- and this v1.2 EPC SEPA
+     * Register batch registers {@see EpcRegisterImporter} five times -- once
+     * each for GB, GI, IE, LV and RO -- so every consumer (`iban:update`
+     * included) picks up all thirty automatically without any other call
+     * site changing.
      */
     protected function registerDefaults(): void
     {
@@ -212,6 +220,11 @@ class ImporterRegistry
         $this->register(new NationalBankOfKazakhstanImporter());
         $this->register(new LiechtensteinImporter());
         $this->register(new BrazilianCentralBankImporter());
+        $this->register(new EpcRegisterImporter('GB'));
+        $this->register(new EpcRegisterImporter('GI'));
+        $this->register(new EpcRegisterImporter('IE'));
+        $this->register(new EpcRegisterImporter('LV'));
+        $this->register(new EpcRegisterImporter('RO'));
     }
 
     private static function key(string $countryCode, string $sourceId): string
