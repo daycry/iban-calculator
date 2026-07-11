@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Daycry\Iban\Import\Importers;
 
 use Daycry\Iban\Contracts\ImporterInterface;
+use Daycry\Iban\Import\Importers\Concerns\ReadsCsvSource;
 
 /**
  * Official-source importer for Austria (AT): the Oesterreichische
@@ -56,6 +57,8 @@ use Daycry\Iban\Contracts\ImporterInterface;
  */
 final class OenbImporter implements ImporterInterface
 {
+    use ReadsCsvSource;
+
     private const COLUMN_BANK_NAME  = 'Bankenname';
     private const COLUMN_BANK_CODE  = 'Bankleitzahl';
     private const COLUMN_STREET     = 'Straße';
@@ -94,37 +97,20 @@ final class OenbImporter implements ImporterInterface
      */
     public function rows(?string $localFile = null): iterable
     {
-        $raw = $localFile !== null
-            ? @file_get_contents($localFile)
-            : @file_get_contents($this->sourceUrl());
+        /** @var list<string>|null $header */
+        $header = null;
 
-        if ($raw === false || $raw === '') {
-            return;
-        }
+        foreach ($this->csvRecords($localFile, $this->sourceUrl(), ';') as $fields) {
+            if ($header === null) {
+                if ($fields === [null]) {
+                    return; // blank/invalid header line
+                }
 
-        $raw = self::normalizeEncoding($raw);
+                $header = array_map(static fn (?string $column): string => trim($column ?? ''), $fields);
 
-        $stream = fopen('php://temp', 'r+b');
+                continue;
+            }
 
-        if ($stream === false) {
-            return;
-        }
-
-        fwrite($stream, $raw);
-        rewind($stream);
-
-        $header = fgetcsv($stream, 0, ';');
-
-        if ($header === false || $header === [null]) {
-            fclose($stream);
-
-            return;
-        }
-
-        /** @var list<string> $header */
-        $header = array_map(static fn (?string $column): string => trim($column ?? ''), $header);
-
-        while (($fields = fgetcsv($stream, 0, ';')) !== false) {
             if ($fields === [null]) {
                 continue; // blank line
             }
@@ -163,15 +149,6 @@ final class OenbImporter implements ImporterInterface
                 ),
             ];
         }
-
-        fclose($stream);
-    }
-
-    private static function nullableTrim(string $value): ?string
-    {
-        $trimmed = trim($value);
-
-        return $trimmed !== '' ? $trimmed : null;
     }
 
     private static function buildAddress(string $street, string $postCode, string $city): ?string
@@ -182,23 +159,5 @@ final class OenbImporter implements ImporterInterface
         $parts = array_filter([$street, $postCodeCity], static fn (string $part): bool => $part !== '');
 
         return $parts === [] ? null : implode(', ', $parts);
-    }
-
-    /**
-     * Strips a leading UTF-8 BOM if present, and falls back to a
-     * Windows-1252 -> UTF-8 conversion when the raw bytes aren't valid UTF-8
-     * (Austrian government CSV exports have shipped in either encoding).
-     */
-    private static function normalizeEncoding(string $raw): string
-    {
-        if (str_starts_with($raw, "\xEF\xBB\xBF")) {
-            $raw = substr($raw, 3);
-        }
-
-        if (! mb_check_encoding($raw, 'UTF-8')) {
-            $raw = mb_convert_encoding($raw, 'UTF-8', 'Windows-1252');
-        }
-
-        return $raw;
     }
 }

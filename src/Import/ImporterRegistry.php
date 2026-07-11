@@ -6,8 +6,29 @@ namespace Daycry\Iban\Import;
 
 use Daycry\Iban\Contracts\ImporterInterface;
 use Daycry\Iban\Import\Importers\BancoDeEspanaImporter;
+use Daycry\Iban\Import\Importers\BankOfIsraelImporter;
+use Daycry\Iban\Import\Importers\BankOfSloveniaImporter;
 use Daycry\Iban\Import\Importers\BetaalverenigingImporter;
+use Daycry\Iban\Import\Importers\BitsNorwayImporter;
+use Daycry\Iban\Import\Importers\BrazilianCentralBankImporter;
+use Daycry\Iban\Import\Importers\BulgarianNationalBankImporter;
 use Daycry\Iban\Import\Importers\BundesbankImporter;
+use Daycry\Iban\Import\Importers\CentralBankOfAzerbaijanImporter;
+use Daycry\Iban\Import\Importers\CentralBankOfMaltaImporter;
+use Daycry\Iban\Import\Importers\CroatianNationalBankImporter;
+use Daycry\Iban\Import\Importers\CzechNationalBankImporter;
+use Daycry\Iban\Import\Importers\EpcRegisterImporter;
+use Daycry\Iban\Import\Importers\HellenicBankAssociationImporter;
+use Daycry\Iban\Import\Importers\LiechtensteinImporter;
+use Daycry\Iban\Import\Importers\LuxembourgBankersAssociationImporter;
+use Daycry\Iban\Import\Importers\MagyarNemzetiBankImporter;
+use Daycry\Iban\Import\Importers\NationalBankOfBelgiumImporter;
+use Daycry\Iban\Import\Importers\NationalBankOfGeorgiaImporter;
+use Daycry\Iban\Import\Importers\NationalBankOfKazakhstanImporter;
+use Daycry\Iban\Import\Importers\NationalBankOfMoldovaImporter;
+use Daycry\Iban\Import\Importers\NationalBankOfPolandImporter;
+use Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter;
+use Daycry\Iban\Import\Importers\NationalBankOfUkraineImporter;
 use Daycry\Iban\Import\Importers\OenbImporter;
 use Daycry\Iban\Import\Importers\SixImporter;
 
@@ -24,10 +45,43 @@ use Daycry\Iban\Import\Importers\SixImporter;
  * that task only built the framework. v1.1's V-7a registered the first two
  * bundled official-source importers there -- {@see \Daycry\Iban\Import\Importers\OenbImporter}
  * (AT) and {@see \Daycry\Iban\Import\Importers\BundesbankImporter} (DE) --
- * and v1.1's V-7b adds three more -- {@see \Daycry\Iban\Import\Importers\SixImporter}
+ * v1.1's V-7b added three more -- {@see \Daycry\Iban\Import\Importers\SixImporter}
  * (CH), {@see \Daycry\Iban\Import\Importers\BetaalverenigingImporter} (NL)
- * and {@see \Daycry\Iban\Import\Importers\BancoDeEspanaImporter} (ES) -- so
- * `new ImporterRegistry()` picks up all five automatically for every
+ * and {@see \Daycry\Iban\Import\Importers\BancoDeEspanaImporter} (ES) --
+ * v1.2 added four more -- {@see \Daycry\Iban\Import\Importers\CzechNationalBankImporter}
+ * (CZ), {@see \Daycry\Iban\Import\Importers\HellenicBankAssociationImporter}
+ * (GR), {@see \Daycry\Iban\Import\Importers\BankOfSloveniaImporter} (SI) and
+ * {@see \Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter} (SK)
+ * -- and v1.2's follow-up batch adds four more XML-sourced importers --
+ * {@see \Daycry\Iban\Import\Importers\BulgarianNationalBankImporter} (BG),
+ * {@see \Daycry\Iban\Import\Importers\NationalBankOfMoldovaImporter} (MD),
+ * {@see \Daycry\Iban\Import\Importers\NationalBankOfPolandImporter} (PL) and
+ * {@see \Daycry\Iban\Import\Importers\CentralBankOfAzerbaijanImporter} (AZ)
+ * -- and this v1.2 BE/HR/LU/MT batch adds four more, XLSX-sourced importers
+ * -- {@see \Daycry\Iban\Import\Importers\NationalBankOfBelgiumImporter} (BE),
+ * {@see \Daycry\Iban\Import\Importers\CroatianNationalBankImporter} (HR),
+ * {@see \Daycry\Iban\Import\Importers\LuxembourgBankersAssociationImporter}
+ * (LU) and {@see \Daycry\Iban\Import\Importers\CentralBankOfMaltaImporter}
+ * (MT) -- and this v1.2 HU/NO/GE batch adds three more, also XLSX-sourced --
+ * {@see \Daycry\Iban\Import\Importers\MagyarNemzetiBankImporter} (HU),
+ * {@see \Daycry\Iban\Import\Importers\BitsNorwayImporter} (NO) and
+ * {@see \Daycry\Iban\Import\Importers\NationalBankOfGeorgiaImporter} (GE) --
+ * and this v1.2 IL/UA/KZ batch adds three more, JSON-sourced importers --
+ * {@see \Daycry\Iban\Import\Importers\BankOfIsraelImporter} (IL),
+ * {@see \Daycry\Iban\Import\Importers\NationalBankOfUkraineImporter} (UA)
+ * and {@see \Daycry\Iban\Import\Importers\NationalBankOfKazakhstanImporter}
+ * (KZ) -- and v1.2's BR/LI batch adds two more --
+ * {@see \Daycry\Iban\Import\Importers\BrazilianCentralBankImporter} (BR) and
+ * {@see \Daycry\Iban\Import\Importers\LiechtensteinImporter} (LI, which
+ * shares {@see \Daycry\Iban\Import\Importers\SixImporter}'s `'six'` source
+ * ID and CSV source but is keyed separately by country) -- and this v1.2
+ * EPC SEPA Register batch registers one supranational, PARAMETERIZED-PER-
+ * COUNTRY importer -- {@see \Daycry\Iban\Import\Importers\EpcRegisterImporter} --
+ * five times, once each for GB, GI, IE, LV and RO: the SEPA countries whose
+ * IBAN `bank_code` is the BIC's 4-letter prefix and that have no dedicated
+ * national importer already registered here (BG/MT/NL share that same
+ * bank-code shape but already have one, so are not double-registered) -- so
+ * `new ImporterRegistry()` picks up all thirty automatically for every
  * consumer (`iban:update` included) without any other call site changing.
  *
  * @see \Daycry\Iban\Commands\UpdateCommand
@@ -109,11 +163,35 @@ class ImporterRegistry
      * Was deliberately empty in v1.1's V-6 (the importer framework itself
      * had nothing to bundle yet). v1.1's V-7a filled this in with the first
      * two concrete official-source importers -- {@see OenbImporter} (AT) and
-     * {@see BundesbankImporter} (DE). v1.1's V-7b adds three more --
+     * {@see BundesbankImporter} (DE). v1.1's V-7b added three more --
      * {@see SixImporter} (CH), {@see BetaalverenigingImporter} (NL) and
-     * {@see BancoDeEspanaImporter} (ES) -- so every consumer (`iban:update`
-     * included) picks up all five automatically without any other call site
-     * changing.
+     * {@see BancoDeEspanaImporter} (ES). v1.2 added four more --
+     * {@see CzechNationalBankImporter} (CZ),
+     * {@see HellenicBankAssociationImporter} (GR),
+     * {@see BankOfSloveniaImporter} (SI) and
+     * {@see NationalBankOfSlovakiaImporter} (SK) -- and this v1.2 follow-up
+     * batch adds four more XML-sourced importers --
+     * {@see BulgarianNationalBankImporter} (BG),
+     * {@see NationalBankOfMoldovaImporter} (MD),
+     * {@see NationalBankOfPolandImporter} (PL) and
+     * {@see CentralBankOfAzerbaijanImporter} (AZ) -- and this v1.2 BE/HR/LU/MT
+     * batch adds four more, XLSX-sourced importers --
+     * {@see NationalBankOfBelgiumImporter} (BE),
+     * {@see CroatianNationalBankImporter} (HR),
+     * {@see LuxembourgBankersAssociationImporter} (LU) and
+     * {@see CentralBankOfMaltaImporter} (MT) -- and this v1.2 HU/NO/GE batch
+     * adds three more, also XLSX-sourced -- {@see MagyarNemzetiBankImporter}
+     * (HU), {@see BitsNorwayImporter} (NO) and
+     * {@see NationalBankOfGeorgiaImporter} (GE) -- and this v1.2 IL/UA/KZ
+     * batch adds three more, JSON-sourced importers --
+     * {@see BankOfIsraelImporter} (IL), {@see NationalBankOfUkraineImporter}
+     * (UA) and {@see NationalBankOfKazakhstanImporter} (KZ) -- and this
+     * v1.2 BR/LI batch adds two more -- {@see BrazilianCentralBankImporter}
+     * (BR) and {@see LiechtensteinImporter} (LI) -- and this v1.2 EPC SEPA
+     * Register batch registers {@see EpcRegisterImporter} five times -- once
+     * each for GB, GI, IE, LV and RO -- so every consumer (`iban:update`
+     * included) picks up all thirty automatically without any other call
+     * site changing.
      */
     protected function registerDefaults(): void
     {
@@ -122,6 +200,31 @@ class ImporterRegistry
         $this->register(new SixImporter());
         $this->register(new BetaalverenigingImporter());
         $this->register(new BancoDeEspanaImporter());
+        $this->register(new CzechNationalBankImporter());
+        $this->register(new HellenicBankAssociationImporter());
+        $this->register(new BankOfSloveniaImporter());
+        $this->register(new NationalBankOfSlovakiaImporter());
+        $this->register(new BulgarianNationalBankImporter());
+        $this->register(new NationalBankOfMoldovaImporter());
+        $this->register(new NationalBankOfPolandImporter());
+        $this->register(new CentralBankOfAzerbaijanImporter());
+        $this->register(new NationalBankOfBelgiumImporter());
+        $this->register(new CroatianNationalBankImporter());
+        $this->register(new LuxembourgBankersAssociationImporter());
+        $this->register(new CentralBankOfMaltaImporter());
+        $this->register(new MagyarNemzetiBankImporter());
+        $this->register(new BitsNorwayImporter());
+        $this->register(new NationalBankOfGeorgiaImporter());
+        $this->register(new BankOfIsraelImporter());
+        $this->register(new NationalBankOfUkraineImporter());
+        $this->register(new NationalBankOfKazakhstanImporter());
+        $this->register(new LiechtensteinImporter());
+        $this->register(new BrazilianCentralBankImporter());
+        $this->register(new EpcRegisterImporter('GB'));
+        $this->register(new EpcRegisterImporter('GI'));
+        $this->register(new EpcRegisterImporter('IE'));
+        $this->register(new EpcRegisterImporter('LV'));
+        $this->register(new EpcRegisterImporter('RO'));
     }
 
     private static function key(string $countryCode, string $sourceId): string

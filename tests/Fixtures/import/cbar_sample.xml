@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Data>
+  <Header>
+    <Type>BANK_DETAILS</Type>
+    <SerialNumber>20260629001</SerialNumber>
+    <HeadOfficeCount>5</HeadOfficeCount>
+    <BranchOfficeCount>1</BranchOfficeCount>
+    <DateTime>2026-06-29T15:48:32</DateTime>
+  </Header>
+  <HeadOffices>
+    <Operations>
+      <Method>ADD</Method>
+      <Bank>
+        <Code>501004</Code>
+        <SWIFTBIC>NABZAZ2C</SWIFTBIC>
+        <Name>AR Mərkəzi Bankı</Name>
+        <CorAccount Currency="AZN">AZ74NABZ01451700000000001944</CorAccount>
+        <TaxNumber>9900071001</TaxNumber>
+        <Address>Bakı şəhər, AZ1014, R.Behbudov küçəsi, 90</Address>
+        <PhoneNumber>+994124931122</PhoneNumber>
+      </Bank>
+      <Bank>
+        <Code>505000</Code>
+        <SWIFTBIC>ACABAZ22</SWIFTBIC>
+        <Name>ACCESSBANK QSC</Name>
+        <CorAccount Currency="AZN">AZ10NABZ01350100000000056944</CorAccount>
+        <TaxNumber>1400057421</TaxNumber>
+        <Address>Bakı şəhəri, Yasamal rayonu, Tbilisi prospekti, 3</Address>
+        <PhoneNumber>+994124930726</PhoneNumber>
+      </Bank>
+      <Bank>
+        <Code>805250</Code>
+        <SWIFTBIC>IBAZAZ2X</SWIFTBIC>
+        <Name>Azərbaycan Beynəlxalq Bankı ASC</Name>
+        <CorAccount Currency="AZN">AZ03NABZ01350100000000002944</CorAccount>
+        <TaxNumber>9900003236</TaxNumber>
+        <Address>Bakı şəhəri, Nizami küçəsi, 67</Address>
+      </Bank>
+      <Bank>
+        <Code>200004</Code>
+        <SWIFTBIC>AIIBAZ2X</SWIFTBIC>
+        <Name>Kapital Bank ASC</Name>
+        <CorAccount Currency="AZN">AZ37NABZ01350100000000001944</CorAccount>
+        <TaxNumber>9900003611</TaxNumber>
+        <Address>Bakı şəhəri, Nəsimi rayonu, Neftçilər prospekti 153, Port Baku Tower 2</Address>
+        <PhoneNumber>+994124931882</PhoneNumber>
+      </Bank>
+      <Bank>
+        <Code>210027</Code>
+        <SWIFTBIC>CTREAZ24</SWIFTBIC>
+        <Name>Dövlət Xəzinədarlığı Agentliyi</Name>
+        <CorAccount Currency="AZN">AZ07NABZ01360100000000004944</CorAccount>
+        <TaxNumber>1401555071</TaxNumber>
+        <Address>Bakı şəhəri, S. Vurğun küçəsi, 83</Address>
+      </Bank>
+      <Bank>
+        <Code>210005</Code>
+        <SWIFTBIC>CTREAZ22</SWIFTBIC>
+        <Name>Dövlət Xəzinədarlığı Agentliyi</Name>
+        <CorAccount Currency="AZN">AZ41NABZ01360100000000003944</CorAccount>
+        <TaxNumber>1401555071</TaxNumber>
+        <Address>Bakı şəhəri, S. Vurğun küçəsi, 83</Address>
+        <PhoneNumber>+994124932901</PhoneNumber>
+      </Bank>
+    </Operations>
+  </HeadOffices>
+  <BranchOffices>
+    <Operations>
+      <Method>ADD</Method>
+      <Branch>
+        <ParentCode>501004</ParentCode>
+        <ParentName>AR Mərkəzi Bankı</ParentName>
+        <Code>503013</Code>
+        <SWIFTBIC>NABZAZ2C</SWIFTBIC>
+        <Name>MB Biləsuvar Ərazi Idarəsi</Name>
+        <CorAccount Currency="AZN">AZ74NABZ01451700000000001944</CorAccount>
+        <Address>Biləsuvar şəhəri, Heydər Əliyev küçəsi, 2d</Address>
+        <PhoneNumber>+994252950015</PhoneNumber>
+      </Branch>
+    </Operations>
+  </BranchOffices>
+</Data>

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Daycry\Iban\Import\Importers;
 
 use Daycry\Iban\Contracts\ImporterInterface;
+use Daycry\Iban\Import\Importers\Concerns\ReadsCsvSource;
 
 /**
  * Official-source importer for Spain (ES): Banco de España's Monetary
@@ -69,6 +70,8 @@ use Daycry\Iban\Contracts\ImporterInterface;
  */
 final class BancoDeEspanaImporter implements ImporterInterface
 {
+    use ReadsCsvSource;
+
     private const INDEX_NAME             = 2;
     private const INDEX_ADDRESS          = 4;
     private const INDEX_SUPERVISORY_CODE = 7;
@@ -106,34 +109,15 @@ final class BancoDeEspanaImporter implements ImporterInterface
      */
     public function rows(?string $localFile = null): iterable
     {
-        $raw = $localFile !== null
-            ? @file_get_contents($localFile)
-            : @file_get_contents($this->sourceUrl());
+        $isHeader = true;
 
-        if ($raw === false || $raw === '') {
-            return;
-        }
+        foreach ($this->csvRecords($localFile, $this->sourceUrl(), ',') as $fields) {
+            if ($isHeader) {
+                $isHeader = false;
 
-        $raw = self::stripBom($raw);
+                continue; // header row: columns are matched by position, not name
+            }
 
-        $stream = fopen('php://temp', 'r+b');
-
-        if ($stream === false) {
-            return;
-        }
-
-        fwrite($stream, $raw);
-        rewind($stream);
-
-        $header = fgetcsv($stream, 0, ',');
-
-        if ($header === false) {
-            fclose($stream);
-
-            return;
-        }
-
-        while (($fields = fgetcsv($stream, 0, ',')) !== false) {
             if ($fields === [null]) {
                 continue; // blank line
             }
@@ -151,25 +135,5 @@ final class BancoDeEspanaImporter implements ImporterInterface
                 'address'     => self::nullableTrim($fields[self::INDEX_ADDRESS] ?? ''),
             ];
         }
-
-        fclose($stream);
-    }
-
-    private static function nullableTrim(?string $value): ?string
-    {
-        $trimmed = trim($value ?? '');
-
-        return $trimmed !== '' ? $trimmed : null;
-    }
-
-    /**
-     * Strips a leading UTF-8 BOM if present (this source always ships one).
-     * Defensive: the BOM would otherwise only sit in the discarded header's
-     * first cell, but stripping it makes BOM-safety explicit rather than a
-     * side effect of header-discarding. No Latin-1 fallback: this is UTF-8.
-     */
-    private static function stripBom(string $raw): string
-    {
-        return str_starts_with($raw, "\xEF\xBB\xBF") ? substr($raw, 3) : $raw;
     }
 }

@@ -5,6 +5,77 @@ All notable changes to `daycry/iban` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-07-11
+
+### Added
+
+- **25 more bundled official-source importers** (`src/Import/Importers/`), taking the bundled total
+  from 5 to **30** — none of them bundle any actual data, same discipline as v1.1's five (see
+  `docs/licensing.md`); the operator runs `iban:update --source=... [--file=...]` themselves:
+  - **20 national importers**, one country each: `CzechNationalBankImporter` (CZ, `cnb`),
+    `HellenicBankAssociationImporter` (GR, `hba`), `BankOfSloveniaImporter` (SI, `bsi`),
+    `NationalBankOfSlovakiaImporter` (SK, `nbs`) — all `;`-delimited CSV; `BulgarianNationalBankImporter`
+    (BG, `bnb`, SpreadsheetML XML), `NationalBankOfMoldovaImporter` (MD, `bnm`, XML),
+    `NationalBankOfPolandImporter` (PL, `nbp`, XML), `CentralBankOfAzerbaijanImporter` (AZ, `cbar`,
+    XML); `NationalBankOfBelgiumImporter` (BE, `nbb`), `CroatianNationalBankImporter` (HR, `hnb`),
+    `LuxembourgBankersAssociationImporter` (LU, `abbl`), `CentralBankOfMaltaImporter` (MT, `cbm`),
+    `MagyarNemzetiBankImporter` (HU, `mnb`), `BitsNorwayImporter` (NO, `bits`),
+    `NationalBankOfGeorgiaImporter` (GE, `nbg`) — all `.xlsx`, read via the new `XlsxReader`;
+    `BankOfIsraelImporter` (IL, `boi`), `NationalBankOfUkraineImporter` (UA, `nbu`),
+    `NationalBankOfKazakhstanImporter` (KZ, `nbk`) — all JSON; `BrazilianCentralBankImporter` (BR,
+    `bcb`, CSV, ODbL) and `LiechtensteinImporter` (LI, `six` — shares `SixImporter`'s CSV source and
+    parsing trait, filtered to `Country === 'LI'`).
+  - **1 supranational importer, registered 5 times**: `EpcRegisterImporter`, parameterized per
+    country and instantiated once each for GB, GI, IE, LV and RO — the SEPA countries whose IBAN
+    `bank_code` is exactly the BIC's 4-letter institution prefix and that had no dedicated national
+    importer. Consumes the European Payments Council's SEPA Register (per-scheme CSV exports for
+    SCT/SCT Inst/SDD Core/SDD B2B); offline mode parses one scheme file, live mode fetches all four
+    and derives each country's SEPA reachability per bank.
+- **`Import\Support\XlsxReader`**: a minimal, read-only `.xlsx` (OOXML) reader built on `ZipArchive` +
+  `SimpleXMLElement` — deliberately not a full spreadsheet library (no PhpSpreadsheet dependency).
+  Reads only the first worksheet as a plain grid of cell strings, resolving shared-string/inline-string/
+  numeric cells and the real first-sheet part via `workbook.xml`'s relationships. Used by the 7
+  `.xlsx`-sourced importers above (BE, HR, LU, MT, HU, NO, GE).
+- **EPC SEPA Register importer also populates SEPA reachability flags**: a live (non-offline) run sets
+  `sepa_sct`/`sepa_sct_inst`/`sepa_sdd_core`/`sepa_sdd_b2b` per bank from each scheme's own export file
+  (`true`/`false`), or leaves a flag `null` if that scheme's file couldn't be fetched at all.
+- **`iban:update --all`**: a new flag on `Commands\UpdateCommand` that runs every registered importer
+  in a single invocation (all 30, or narrowed with `--country`). Fetches live, honors `--dry-run`,
+  isolates each importer in its own `try`/`catch` so one failure doesn't abort the rest, and prints an
+  aggregate summary. Cannot be combined with `--file`.
+- **Complete public-API documentation**: a new `docs/api-reference.md` — the exhaustive per-symbol
+  reference (facade, helper functions, config/services/caching, DTOs, enums, exceptions, national
+  validators, contracts/extension points, registry), verified against the source — plus a full
+  spark-command reference and the 30-source cheat sheet in `docs/usage.md` and the country coverage
+  matrix in `docs/importers.md`.
+
+### Changed
+
+- **Resolver now does a bank-level fallback**: `Resolver::resolve()` tries `findByIban()` first (exact
+  bank + branch match); if that misses, it now also tries `findByBankCode($countryCode, $bankIdentifier,
+  null)` — a branch-less lookup — before giving up. This lets an IBAN that carries a branch segment
+  (e.g. ES/GR/HU/MT/PL/…) resolve to its bank whenever only a bank-level row (`branch_code IS NULL`) was
+  seeded, which is what nearly every bundled importer (including the v1.1 `BancoDeEspanaImporter`)
+  publishes. Previously such IBANs resolved to nothing unless the exact branch was also seeded.
+- **New runtime dependencies**: `ext-iconv` (Windows-125x/Windows-1250/1253 → UTF-8 fallback decoding
+  for several national CSV sources) and `ext-zip` (`XlsxReader`'s `ZipArchive` use), both added to
+  `composer.json`'s `require` alongside the existing `ext-mbstring`.
+- **Internal refactor (behavior-preserving)**: extracted the duplicated importer plumbing into shared
+  traits — `Import\Importers\Concerns\NormalizesStrings` (`nullableTrim`/`stripBom`) and `ReadsCsvSource`
+  (the `fetch → decode → php://temp → fgetcsv` scaffold, with a per-codepage `decodeCsvBytes()` hook) —
+  removing ~30 copy-pasted helper methods across the importers, joining the existing
+  `ParsesSixBankMaster`/`ReadsXlsxSource` traits.
+- **Quality gates**: 1,041 tests / 2,719 assertions (PHPUnit), PHPStan level 8 clean, PSR-12 clean.
+
+### Fixed
+
+- **`SixImporter` (CH) now filters to `Country === 'CH'`** in the shared SIX Bank Master V3 source —
+  previously it imported every row in that file, including Liechtenstein's, mislabeling LI banks as
+  Swiss. Liechtenstein now has its own `LiechtensteinImporter` (`Country === 'LI'`) sharing the same
+  source file and parsing trait (`Import\Importers\Concerns\ParsesSixBankMaster`).
+
+[1.2.0]: https://github.com/daycry/iban-calculator/compare/1.1.0...1.2.0
+
 ## [1.1.0] - 2026-07-11
 
 ### Added

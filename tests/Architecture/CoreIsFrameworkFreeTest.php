@@ -34,14 +34,20 @@ use SplFileInfo;
  * CI4 dependency — so it is guarded individually via `GUARDED_FILES` to
  * catch a future CI4 import creeping into it.
  *
- * The v1.1 importer framework under `src/Import/` is a mixed bag: most of it
- * is documented and designed to be framework-free (`ImporterRegistry`,
- * `ImportReport`, and the five bundled `Importers/*Importer` classes), but
- * `ImportRunner` legitimately depends on CI4 (`Daycry\Iban\Models\BankModel`)
- * to persist rows, so the whole `Import/` directory cannot be added to
- * `GUARDED_DIRECTORIES`. Instead, the seven framework-free files are each
- * added individually to `GUARDED_FILES`, leaving `ImportRunner.php`
- * deliberately unguarded.
+ * The importer framework under `src/Import/` is a mixed bag: most of it is
+ * designed to be framework-free — every concrete importer under
+ * `Import/Importers/` (and its `Concerns/` traits) and the `Import/Support/`
+ * helpers (e.g. `XlsxReader`) use only native PHP, and `ImporterRegistry` /
+ * `ImportReport` sit directly under `Import/` — but `ImportRunner`
+ * legitimately depends on CI4 (`Daycry\Iban\Models\BankModel`) to persist
+ * rows. So the whole `Import/` directory cannot be guarded wholesale.
+ * Instead the two framework-free SUBTREES `Import/Importers` and
+ * `Import/Support` are added to {@see GUARDED_DIRECTORIES} (scanned
+ * recursively, so they cover all bundled importers + shared traits/helpers,
+ * including any added later), while `ImporterRegistry.php` and
+ * `ImportReport.php` — which live directly under `Import/`, alongside the
+ * intentionally-unguarded `ImportRunner.php` — are guarded individually via
+ * {@see GUARDED_FILES}.
  *
  * @see docs/superpowers/specs/2026-07-10-daycry-iban-v1-design.md §3
  */
@@ -57,15 +63,20 @@ final class CoreIsFrameworkFreeTest extends TestCase
         'Registry',
         'National',
         'Resolver',
+        'Import/Importers',
+        'Import/Support',
     ];
 
     /**
      * Individual files (relative to `src/`) guarded in addition to
      * {@see GUARDED_DIRECTORIES}.
      *
-     * The `Import/*` entries are the framework-free half of the v1.1
-     * importer framework; `Import/ImportRunner.php` is intentionally absent
-     * here because it depends on CI4 (`Models\BankModel`).
+     * `Import/ImporterRegistry.php` and `Import/ImportReport.php` are the
+     * framework-free files that live directly under `Import/` (the bundled
+     * importers and shared helpers live in the recursively-guarded
+     * `Import/Importers` and `Import/Support` subtrees instead).
+     * `Import/ImportRunner.php` is intentionally absent because it depends on
+     * CI4 (`Models\BankModel`).
      *
      * @var string[]
      */
@@ -73,11 +84,6 @@ final class CoreIsFrameworkFreeTest extends TestCase
         'Iban.php',
         'Import/ImporterRegistry.php',
         'Import/ImportReport.php',
-        'Import/Importers/BancoDeEspanaImporter.php',
-        'Import/Importers/BetaalverenigingImporter.php',
-        'Import/Importers/BundesbankImporter.php',
-        'Import/Importers/OenbImporter.php',
-        'Import/Importers/SixImporter.php',
     ];
 
     /** @var string[] */

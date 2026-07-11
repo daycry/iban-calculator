@@ -147,6 +147,63 @@ final class ResolverTest extends TestCase
         self::assertTrue($result->isResolved());
     }
 
+    public function testFallbackLooksUpBankLevelRowWithNullBranch(): void
+    {
+        // The ES example IBAN parses to bankIdentifier '2100' + a NON-null
+        // branchIdentifier '0418'. A bank-level provider (only a branch=null
+        // row seeded, as the bundled importers produce) must still resolve it:
+        // findByIban() misses the exact branch, then the fallback must query
+        // findByBankCode(..., branchCode: null) — NOT the IBAN's own branch.
+        $bankInfo = new BankInfo(
+            bankName: 'CaixaBank',
+            shortName: null,
+            bic: 'CAIXESBBXXX',
+            city: null,
+            address: null,
+            sepaSct: null,
+            sepaSctInst: null,
+            sepaSddCore: null,
+            sepaSddB2b: null,
+            sourceId: null,
+            sourceVersion: null,
+            sourceLicense: null,
+        );
+
+        $provider = new class ($bankInfo) implements ProviderInterface {
+            public function __construct(private BankInfo $bankInfo)
+            {
+            }
+
+            public function supports(string $countryCode): bool
+            {
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): ?BankInfo
+            {
+                // Exact (bank, branch) lookup — no such row seeded.
+                return $iban->branchIdentifier === null ? $this->bankInfo : null;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
+            {
+                // Only the bank-level row exists: match iff the branch was
+                // omitted (null). If the resolver wrongly forwarded the
+                // IBAN's own branch ('0418'), this returns null and the
+                // assertion below fails.
+                return $branchCode === null ? $this->bankInfo : null;
+            }
+        };
+
+        $resolver = new Resolver($this->parser, $provider);
+
+        $result = $resolver->resolve('ES9121000418450200051332');
+
+        self::assertTrue($result->isResolved());
+        self::assertSame('CaixaBank', $result->bankName);
+        self::assertSame('CAIXESBBXXX', $result->bic);
+    }
+
     public function testResolveDoesNotOverlayWhenProviderDoesNotSupportCountry(): void
     {
         $provider = new class () implements ProviderInterface {

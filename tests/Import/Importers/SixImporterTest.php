@@ -54,8 +54,10 @@ final class SixImporterTest extends TestCase
     {
         $rows = iterator_to_array($this->importer->rows(self::FIXTURE), false);
 
-        // The fixture has 3 data rows: IID 700, IID 9000, and a
-        // Concatenation='Y' merger stub (IID 4835) that must be skipped.
+        // The fixture has 4 data rows: IID 700 (CH), IID 9000 (CH), a
+        // Concatenation='Y' merger stub (IID 4835, CH) that must be
+        // skipped, and IID 8810 (LI) that must be excluded by the CH-only
+        // country filter -- only the 2 CH rows survive.
         self::assertCount(2, $rows);
 
         $zkb = $rows[0];
@@ -72,6 +74,30 @@ final class SixImporterTest extends TestCase
         self::assertSame('Bern', $postFinance['city']);
         self::assertSame('POFICHBEXXX', $postFinance['bic']);
         self::assertSame('Mingerstrasse 20', $postFinance['address']);
+    }
+
+    /**
+     * Regression test for the latent country-filtering bug: the fixture's
+     * `Country=LI` row (IID 8810, Liechtensteinische Landesbank AG) must
+     * NEVER surface as a CH row -- the shared SIX Bank Master V3 file lists
+     * both Swiss and Liechtenstein banks, and only this importer's
+     * `Country === 'CH'` filter (applied by
+     * {@see \Daycry\Iban\Import\Importers\Concerns\ParsesSixBankMaster})
+     * keeps it out.
+     *
+     * @see \Daycry\Iban\Import\Importers\LiechtensteinImporter
+     */
+    public function testRowsExcludesLiechtensteinRowsFromTheSharedSixFixture(): void
+    {
+        $rows = iterator_to_array($this->importer->rows(self::FIXTURE), false);
+
+        $bankCodes = array_column($rows, 'bank_code');
+
+        self::assertNotContains('08810', $bankCodes);
+
+        foreach ($rows as $row) {
+            self::assertNotSame('Liechtensteinische Landesbank AG', $row['name']);
+        }
     }
 
     public function testRowsReturnsEmptyIterableWhenTheFileCannotBeRead(): void

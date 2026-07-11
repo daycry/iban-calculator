@@ -1,0 +1,146 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:html="http://www.w3.org/TR/REC-html40" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:o="urn:schemas-microsoft-com:office:office">
+<Worksheet ss:Name="Information">
+<Table border="1">
+<Column ss:Width="70.5"/>
+<Column ss:Width="311.25"/>
+<Column ss:Width="91.5"/>
+<Column ss:Width="119.25"/>
+<Row ss:AutoFitHeight="0">
+<Cell ss:StyleID="s41"/>
+<Cell ss:StyleID="s41"/>
+<Cell ss:StyleID="s41"/>
+<Cell ss:StyleID="FormattedNumberPatern">
+<Data ss:Type="String">04.02.2026</Data>
+</Cell>
+</Row>
+<Row>
+<Cell/>
+<Cell/>
+<Cell/>
+<Cell/>
+</Row>
+<Row ss:AutoFitHeight="0">
+<Cell ss:StyleID="sTitle" ss:MergeAcross="2">
+<Data ss:Type="String">БАЕ кодове и BIC на банките</Data>
+</Cell>
+<Cell/>
+</Row>
+<Row>
+<Cell/>
+<Cell/>
+<Cell/>
+<Cell/>
+</Row>
+<Row>
+<Cell/>
+<Cell ss:StyleID="sHeader">
+<Data ss:Type="String">Наименование на ДПУ</Data>
+</Cell>
+<Cell ss:StyleID="sHeader">
+<Data ss:Type="String">БАЕ код</Data>
+</Cell>
+<Cell ss:StyleID="sHeader">
+<Data ss:Type="String">BIC код (ЦУ)</Data>
+</Cell>
+</Row>
+<Row>
+<Cell/>
+<Cell/>
+<Cell/>
+<Cell/>
+</Row>
+<Row>
+<Cell/>
+<Cell ss:StyleID="s40_Bold">
+<Data ss:Type="String">Айкарт АД</Data>
+</Cell>
+<Cell ss:StyleID="s41_Bold">
+<Data ss:Type="String">INTF4001</Data>
+</Cell>
+<Cell ss:StyleID="s41_Bold">
+<Data ss:Type="String">INTFBGSF</Data>
+</Cell>
+</Row>
+<Row>
+<Cell/>
+<Cell ss:StyleID="s40_Bold">
+<Data ss:Type="String">Алианц Банк България АД</Data>
+</Cell>
+<Cell ss:StyleID="s41_Bold">
+<Data ss:Type="String">BUIN9561</Data>
+</Cell>
+<Cell ss:StyleID="s41_Bold">
+<Data ss:Type="String">BUINBGSF</Data>
+</Cell>
+</Row>
+<Row>
+<Cell/>
+<Cell ss:StyleID="s40">
+<Data ss:Type="String">Алианц Банк България АД, кл. Благоевград</Data>
+</Cell>
+<Cell ss:StyleID="s41">
+<Data ss:Type="String">BUIN7680</Data>
+</Cell>
+</Row>
+<Row>
+<Cell/>
+<Cell ss:StyleID="s40_Bold">
+<Data ss:Type="String">Българска народна банка</Data>
+</Cell>
+<Cell ss:StyleID="s41_Bold">
+<Data ss:Type="String">BNBG9661</Data>
+</Cell>
+<Cell ss:StyleID="s41_Bold">
+<Data ss:Type="String">BNBGBGSF</Data>
+</Cell>
+</Row>
+<Row>
+<Cell/>
+<Cell ss:StyleID="s40_Bold">
+<Data ss:Type="String">Българска народна банка СЕБРА плащания</Data>
+</Cell>
+<Cell ss:StyleID="s41_Bold">
+<Data ss:Type="String">BNBG5000</Data>
+</Cell>
+<Cell ss:StyleID="s41_Bold">
+<Data ss:Type="String">BNBGBGSF</Data>
+</Cell>
+</Row>
+<Row>
+<Cell/>
+<Cell ss:StyleID="s40_Bold">
+<Data ss:Type="String">Юробанк България АД</Data>
+</Cell>
+<Cell ss:StyleID="s41_Bold">
+<Data ss:Type="String">BPBI9920</Data>
+</Cell>
+<Cell ss:StyleID="s41_Bold">
+<Data ss:Type="String">BPBIBGSF</Data>
+</Cell>
+</Row>
+<Row>
+<Cell/>
+<Cell ss:StyleID="s40">
+<Data ss:Type="String">Юробанк България АД, 115</Data>
+</Cell>
+<Cell ss:StyleID="s41">
+<Data ss:Type="String">BPBI7115</Data>
+</Cell>
+</Row>
+<Row>
+<Cell/>
+<Cell ss:StyleID="s40_Bold">
+<Data ss:Type="String">ЮтеПей ЕООД</Data>
+</Cell>
+<Cell ss:StyleID="s41_Bold">
+<Data ss:Type="String">IUTE4022</Data>
+</Cell>
+<Cell ss:StyleID="s41_Bold">
+<Data ss:Type="String">IUTEBGSF</Data>
+</Cell>
+</Row>
+</Table>
+</Worksheet>
+</Workbook>

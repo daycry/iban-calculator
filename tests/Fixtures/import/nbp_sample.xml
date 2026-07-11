@@ -1,0 +1,68 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Instytucje>
+  <Instytucja>
+    <TypInstytucji>bank krajowy</TypInstytucji>
+    <PodtypInstytucji>bank centralny</PodtypInstytucji>
+    <NrInstytucji>101</NrInstytucji>
+    <NazwaInstytucji>Narodowy Bank Polski</NazwaInstytucji>
+    <SymbolLiterowy>NBP</SymbolLiterowy>
+    <Jednostka>
+      <NrEwidencyjny>A000001</NrEwidencyjny>
+      <TypJednostki>Centrala</TypJednostki>
+      <NazwaJednostki>Centrala</NazwaJednostki>
+      <NumerRozliczeniowy>
+        <NrRozliczeniowy>10100000</NrRozliczeniowy>
+        <NazwaNumeru>Centrala</NazwaNumeru>
+        <KodyBIC>BIC NBPLPLPWXXX</KodyBIC>
+      </NumerRozliczeniowy>
+      <NumerRozliczeniowy>
+        <NrRozliczeniowy>10100055</NrRozliczeniowy>
+        <NazwaNumeru>Centrala - B2B Collect</NazwaNumeru>
+        <KodyBIC>BIC NBPLPLPWXXX</KodyBIC>
+      </NumerRozliczeniowy>
+    </Jednostka>
+  </Instytucja>
+  <Instytucja>
+    <TypInstytucji>bank krajowy</TypInstytucji>
+    <NrInstytucji>106</NrInstytucji>
+    <NazwaInstytucji>Bank BPH Spółka Akcyjna</NazwaInstytucji>
+    <SymbolLiterowy>BPH</SymbolLiterowy>
+    <Jednostka>
+      <NrEwidencyjny>A000900</NrEwidencyjny>
+      <TypJednostki>Centrala</TypJednostki>
+      <NazwaJednostki>Centrala</NazwaJednostki>
+      <NumerRozliczeniowy>
+        <NrRozliczeniowy>10600005</NrRozliczeniowy>
+        <NazwaNumeru>Centrala</NazwaNumeru>
+        <KodyBIC>BIC BPHKPLPKXXX</KodyBIC>
+      </NumerRozliczeniowy>
+    </Jednostka>
+  </Instytucja>
+  <Instytucja>
+    <TypInstytucji>bank krajowy</TypInstytucji>
+    <NrInstytucji>109</NrInstytucji>
+    <NazwaInstytucji>Erste Bank Polska Spółka Akcyjna</NazwaInstytucji>
+    <SymbolLiterowy>EBP</SymbolLiterowy>
+    <WWW>www.erste.pl</WWW>
+    <Jednostka>
+      <NrEwidencyjny>A001196</NrEwidencyjny>
+      <TypJednostki>Centrala</TypJednostki>
+      <NazwaJednostki>Centrala</NazwaJednostki>
+      <NumerRozliczeniowy>
+        <NrRozliczeniowy>10900004</NrRozliczeniowy>
+        <NazwaNumeru>Centrala</NazwaNumeru>
+        <KodyBIC>BIC EBOSPLPWXXX</KodyBIC>
+      </NumerRozliczeniowy>
+    </Jednostka>
+    <Jednostka>
+      <NrEwidencyjny>A001204</NrEwidencyjny>
+      <TypJednostki>Oddział</TypJednostki>
+      <NazwaJednostki>1 Oddział w Warszawie</NazwaJednostki>
+      <NumerRozliczeniowy>
+        <NrRozliczeniowy>10901014</NrRozliczeniowy>
+        <NazwaNumeru>1 Oddział w Warszawie</NazwaNumeru>
+        <KodyBIC>BIC EBOSPLPWXXX</KodyBIC>
+      </NumerRozliczeniowy>
+    </Jednostka>
+  </Instytucja>
+</Instytucje>
