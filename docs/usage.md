@@ -367,7 +367,7 @@ bank_bic('ES9121000418450200051332');                  // null, same reason
 
 ## spark commands
 
-All 4 commands are grouped under `IBAN` in `php spark list` and are auto-discovered — no manual
+All 5 commands are grouped under `IBAN` in `php spark list` and are auto-discovered — no manual
 registration needed. Every command's `<iban>` argument is optional on the command line: if omitted,
 the command falls back to an interactive `CLI::prompt('IBAN')` instead of failing outright.
 
@@ -655,6 +655,36 @@ KZ=nbk  LI=six  BR=bcb  GB=epc  GI=epc  IE=epc  LV=epc  RO=epc
 `--source=six` is shared by CH and LI (same source file, filtered by country); `--source=epc` is
 shared by GB/GI/IE/LV/RO (same importer class, parameterized per country) — disambiguate either with
 `--country=`.
+
+### `iban:publish [--force]`
+
+Publishes the package's `Config\Iban` into the consuming app as `app/Config/Iban.php` — the same
+idiomatic CI4 "publish a config" pattern used by packages like `daycry/auth`/Shield.
+
+```bash
+$ php spark iban:publish
+Published Iban config to app/Config/Iban.php
+
+$ php spark iban:publish
+app/Config/Iban.php already exists — use --force to overwrite.
+
+$ php spark iban:publish --force
+Published Iban config to app/Config/Iban.php
+```
+
+| Option | Meaning |
+|---|---|
+| `--force` | Overwrite an existing `app/Config/Iban.php`. Without it, the command refuses to touch a file that's already there and exits `1`. |
+
+The published `app/Config/Iban.php` is namespaced `Config` and `extends \Daycry\Iban\Config\Iban`
+instead of duplicating it property-by-property, so it stays forward-compatible: any property the app
+doesn't override keeps inheriting the package's default (including new ones added in a later version),
+and it's a real, type-checked subclass rather than a hand-copied file that can drift out of sync.
+CI4's `config()`/`service('iban')` resolution prefers the app's `Config\` namespace over the package's,
+so once this file exists it's returned automatically — no other wiring needed. Publishing is entirely
+optional: the package works out of the box via its own bundled `Config\Iban` defaults, without ever
+running this command; use it only when you want to override a property (e.g. `$provider = 'database'`)
+in a file that lives in, and is tracked by, your own app.
 
 ## Bank-data importers (`iban:update`)
 
