@@ -39,6 +39,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **EPC SEPA Register importer also populates SEPA reachability flags**: a live (non-offline) run sets
   `sepa_sct`/`sepa_sct_inst`/`sepa_sdd_core`/`sepa_sdd_b2b` per bank from each scheme's own export file
   (`true`/`false`), or leaves a flag `null` if that scheme's file couldn't be fetched at all.
+- **`iban:update --all`**: a new flag on `Commands\UpdateCommand` that runs every registered importer
+  in a single invocation (all 30, or narrowed with `--country`). Fetches live, honors `--dry-run`,
+  isolates each importer in its own `try`/`catch` so one failure doesn't abort the rest, and prints an
+  aggregate summary. Cannot be combined with `--file`.
+- **Complete public-API documentation**: a new `docs/api-reference.md` — the exhaustive per-symbol
+  reference (facade, helper functions, config/services/caching, DTOs, enums, exceptions, national
+  validators, contracts/extension points, registry), verified against the source — plus a full
+  spark-command reference and the 30-source cheat sheet in `docs/usage.md` and the country coverage
+  matrix in `docs/importers.md`.
 
 ### Changed
 
@@ -51,7 +60,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **New runtime dependencies**: `ext-iconv` (Windows-125x/Windows-1250/1253 → UTF-8 fallback decoding
   for several national CSV sources) and `ext-zip` (`XlsxReader`'s `ZipArchive` use), both added to
   `composer.json`'s `require` alongside the existing `ext-mbstring`.
-- **Quality gates**: 1,036 tests / 2,699 assertions (PHPUnit), PHPStan level 8 clean, PSR-12 clean.
+- **Internal refactor (behavior-preserving)**: extracted the duplicated importer plumbing into shared
+  traits — `Import\Importers\Concerns\NormalizesStrings` (`nullableTrim`/`stripBom`) and `ReadsCsvSource`
+  (the `fetch → decode → php://temp → fgetcsv` scaffold, with a per-codepage `decodeCsvBytes()` hook) —
+  removing ~30 copy-pasted helper methods across the importers, joining the existing
+  `ParsesSixBankMaster`/`ReadsXlsxSource` traits.
+- **Quality gates**: 1,041 tests / 2,719 assertions (PHPUnit), PHPStan level 8 clean, PSR-12 clean.
 
 ### Fixed
 
