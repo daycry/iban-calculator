@@ -197,7 +197,7 @@ return [
     ],
     'DO' => [
         'iban_length'    => 28,
-        'bban_structure' => '4!a20!n',
+        'bban_structure' => '4!c20!n',
         'bank'           => [4, 4],
         'branch'         => null,
         'account'        => [8, 20],
