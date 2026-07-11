@@ -332,7 +332,7 @@ final class CommandsTest extends CIUnitTestCase
 
         self::assertSame(EXIT_SUCCESS, $exit);
         self::assertStringContainsString('SWIFT IBAN Registry', $output);
-        self::assertStringContainsString('No bundled importers match', $output);
+        self::assertStringContainsString('No bundled importer matches that selection.', $output);
         // A selection was made, so this is the "no match" branch, not the
         // no-selection listing -- the registry-size line must NOT appear.
         self::assertStringNotContainsString('Registered importers:', $output);
@@ -346,7 +346,7 @@ final class CommandsTest extends CIUnitTestCase
         [$exit, $output] = $this->runSpark(['iban:update', '--source', 'not-a-real-source']);
 
         self::assertSame(EXIT_SUCCESS, $exit);
-        self::assertStringContainsString('No bundled importers match', $output);
+        self::assertStringContainsString('No bundled importer matches that selection.', $output);
     }
 
     /**
@@ -374,7 +374,7 @@ final class CommandsTest extends CIUnitTestCase
         ]);
 
         self::assertSame(EXIT_SUCCESS, $exit);
-        self::assertStringContainsString('[DE/bundesbank] fetched=2 imported=2 skipped=0', $output);
+        self::assertStringContainsString('[DE/bundesbank] fetched=3 imported=3 skipped=0', $output);
         self::assertStringContainsString('Deutsche Bundesbank', $output);
     }
 

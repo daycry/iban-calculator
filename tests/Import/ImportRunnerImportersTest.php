@@ -83,11 +83,11 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
 
         self::assertSame('DE', $report->countryCode);
         self::assertSame('bundesbank', $report->sourceId);
-        self::assertSame(2, $report->fetched);
-        self::assertSame(2, $report->imported);
+        self::assertSame(3, $report->fetched);
+        self::assertSame(3, $report->imported);
         self::assertSame(0, $report->skipped);
 
-        self::assertSame(2, $this->db->table('banks')->countAllResults());
+        self::assertSame(3, $this->db->table('banks')->countAllResults());
 
         $this->seeInDatabase('banks', [
             'country_code'   => 'DE',
@@ -114,6 +114,17 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
             'name'         => 'ING-DiBa',
             'bic'          => 'INGDDEFFXXX',
         ]);
+
+        // ISO-8859-1 -> UTF-8 round trip: the raw Latin-1 "ü" byte (0xFC) in
+        // the fixture's 4th record must have been decoded to a valid UTF-8
+        // "Lübben" by the time it's persisted, not mojibake or raw bytes.
+        $this->seeInDatabase('banks', [
+            'country_code' => 'DE',
+            'bank_code'    => '16050202',
+            'name'         => 'Sparkasse Niederlausitz',
+            'short_name'   => 'Spk Niederlausitz Lübben',
+            'city'         => 'Lübben',
+        ]);
     }
 
     public function testBothImportersCanCoexistInTheSameBanksTable(): void
@@ -123,7 +134,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
         $runner->run(new OenbImporter(), new BankModel(), false, self::OENB_FIXTURE);
         $runner->run(new BundesbankImporter(), new BankModel(), false, self::BUNDESBANK_FIXTURE);
 
-        self::assertSame(4, $this->db->table('banks')->countAllResults());
+        self::assertSame(5, $this->db->table('banks')->countAllResults());
 
         $atModel = (new BankModel())->findByNaturalKey('AT', '20111', null);
         self::assertIsArray($atModel);

@@ -16,11 +16,13 @@ use Daycry\Iban\Import\Importers\OenbImporter;
  * and queried outside of a CI4 application too (`iban:update` just happens
  * to be the CI4 consumer in this package).
  *
- * {@see self::registerDefaults()} is intentionally empty in v1.1's V-6 --
- * this task only builds the framework. v1.1's V-7 registers the bundled
- * official-source importers (OeNB/SIX/Bundesbank/...) there, so `new
- * ImporterRegistry()` picks them up automatically for every consumer
- * (`iban:update` included) without any other call site changing.
+ * {@see self::registerDefaults()} was intentionally empty in v1.1's V-6 --
+ * that task only built the framework. v1.1's V-7a registers the first two
+ * bundled official-source importers there -- {@see \Daycry\Iban\Import\Importers\OenbImporter}
+ * (AT) and {@see \Daycry\Iban\Import\Importers\BundesbankImporter} (DE) --
+ * so `new ImporterRegistry()` picks them up automatically for every
+ * consumer (`iban:update` included) without any other call site changing.
+ * v1.1's V-7b is expected to add more (SIX/NL/ES/...).
  *
  * @see \Daycry\Iban\Commands\UpdateCommand
  * @see ImportRunner

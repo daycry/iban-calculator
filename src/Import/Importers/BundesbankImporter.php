@@ -53,10 +53,27 @@ use Daycry\Iban\Contracts\ImporterInterface;
  * validate against the live official file before production use -- issuing
  * bodies change layouts without notice.
  *
- * FRAMEWORK-FREE: uses only native PHP (`file_get_contents()`, `substr()`)
- * to fetch/parse, per {@see ImporterInterface}'s framework-free contract --
- * even though `src/Import/` itself isn't guarded by
- * `tests/Architecture/CoreIsFrameworkFreeTest.php`.
+ * ENCODING: the Bankleitzahlendatei is published in **ISO-8859-1
+ * (Latin-1)**, not UTF-8 -- German bank/city names routinely contain
+ * umlauts (ä/ö/ü/ß). Because the record layout above is fixed-WIDTH BY BYTE
+ * position in that source encoding (every Latin-1 char is exactly 1 byte),
+ * {@see self::rows()} deliberately does NOT convert the whole line to UTF-8
+ * before slicing fields: doing so would turn each umlaut into a 2-byte UTF-8
+ * sequence and shift every subsequent `substr()` offset, corrupting the
+ * parse. The correct order, applied here, is: (1) `substr()` the fields on
+ * the RAW Latin-1 bytes -- offsets stay correct -- then (2) convert EACH
+ * extracted text field (`name`/`city`/`short_name`) from ISO-8859-1 to UTF-8
+ * individually, after extraction, then `trim()`. `bank_code` (BLZ) and
+ * `bic` are pure ASCII, so converting them too is a harmless no-op; it's
+ * applied uniformly for consistency. The `MINIMUM_LINE_LENGTH`/Merkmal
+ * checks still operate on the raw bytes, which is correct since those are
+ * also ASCII.
+ *
+ * FRAMEWORK-FREE: uses only native PHP (`file_get_contents()`, `substr()`,
+ * `mb_convert_encoding()`) to fetch/parse, per {@see ImporterInterface}'s
+ * framework-free contract -- even though `src/Import/` itself isn't guarded
+ * by `tests/Architecture/CoreIsFrameworkFreeTest.php`. Requires `ext-mbstring`
+ * (declared in `composer.json`).
  *
  * @see \Daycry\Iban\Import\ImporterRegistry::registerDefaults()
  * @see docs/superpowers/specs/2026-07-10-daycry-iban-v1-design.md
@@ -135,21 +152,21 @@ final class BundesbankImporter implements ImporterInterface
                 continue; // subordinate record for the same BLZ (see class docblock)
             }
 
-            $bankCode = trim(substr($line, self::OFFSET_BLZ, self::LENGTH_BLZ));
+            $bankCode = trim(self::fromLatin1(substr($line, self::OFFSET_BLZ, self::LENGTH_BLZ)));
 
             if ($bankCode === '') {
                 continue;
             }
 
-            $bic = trim(substr($line, self::OFFSET_BIC, self::LENGTH_BIC));
+            $bic = trim(self::fromLatin1(substr($line, self::OFFSET_BIC, self::LENGTH_BIC)));
 
             yield [
                 'bank_code'   => $bankCode,
                 'branch_code' => null,
                 'bic'         => $bic !== '' ? $bic : null,
-                'name'        => self::nullableTrim(substr($line, self::OFFSET_BEZEICHNUNG, self::LENGTH_BEZEICHNUNG)),
-                'short_name'  => self::nullableTrim(substr($line, self::OFFSET_KURZBEZEICHNUNG, self::LENGTH_KURZBEZEICHNUNG)),
-                'city'        => self::nullableTrim(substr($line, self::OFFSET_ORT, self::LENGTH_ORT)),
+                'name'        => self::nullableTrim(self::fromLatin1(substr($line, self::OFFSET_BEZEICHNUNG, self::LENGTH_BEZEICHNUNG))),
+                'short_name'  => self::nullableTrim(self::fromLatin1(substr($line, self::OFFSET_KURZBEZEICHNUNG, self::LENGTH_KURZBEZEICHNUNG))),
+                'city'        => self::nullableTrim(self::fromLatin1(substr($line, self::OFFSET_ORT, self::LENGTH_ORT))),
             ];
         }
     }
@@ -159,5 +176,17 @@ final class BundesbankImporter implements ImporterInterface
         $trimmed = trim($value);
 
         return $trimmed !== '' ? $trimmed : null;
+    }
+
+    /**
+     * Converts a single already-extracted (fixed-width `substr()`'d) field
+     * from the source's ISO-8859-1 (Latin-1) encoding to UTF-8. Must only be
+     * called AFTER byte-offset slicing -- see the class docblock's ENCODING
+     * note for why converting the whole line first would corrupt every
+     * subsequent field offset.
+     */
+    private static function fromLatin1(string $value): string
+    {
+        return mb_convert_encoding($value, 'UTF-8', 'ISO-8859-1');
     }
 }

@@ -26,10 +26,12 @@ use Daycry\Iban\Models\BankModel;
  * importers (via {@see ImporterRegistry::sources()}) instead of running
  * anything -- pick one explicitly to actually import.
  *
- * `ImporterRegistry`'s bundled defaults are still empty in v1.1's V-6 (V-7
- * adds the concrete official-source importers), so today this command's
- * only reachable outcome is the graceful "no importers match" notice below
- * -- by design, and covered by `tests/Commands/CommandsTest.php`.
+ * As of v1.1's V-7a, `ImporterRegistry` bundles official-source importers
+ * for OeNB (AT) and Bundesbank (DE) by default, so a bare `iban:update`
+ * lists them and `--country`/`--source` runs one. The graceful "no bundled
+ * importer matches that selection" notice below is now only reached when a
+ * `--country`/`--source` selection doesn't match any registered importer --
+ * covered by `tests/Commands/CommandsTest.php`.
  *
  * v1.0's licensing notices (SWIFT IBAN Registry / SWIFT BIC Directory /
  * per-source national list attribution) are always printed first, since
@@ -75,7 +77,7 @@ final class UpdateCommand extends BaseCommand
 
         if ($matches === []) {
             CLI::write(
-                'No bundled importers match — (v1.1 adds official-source importers).',
+                'No bundled importer matches that selection.',
                 'yellow',
             );
 
@@ -107,7 +109,7 @@ final class UpdateCommand extends BaseCommand
 
         if ($sources === []) {
             CLI::write(
-                'No bundled importers match — (v1.1 adds official-source importers).',
+                'No bundled importers registered.',
                 'yellow',
             );
 

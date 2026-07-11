@@ -1,3 +1,4 @@
 370400441Commerzbank                                               45128Essen                              Commerzbank Essen               COBADEFFXXX09000001U000000000
 370400442Commerzbank                                               50667Koeln                              Commerzbank Koeln               COBADEFFXXX09000002U000000000
 500105171ING-DiBa                                                  60301Frankfurt am Main                  ING-DiBa Frankfurt              INGDDEFFXXX09000003U000000000
+160502021Sparkasse Niederlausitz                                   15907Lübben                             Spk Niederlausitz Lübben   00000WELADED1LBN09000004U000000000
