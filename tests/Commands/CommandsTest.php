@@ -11,6 +11,7 @@ use Daycry\Iban\Commands\ParseCommand;
 use Daycry\Iban\Commands\ResolveCommand;
 use Daycry\Iban\Commands\UpdateCommand;
 use Daycry\Iban\Commands\ValidateCommand;
+use Daycry\Iban\Config\Iban as IbanConfig;
 use Daycry\Iban\Core\Mod97;
 use Daycry\Iban\Enums\ViolationCode;
 
@@ -62,6 +63,13 @@ final class CommandsTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        // A couple of `iban:validate` tests below mutate the shared
+        // `Config\Iban` singleton to prove `$checkNationalByDefault` is
+        // actually consumed when `--national` isn't passed; undo that so
+        // later tests keep seeing the documented default (mirrors
+        // `Tests\Config\ServicesTest` / `Tests\Helpers\IbanHelperTest`).
+        config(IbanConfig::class)->checkNationalByDefault = false;
+
         $this->tearDownStreamFilterTrait();
 
         parent::tearDown();
@@ -176,6 +184,41 @@ final class CommandsTest extends CIUnitTestCase
         [$exitWith, $outputWith] = $this->runSpark(['iban:validate', $iban, '--national']);
         self::assertSame(EXIT_ERROR, $exitWith);
         self::assertStringContainsString(ViolationCode::NationalCheckFailed->value, $outputWith);
+    }
+
+    /**
+     * V-3: when `--national` isn't passed at all, `iban:validate` now
+     * consults `Config\Iban::$checkNationalByDefault` instead of always
+     * defaulting to `false` -- with it set `true`, a MOD-97-valid but
+     * nationally-invalid ES IBAN fails even without the flag.
+     */
+    public function testValidateWithoutNationalFlagHonorsConfiguredCheckNationalByDefaultTrue(): void
+    {
+        config(IbanConfig::class)->checkNationalByDefault = true;
+
+        $iban = $this->esIbanWithBadNationalCheckDigits();
+
+        [$exit, $output] = $this->runSpark(['iban:validate', $iban]);
+
+        self::assertSame(EXIT_ERROR, $exit);
+        self::assertStringContainsString(ViolationCode::NationalCheckFailed->value, $output);
+    }
+
+    /**
+     * Passing `--national` explicitly still works when the config default
+     * is already `true` (redundant, but confirms the flag isn't broken by
+     * the config wiring).
+     */
+    public function testValidateExplicitNationalFlagStillWorksWhenConfigDefaultIsTrue(): void
+    {
+        config(IbanConfig::class)->checkNationalByDefault = true;
+
+        $iban = $this->esIbanWithBadNationalCheckDigits();
+
+        [$exit, $output] = $this->runSpark(['iban:validate', $iban, '--national']);
+
+        self::assertSame(EXIT_ERROR, $exit);
+        self::assertStringContainsString(ViolationCode::NationalCheckFailed->value, $output);
     }
 
     // -- iban:parse --------------------------------------------------------

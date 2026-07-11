@@ -241,8 +241,8 @@ property is overridable via `.env` using the `iban.<property>` prefix, e.g. `iba
 | Property | Default | Meaning |
 |---|---|---|
 | `$provider` | `'null'` | `'null'` (no lookups — the safe default), `'database'` (`DatabaseProvider`), or the fully-qualified class name of a custom `ProviderInterface` implementation. |
-| `$defaultFormat` | `'print'` | `'electronic'`, `'print'`, or `'anonymized'` — the default `IbanFormat` when a caller doesn't explicitly request one (currently consulted by consumers of the config; the facade's own `format()` still defaults its `IbanFormat $f` parameter to `IbanFormat::Print`). |
-| `$checkNationalByDefault` | `false` | Whether national check-digit validation should run by default (reserved; not yet consulted by the facade/service — callers still pass `checkNational: true` explicitly). |
+| `$defaultFormat` | `'print'` | `'electronic'`, `'print'`, or `'anonymized'` — the default format used by the [`iban_format()` helper](#the-iban_helper) when its caller doesn't pass a `$format` argument. The facade's own `format()` is a separate, frozen contract: it keeps its own explicit `IbanFormat $f = IbanFormat::Print` default and never reads this config — the config is consulted only at the CI4 helper layer. |
+| `$checkNationalByDefault` | `false` | Whether national check-digit validation runs by default when a caller doesn't pass an explicit flag — consulted by the [`iban_validate()`/`iban_is_valid()`/`iban_valid()` helpers](#the-iban_helper) and by the [`iban:validate` command](#spark-commands) when `--national` is omitted. The facade's own `validate()` is a separate, frozen contract: it keeps its own explicit `bool $checkNational = false` parameter default and never reads this config. |
 | `$dbGroup` | `null` | The `Config\Database` connection group queried by `DatabaseProvider` / `BankModel` — wired by `Config\Services::iban()`'s `'database'` branch, which builds `new BankModel($config->table, $config->dbGroup)`. `null` means "no override": `BankModel` leaves its own `$DBGroup` unset, so CI4's environment-aware fallback applies transparently (`Database\Config::connect(null)` resolves to `'tests'` when `ENVIRONMENT === 'testing'`, otherwise the app's `Config\Database::$defaultGroup`). Set this only to force a specific connection group regardless of environment (e.g. a read replica). |
 | `$table` | `'banks'` | The table name queried by `DatabaseProvider` / `BankModel` — wired the same way as `$dbGroup` above. |
 
@@ -257,15 +257,15 @@ Procedural convenience wrappers around `service('iban')`. Load it with `helper('
 
 | Function | Signature | Behavior |
 |---|---|---|
-| `iban_validate()` | `(string $iban): ValidationResult` | Delegates to `validate()`. Never throws. |
-| `iban_is_valid()` | `(string $iban): bool` | Delegates to `isValid()`. Never throws. |
+| `iban_validate()` | `(string $iban, ?bool $checkNational = null): ValidationResult` | Delegates to `validate()`. Never throws. `$checkNational === null` (the default) falls back to `Config\Iban::$checkNationalByDefault`; an explicit `true`/`false` always overrides the config. |
+| `iban_is_valid()` | `(string $iban, ?bool $checkNational = null): bool` | Unlike the facade's own `isValid()` (which, by frozen contract, takes no `$checkNational` parameter), this delegates to `iban_validate()`'s `->isValid()`, so it shares the exact same `$checkNational`/config-default behavior. Never throws. |
 | `iban_parse()` | `(string $iban): ?ParsedIban` | Always uses `tryParse()` under the hood — returns `null` instead of throwing, unlike the facade's own `parse()`. |
-| `iban_format()` | `(string $iban, string $format = 'print'): string` | `$format` is `'electronic'`, `'print'` (default), or `'anonymized'` (case-insensitive); anything else falls back to `'print'`. |
+| `iban_format()` | `(string $iban, ?string $format = null): string` | `$format` is `'electronic'`, `'print'`, or `'anonymized'` (case-insensitive); anything else falls back to `'print'`. `$format === null` (the default) falls back to `Config\Iban::$defaultFormat`; an explicit value always overrides the config. |
 | `iban_resolve()` | `(string $iban): BankResult` | Delegates straight to `resolve()` — **not** degradation-safe: throws `InvalidIbanException` for an invalid IBAN, same as the facade. |
 | `bank_name()` | `(string $iban): ?string` | Safe: `null` for an invalid IBAN or an unresolved entity. Never throws. |
 | `bank_bic()` | `(string $iban): ?string` | Same safety guarantee as `bank_name()`. |
 | `iban_country()` | `(string $iban): ?string` | `null` for an invalid IBAN. Never throws. |
-| `iban_valid()` | `(string $iban): bool` | Alias of `iban_is_valid()`. |
+| `iban_valid()` | `(string $iban, ?bool $checkNational = null): bool` | Alias of `iban_is_valid()`, same `$checkNational`/config-default behavior. |
 
 ```php
 helper('iban');
@@ -275,6 +275,7 @@ iban_is_valid('ES9121000418450200051332');         // true
 iban_valid('ES9121000418450200051332');             // true (alias)
 iban_parse('basura');                                 // null
 iban_format('ES9121000418450200051332', 'ELECTRONIC'); // 'ES9121000418450200051332' (case-insensitive)
+iban_format('ES9121000418450200051332');               // config Config\Iban::$defaultFormat when omitted ('print' by default)
 iban_country('ES9121000418450200051332');            // 'ES'
 bank_name('ES9121000418450200051332');                // null (NullProvider / empty banks table)
 bank_bic('ES9121000418450200051332');                  // null, same reason
@@ -288,7 +289,9 @@ registration needed.
 ### `iban:validate <iban> [--national] [--json]`
 
 Thin wrapper over `service('iban')->validate()`. Exit code mirrors the result: `0` for a valid IBAN,
-`1` otherwise — usable directly in shell scripts/CI.
+`1` otherwise — usable directly in shell scripts/CI. When `--national` is omitted, the effective
+`checkNational` value comes from `Config\Iban::$checkNationalByDefault` (default `false`); passing
+`--national` explicitly always forces it `true` regardless of the config.
 
 ```bash
 $ php spark iban:validate "ES91 2100 0418 4502 0005 1332"

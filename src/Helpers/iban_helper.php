@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Daycry\Iban\Config\Iban as IbanConfig;
 use Daycry\Iban\DTO\BankResult;
 use Daycry\Iban\DTO\ParsedIban;
 use Daycry\Iban\DTO\ValidationResult;
@@ -37,14 +38,22 @@ if (! function_exists('iban_validate')) {
      *
      * Never throws: an invalid IBAN simply produces a non-valid result.
      *
-     * @param bool $checkNational Whether to also run national check-digit
-     *                             validation, mirroring the facade's
-     *                             `validate()` parameter of the same name.
+     * @param bool|null $checkNational Whether to also run national check-digit
+     *                                  validation, mirroring the facade's
+     *                                  `validate()` parameter of the same
+     *                                  name. `null` (the default) defers to
+     *                                  {@see \Daycry\Iban\Config\Iban::$checkNationalByDefault}
+     *                                  -- the facade itself keeps its own
+     *                                  explicit `false` default; the config
+     *                                  is consulted here, at the CI4 helper
+     *                                  layer.
      */
-    function iban_validate(string $iban, bool $checkNational = false): ValidationResult
+    function iban_validate(string $iban, ?bool $checkNational = null): ValidationResult
     {
         /** @var IbanService $svc */
         $svc = service('iban');
+
+        $checkNational ??= config(IbanConfig::class)->checkNationalByDefault;
 
         return $svc->validate($iban, $checkNational);
     }
@@ -53,13 +62,19 @@ if (! function_exists('iban_validate')) {
 if (! function_exists('iban_is_valid')) {
     /**
      * Quick boolean IBAN validity check. Never throws.
+     *
+     * Unlike the facade's own `isValid()` (which, by frozen contract, takes
+     * no `$checkNational` parameter and always validates with it `false`),
+     * this delegates to {@see iban_validate()} so the same
+     * `$checkNational`/config-default behavior applies here too.
+     *
+     * @param bool|null $checkNational Same meaning and config fallback as
+     *                                  {@see iban_validate()}'s parameter of
+     *                                  the same name.
      */
-    function iban_is_valid(string $iban): bool
+    function iban_is_valid(string $iban, ?bool $checkNational = null): bool
     {
-        /** @var IbanService $svc */
-        $svc = service('iban');
-
-        return $svc->isValid($iban);
+        return iban_validate($iban, $checkNational)->isValid();
     }
 }
 
@@ -82,14 +97,21 @@ if (! function_exists('iban_parse')) {
 
 if (! function_exists('iban_format')) {
     /**
-     * Formats an IBAN string per `$format`: `'electronic'`, `'print'`
-     * (default), or `'anonymized'` (case-insensitive). Any other value
-     * falls back to `'print'`.
+     * Formats an IBAN string per `$format`: `'electronic'`, `'print'`, or
+     * `'anonymized'` (case-insensitive). Any other value falls back to
+     * `'print'`.
+     *
+     * `null` (the default) defers to
+     * {@see \Daycry\Iban\Config\Iban::$defaultFormat} -- the facade's own
+     * `format()` keeps its own explicit `IbanFormat::Print` default; the
+     * config is consulted here, at the CI4 helper layer.
      */
-    function iban_format(string $iban, string $format = 'print'): string
+    function iban_format(string $iban, ?string $format = null): string
     {
         /** @var IbanService $svc */
         $svc = service('iban');
+
+        $format ??= config(IbanConfig::class)->defaultFormat;
 
         $f = match (strtolower($format)) {
             'electronic' => IbanFormat::Electronic,
@@ -167,10 +189,11 @@ if (! function_exists('iban_country')) {
 
 if (! function_exists('iban_valid')) {
     /**
-     * Alias of {@see iban_is_valid()}.
+     * Alias of {@see iban_is_valid()}, exposing the same `$checkNational`
+     * parameter (and `Config\Iban::$checkNationalByDefault` fallback).
      */
-    function iban_valid(string $iban): bool
+    function iban_valid(string $iban, ?bool $checkNational = null): bool
     {
-        return iban_is_valid($iban);
+        return iban_is_valid($iban, $checkNational);
     }
 }
