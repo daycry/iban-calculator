@@ -623,6 +623,13 @@ no-selection listing — except `--all` combined with `--file`, which exits `1`.
    ... failed.` line is an aggregate summary across all of them, not a guarantee every source
    succeeded; a failed source is also reported inline (`CLI::error('[CC/source] failed: <message>')`).
 
+   > **`--all` is a heavy, live operation.** It fetches every reachable source over the network in a
+   > single run (the EPC register is fetched once per registered EPC country, i.e. five times), so run
+   > it with an adequate `memory_limit` / `max_execution_time` and expect it to take a while. The five
+   > portal/landing-page sources noted below (`abbl`, `bits`, `nbg`, `nbu`, `nbk`) come back **empty**
+   > under `--all` (there is no `--file` to read) — import those per country with `--file=`. Use `--all`
+   > for an initial bulk populate; prefer targeted per-country runs for a scheduled/repeatable job.
+
 5. **Re-runs upsert, they don't duplicate** — `ImportRunner` upserts every yielded row by the natural
    key `(country_code, bank_code, branch_code)`, so running the same importer again updates existing
    rows in place instead of inserting duplicates. Every written row is stamped with `source_id`,
