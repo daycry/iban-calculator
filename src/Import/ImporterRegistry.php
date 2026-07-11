@@ -15,9 +15,10 @@ use Daycry\Iban\Import\Importers\SixImporter;
  * In-memory catalog of {@see ImporterInterface} instances, keyed by their
  * natural `(countryCode, sourceId)` pair.
  *
- * FRAMEWORK-FREE: no `codeigniter4/*` dependency, so it can be constructed
- * and queried outside of a CI4 application too (`iban:update` just happens
- * to be the CI4 consumer in this package).
+ * FRAMEWORK-FREE: no dependency on the framework package this library adapts
+ * for, so it can be constructed and queried outside of a framework
+ * application too (`iban:update` just happens to be that consumer in this
+ * package).
  *
  * {@see self::registerDefaults()} was intentionally empty in v1.1's V-6 --
  * that task only built the framework. v1.1's V-7a registered the first two

@@ -68,8 +68,13 @@ final class Mod97
      * Windowed MOD-97: processes the numeric string in 7-digit blocks,
      * carrying the remainder (<= 2 digits) in front of the next block.
      * Each block is at most 9 digits, safely within 64-bit int range.
+     *
+     * Public so other 32-bit-unsafe national check-digit validators (e.g.
+     * Belgian, Slovenian) can reuse this overflow-safe reducer instead of
+     * casting long digit strings to (int) directly. Accepts any
+     * numeric-digit string (no letters); returns its value mod 97.
      */
-    private function mod97(string $numeric): int
+    public function mod97(string $numeric): int
     {
         $remainder = 0;
         $length    = strlen($numeric);

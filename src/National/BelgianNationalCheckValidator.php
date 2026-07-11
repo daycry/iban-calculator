@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace Daycry\Iban\National;
 
 use Daycry\Iban\Contracts\NationalCheckValidatorInterface;
+use Daycry\Iban\Core\Mod97;
 use Daycry\Iban\DTO\ParsedIban;
 
 /**
  * Belgian (BE) national check digit validator: the 2-digit national check
  * is the first 10 BBAN digits (3-digit bank + 7-digit account) taken as an
  * integer, mod 97 -- with a 0 remainder mapped to 97 (never 00), zero-padded
- * to 2 digits.
+ * to 2 digits. The mod-97 reduction is delegated to Mod97::mod97(), a
+ * windowed reducer that stays 32-bit-safe (casting the 10-digit string
+ * directly to (int) can overflow on 32-bit PHP builds).
  *
  * Verified against the real registry example IBAN BE68539007547034
  * (bank '539', account '0075470', first10 '5390075470', 5390075470 % 97 =
@@ -38,7 +41,7 @@ final class BelgianNationalCheckValidator implements NationalCheckValidatorInter
         }
 
         $first10 = $iban->bankIdentifier . $iban->accountNumber;
-        $mod     = ((int) $first10) % 97;
+        $mod      = (new Mod97())->mod97($first10);
         $expected = $mod === 0 ? 97 : $mod;
 
         return str_pad((string) $expected, 2, '0', STR_PAD_LEFT) === $iban->nationalCheckDigit;

@@ -8,14 +8,15 @@ use Daycry\Iban\Contracts\NationalCheckValidatorInterface;
 use Daycry\Iban\DTO\ParsedIban;
 
 /**
- * Portuguese (PT) national check digit validator: the Portuguese NIB check
- * digits are a weighted mod-97 over the 19 digits of bank+branch+account
- * (4+4+11), check = 98 - (sum of digit*weight mod 97), collapsing 98 -> 0
- * and 97 -> 1.
+ * Portuguese (PT) national check digit validator: the Portuguese NIB must
+ * satisfy NIB = 1 (mod 97), with the 2-digit check occupying the 10^1/10^0
+ * positions. Given the weighted sum over the 19 digits of bank+branch+
+ * account (4+4+11), the check VALUE is check = (1 - (sum mod 97)) mod 97,
+ * normalized into [0, 96].
  *
  * Verified against the real registry example IBAN
  * PT50000201231234567890154 (nineteen '0002012312345678901', sum=2469,
- * mod=44, 98-44=54, matching the real national check '54'), plus two
+ * mod=44, (1-44) mod 97=54, matching the real national check '54'), plus two
  * additional real bank IBANs found during research (both independently
  * MOD-97-valid at the whole-IBAN level too):
  *   - PT50003300000017351398905 (Millennium BCP sample) -> check '05', match.
@@ -53,13 +54,7 @@ final class PortugueseNationalCheckValidator implements NationalCheckValidatorIn
             $sum += ((int) $nineteen[$i]) * self::WEIGHTS[$i];
         }
 
-        $check = 98 - ($sum % 97);
-
-        if ($check === 98) {
-            $check = 0;
-        } elseif ($check === 97) {
-            $check = 1;
-        }
+        $check = ((1 - ($sum % 97)) % 97 + 97) % 97;
 
         return str_pad((string) $check, 2, '0', STR_PAD_LEFT) === $iban->nationalCheckDigit;
     }

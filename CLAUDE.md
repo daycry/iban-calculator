@@ -81,9 +81,14 @@ flowing **one way only**:
 
 **This rule is enforced by a test**, not just convention: `tests/Architecture/CoreIsFrameworkFreeTest.php`
 scans `Core/`, `Contracts/`, `DTO/`, `Enums/`, `Exceptions/`, `Registry/`, `National/`, `Resolver/` for
-the strings `CodeIgniter\` and `codeigniter4`, and fails if either appears. It also carries two
-self-tests proving the detector isn't a trivial always-true/always-false stub. If you add a new
-guarded directory, extend `GUARDED_DIRECTORIES` in that test.
+the strings `CodeIgniter\` and `codeigniter4`, and fails if either appears. It also scans a file-level
+`GUARDED_FILES` list for the same two files-can't-live-in-a-guarded-directory cases: `src/Iban.php` (the
+standalone facade), plus — since v1.1 — the framework-free half of the importer framework:
+`Import/ImporterRegistry.php`, `Import/ImportReport.php` and the 5 `Import/Importers/*Importer.php`
+classes. `Import/ImportRunner.php` is intentionally **not** in `GUARDED_FILES` (it depends on CI4's
+`Models\BankModel`). It also carries two self-tests proving the detector isn't a trivial
+always-true/always-false stub. If you add a new guarded directory, extend `GUARDED_DIRECTORIES` in that
+test; for a single framework-free file outside a guarded directory, extend `GUARDED_FILES` instead.
 
 Before adding any `use CodeIgniter\...` or CI4-only helper/function call, check which directory you're
 in. If it's one of the guarded ones, the dependency belongs one layer up instead.

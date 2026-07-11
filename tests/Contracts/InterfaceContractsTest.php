@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Contracts;
 
+use Daycry\Iban\Contracts\ImporterInterface;
 use Daycry\Iban\Contracts\NationalCheckValidatorInterface;
 use Daycry\Iban\Contracts\ParserInterface;
 use Daycry\Iban\Contracts\ProviderInterface;
@@ -217,5 +218,91 @@ final class InterfaceContractsTest extends TestCase
         $returnType = $method->getReturnType();
         self::assertInstanceOf(ReflectionNamedType::class, $returnType);
         self::assertSame('bool', $returnType->getName());
+    }
+
+    public function testImporterInterfaceExists(): void
+    {
+        self::assertTrue(interface_exists(ImporterInterface::class));
+    }
+
+    public function testImporterInterfaceHasCountryCodeMethod(): void
+    {
+        $reflection = new ReflectionClass(ImporterInterface::class);
+        self::assertTrue($reflection->hasMethod('countryCode'));
+
+        $method = $reflection->getMethod('countryCode');
+        self::assertCount(0, $method->getParameters());
+        $returnType = $method->getReturnType();
+        self::assertInstanceOf(ReflectionNamedType::class, $returnType);
+        self::assertSame('string', $returnType->getName());
+    }
+
+    public function testImporterInterfaceHasSourceIdMethod(): void
+    {
+        $reflection = new ReflectionClass(ImporterInterface::class);
+        self::assertTrue($reflection->hasMethod('sourceId'));
+
+        $method = $reflection->getMethod('sourceId');
+        self::assertCount(0, $method->getParameters());
+        $returnType = $method->getReturnType();
+        self::assertInstanceOf(ReflectionNamedType::class, $returnType);
+        self::assertSame('string', $returnType->getName());
+    }
+
+    public function testImporterInterfaceHasSourceNameMethod(): void
+    {
+        $reflection = new ReflectionClass(ImporterInterface::class);
+        self::assertTrue($reflection->hasMethod('sourceName'));
+
+        $method = $reflection->getMethod('sourceName');
+        self::assertCount(0, $method->getParameters());
+        $returnType = $method->getReturnType();
+        self::assertInstanceOf(ReflectionNamedType::class, $returnType);
+        self::assertSame('string', $returnType->getName());
+    }
+
+    public function testImporterInterfaceHasLicenseMethod(): void
+    {
+        $reflection = new ReflectionClass(ImporterInterface::class);
+        self::assertTrue($reflection->hasMethod('license'));
+
+        $method = $reflection->getMethod('license');
+        self::assertCount(0, $method->getParameters());
+        $returnType = $method->getReturnType();
+        self::assertInstanceOf(ReflectionNamedType::class, $returnType);
+        self::assertSame('string', $returnType->getName());
+    }
+
+    public function testImporterInterfaceHasSourceUrlMethod(): void
+    {
+        $reflection = new ReflectionClass(ImporterInterface::class);
+        self::assertTrue($reflection->hasMethod('sourceUrl'));
+
+        $method = $reflection->getMethod('sourceUrl');
+        self::assertCount(0, $method->getParameters());
+        $returnType = $method->getReturnType();
+        self::assertInstanceOf(ReflectionNamedType::class, $returnType);
+        self::assertSame('string', $returnType->getName());
+    }
+
+    public function testImporterInterfaceHasRowsMethod(): void
+    {
+        $reflection = new ReflectionClass(ImporterInterface::class);
+        self::assertTrue($reflection->hasMethod('rows'));
+
+        $method = $reflection->getMethod('rows');
+        self::assertCount(1, $method->getParameters());
+
+        // Check the only parameter is a nullable string defaulting to null
+        $param = $method->getParameters()[0];
+        self::assertSame('localFile', $param->getName());
+        self::assertTrue($param->getType()?->allowsNull());
+        self::assertTrue($param->isDefaultValueAvailable());
+        self::assertNull($param->getDefaultValue());
+
+        // Check return type is iterable
+        $returnType = $method->getReturnType();
+        self::assertInstanceOf(ReflectionNamedType::class, $returnType);
+        self::assertSame('iterable', $returnType->getName());
     }
 }

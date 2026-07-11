@@ -10,8 +10,9 @@ namespace Daycry\Iban\Import;
  * were actually written (or would have been, for `--dry-run`), and how many
  * were skipped (e.g. missing the required `bank_code`).
  *
- * FRAMEWORK-FREE: plain readonly DTO, no `codeigniter4/*` dependency --
- * mirrors {@see \Daycry\Iban\DTO\BankInfo} / {@see \Daycry\Iban\DTO\ValidationResult}.
+ * FRAMEWORK-FREE: plain readonly DTO, no dependency on the framework package
+ * this library adapts for -- mirrors {@see \Daycry\Iban\DTO\BankInfo} /
+ * {@see \Daycry\Iban\DTO\ValidationResult}.
  * It lives under `src/Import/` rather than `src/DTO/` because it's part of
  * the importer *framework* (paired with `ImporterRegistry`/`ImportRunner`),
  * not a core value object; `src/Import/` isn't covered by the framework-free

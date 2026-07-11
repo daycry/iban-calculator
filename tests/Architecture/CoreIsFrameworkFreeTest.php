@@ -34,6 +34,15 @@ use SplFileInfo;
  * CI4 dependency — so it is guarded individually via `GUARDED_FILES` to
  * catch a future CI4 import creeping into it.
  *
+ * The v1.1 importer framework under `src/Import/` is a mixed bag: most of it
+ * is documented and designed to be framework-free (`ImporterRegistry`,
+ * `ImportReport`, and the five bundled `Importers/*Importer` classes), but
+ * `ImportRunner` legitimately depends on CI4 (`Daycry\Iban\Models\BankModel`)
+ * to persist rows, so the whole `Import/` directory cannot be added to
+ * `GUARDED_DIRECTORIES`. Instead, the seven framework-free files are each
+ * added individually to `GUARDED_FILES`, leaving `ImportRunner.php`
+ * deliberately unguarded.
+ *
  * @see docs/superpowers/specs/2026-07-10-daycry-iban-v1-design.md §3
  */
 final class CoreIsFrameworkFreeTest extends TestCase
@@ -54,10 +63,21 @@ final class CoreIsFrameworkFreeTest extends TestCase
      * Individual files (relative to `src/`) guarded in addition to
      * {@see GUARDED_DIRECTORIES}.
      *
+     * The `Import/*` entries are the framework-free half of the v1.1
+     * importer framework; `Import/ImportRunner.php` is intentionally absent
+     * here because it depends on CI4 (`Models\BankModel`).
+     *
      * @var string[]
      */
     private const GUARDED_FILES = [
         'Iban.php',
+        'Import/ImporterRegistry.php',
+        'Import/ImportReport.php',
+        'Import/Importers/BancoDeEspanaImporter.php',
+        'Import/Importers/BetaalverenigingImporter.php',
+        'Import/Importers/BundesbankImporter.php',
+        'Import/Importers/OenbImporter.php',
+        'Import/Importers/SixImporter.php',
     ];
 
     /** @var string[] */

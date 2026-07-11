@@ -141,27 +141,62 @@ final class PortugueseNationalCheckValidatorTest extends TestCase
         self::assertFalse($this->validator->verify($parsed));
     }
 
-    // -- verify(): edge cases, collapsing 98 -> 0 and 97 -> 1 --------------
+    // -- verify(): edge cases, sum % 97 in {0, 1} ---------------------------
 
     /**
-     * All-zero bank/branch/account: every weighted product is 0, so
-     * sum = 0, 0 % 97 = 0, check = 98 - 0 = 98 -> collapses to '00'.
+     * Regression for the inverted-collapse bug: all-zero bank/branch/account
+     * means every weighted product is 0, so sum = 0, sum % 97 = 0, and the
+     * correct check VALUE is (1 - 0) mod 97 = 1 -> '01' (previously the
+     * buggy `98 - (sum % 97)` collapse wrongly produced '00' here).
+     *
+     * PT50000000000000000000001 is a real, whole-IBAN MOD-97-valid PT IBAN
+     * (verified with Mod97::checkDigits('PT', bban) and Mod97::isValid())
+     * built specifically to exercise this branch: nineteen =
+     * '0000000000000000000', sum=0, sum % 97 = 0, national check digit = '01'.
      */
-    public function testVerifyEdgeCaseNinetyEightCollapsesToZero(): void
+    public function testVerifyReturnsTrueWhenWeightedSumModIsZero(): void
     {
-        $parsed = new ParsedIban(
-            countryCode: 'PT',
-            checkDigits: '00',
-            bban: '0000000000000000000000',
-            bankIdentifier: '0000',
-            branchIdentifier: '0000',
-            accountNumber: '00000000000',
-            nationalCheckDigit: '00',
-            sepaCountry: true,
-            electronic: 'PT000000000000000000000000',
-        );
+        $parsed = $this->parser->parse('PT50000000000000000000001');
 
+        self::assertSame('01', $parsed->nationalCheckDigit);
         self::assertTrue($this->validator->verify($parsed));
+    }
+
+    public function testVerifyReturnsFalseWhenWeightedSumModIsZeroAndCheckDigitAltered(): void
+    {
+        $parsed = $this->parser->parse('PT50000000000000000000001');
+
+        $tampered = $this->withNationalCheckDigit($parsed, '00');
+
+        self::assertFalse($this->validator->verify($tampered));
+    }
+
+    /**
+     * Regression for the inverted-collapse bug: nineteen =
+     * '4000000000000000000' (bank='4000', branch/account all zero) gives
+     * sum = 4 * 73 = 292, sum % 97 = 1, and the correct check VALUE is
+     * (1 - 1) mod 97 = 0 -> '00' (previously the buggy collapse wrongly
+     * produced '01' here).
+     *
+     * PT50400000000000000000000 is a real, whole-IBAN MOD-97-valid PT IBAN
+     * (verified with Mod97::checkDigits('PT', bban) and Mod97::isValid())
+     * built specifically to exercise this branch.
+     */
+    public function testVerifyReturnsTrueWhenWeightedSumModIsOne(): void
+    {
+        $parsed = $this->parser->parse('PT50400000000000000000000');
+
+        self::assertSame('00', $parsed->nationalCheckDigit);
+        self::assertTrue($this->validator->verify($parsed));
+    }
+
+    public function testVerifyReturnsFalseWhenWeightedSumModIsOneAndCheckDigitAltered(): void
+    {
+        $parsed = $this->parser->parse('PT50400000000000000000000');
+
+        $tampered = $this->withNationalCheckDigit($parsed, '01');
+
+        self::assertFalse($this->validator->verify($tampered));
     }
 
     private function withNationalCheckDigit(ParsedIban $iban, string $nationalCheckDigit): ParsedIban

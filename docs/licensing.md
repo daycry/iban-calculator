@@ -32,11 +32,15 @@ copy-pasted.
 | **Wikipedia's IBAN formats table** | CC BY-SA — copyleft, requires attribution *and* share-alike licensing of derivative works. Incompatible with a plain MIT release without carrying that obligation forward. |
 | **EPC Register of SEPA Participants (per-PSP reachability data)** | Large, volatile, and not needed for v1.0's scope. Only the much smaller, stable **country-level** SEPA scope list (EPC409-09 — "is country X in SEPA at all") is hardcoded into the registry, as the `sepa` field on `CountryStructure` / `ParsedIban::$sepaCountry`. Per-PSP reachability (`BankResult::$sepaSct`, `$sepaSctInst`, `$sepaSddCore`, `$sepaSddB2b`) is left `null` unless a configured `ProviderInterface` (e.g. a future licensed importer) supplies it. |
 
-Because of all of the above, **v1.0 ships an empty `banks` table** (`Daycry\Iban\Database\Seeds\BanksSeeder` intentionally inserts nothing) and `iban:update` is a **documented no-op** that prints these
-exact licensing constraints rather than silently doing nothing — see
-[`docs/usage.md`](usage.md#spark-commands). Bank-entity resolution (`resolve()`) still works end to end
-via `DatabaseProvider`; it simply has no data to find until you seed it yourself or a future licensed
-importer does.
+Because of all of the above, **v1.0 shipped an empty `banks` table** (`Daycry\Iban\Database\Seeds\BanksSeeder`
+intentionally inserts nothing) and `iban:update` was a documented no-op that printed these exact
+licensing constraints rather than silently doing nothing. As of v1.1, `iban:update` is a **functional
+importer command**: it lists, selects, and runs the five bundled per-source importers described below
+(see [`docs/importers.md`](importers.md) and [`docs/usage.md`](usage.md#spark-commands)) — but the
+package still ships **no bundled bank data in the repo**; the licensing rationale above for why is
+unchanged, the operator always runs the import themselves into their own `banks` table. Bank-entity
+resolution (`resolve()`) still works end to end via `DatabaseProvider`; it simply has no data to find
+until you seed it yourself or run one of the bundled importers.
 
 ## Independent authorship + MIT cross-check
 

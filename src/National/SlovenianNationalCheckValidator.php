@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Daycry\Iban\National;
 
 use Daycry\Iban\Contracts\NationalCheckValidatorInterface;
+use Daycry\Iban\Core\Mod97;
 use Daycry\Iban\DTO\ParsedIban;
 
 /**
@@ -12,6 +13,9 @@ use Daycry\Iban\DTO\ParsedIban;
  * style check over the 13 digits of bank+account (5+8), computed the same
  * way as the whole-IBAN MOD-97 check digit: check = 98 - (thirteen-digit
  * number * 100 mod 97), i.e. mod-97 of the 13 digits with "00" appended.
+ * The mod-97 reduction is delegated to Mod97::mod97(), a windowed reducer
+ * that stays 32-bit-safe (casting the 13-digit string * 100 directly to
+ * (int) can overflow on 32-bit PHP builds).
  *
  * Verified against the real registry example IBAN SI56263300012039086
  * (bank '26330', account '00012039', thirteen '2633000120390', *100 mod 97
@@ -42,7 +46,7 @@ final class SlovenianNationalCheckValidator implements NationalCheckValidatorInt
         }
 
         $thirteen = $iban->bankIdentifier . $iban->accountNumber;
-        $mod      = ((int) $thirteen * 100) % 97;
+        $mod      = (new Mod97())->mod97($thirteen . '00');
         $check    = 98 - $mod;
 
         return str_pad((string) $check, 2, '0', STR_PAD_LEFT) === $iban->nationalCheckDigit;
