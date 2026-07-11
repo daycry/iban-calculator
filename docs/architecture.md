@@ -1,7 +1,8 @@
 # Architecture
 
-> Overview only. Full usage documentation is planned for Phase 8 of the roadmap and does not exist
-> yet. Source of truth for anything below: the design spec and the roadmap linked at the bottom.
+> Concise architecture overview. Full usage documentation lives in [`docs/usage.md`](usage.md), and
+> the importer subsystem in [`docs/importers.md`](importers.md). The package is feature-complete
+> through v1.1 (see [`CHANGELOG.md`](../CHANGELOG.md)).
 
 ## Two layers, one direction
 
@@ -29,13 +30,18 @@ resolver knows about CodeIgniter 4.
   Seed).
 - **CI4 integration** — a thin adapter (`Config\Iban`, `Services::iban()`, `iban_helper.php`, spark
   commands) with no domain logic of its own; it only wires the core/resolver into the framework.
+  The `iban:update` command drives the v1.1 bank-data importer framework (`ImporterInterface` +
+  `ImportRunner`) to populate the `banks` table from official sources.
 
 ## The dependency rule, enforced
 
-`src/Contracts`, `src/Core`, `src/DTO`, `src/Enums`, `src/Exceptions` and `src/Registry` must stay
-framework-free: no `codeigniter4/*` requirement, no `CodeIgniter\...` import, anywhere. Only
-`src/Config`, `src/Commands`, `src/Models`, `src/Database`, `src/Providers/DatabaseProvider` and
-`src/Helpers` are allowed to depend on CI4.
+`src/Contracts`, `src/Core`, `src/DTO`, `src/Enums`, `src/Exceptions`, `src/Registry`,
+`src/National` and `src/Resolver` must stay framework-free: no `codeigniter4/*` requirement, no
+`CodeIgniter\...` import, anywhere. Only `src/Config`, `src/Commands`, `src/Models`, `src/Database`,
+`src/Providers/DatabaseProvider`, `src/Helpers` and `src/Import/ImportRunner.php` are allowed to
+depend on CI4. (`Contracts\ImporterInterface`, `Import\ImportReport` and `Import\ImporterRegistry`
+stay framework-free; the concrete importers under `src/Import/Importers/` fetch and parse with plain
+PHP, requiring only `ext-mbstring`.)
 
 This isn't just a convention — `tests/Architecture/CoreIsFrameworkFreeTest.php` scans the guarded
 directories for `CodeIgniter\` / `codeigniter4` references and fails the build if either appears,
@@ -65,26 +71,22 @@ with two self-tests proving the detector actually detects (not a trivial stub).
 - `InvalidIbanException` — `final`; carries the `ValidationResult` that caused a strict parse failure
   via `result(): ValidationResult`.
 
-**Contracts** (`src/Contracts`, frozen since the close of Phase 1):
-`ValidatorInterface`, `ParserInterface`, `ProviderInterface`, `ResolverInterface`,
-`RegistryLoaderInterface`, `NationalCheckValidatorInterface`. All framework-free.
+**Contracts** (`src/Contracts`, all framework-free): `ValidatorInterface`, `ParserInterface`,
+`ProviderInterface`, `ResolverInterface`, `RegistryLoaderInterface`,
+`NationalCheckValidatorInterface` (frozen since the close of Phase 1), plus `ImporterInterface`
+(added in v1.1 for the bank-data importer framework).
 
-## Current phase
+## Status
 
-**Phase 1 (Foundations) is complete**: tooling/CI, the domain model above, and all six frozen
-contracts. 71 tests / 144 assertions, PHPStan level 8, PSR-12 — all green.
-
-**Not built yet:**
-- Phase 2 — structural registry (~84 SWIFT countries: length, BBAN token grammar, bank/branch/
-  account/national-check offsets).
-- Phase 3 — algorithmic core (`Normalizer`, `Mod97`, `StructureCompiler`, `Validator`, `Parser`,
-  `Formatter`).
-- Phase 4 — Spanish national check-digit validator (mod-11) + `bin/` registry data generator.
-- Phase 5 — `Resolver`, `NullProvider`, optional `DatabaseProvider` (Model + Migration + empty Seed),
-  `Iban` facade.
-- Phase 6 — CodeIgniter 4 integration (`Config\Iban`, `Services::iban()`, helper, spark commands).
-- Phase 7 — cross-cutting test fixtures/infrastructure.
-- Phase 8 — full usage documentation.
+**Feature-complete through v1.1.** All v1.0 phases shipped: the structural registry (78 countries),
+the algorithmic core (`Normalizer`, `Mod97`, `StructureCompiler`, `Validator`, `Parser`,
+`Formatter`), national check-digit validation, the resolver + providers + `banks` schema, CI4
+integration (`Config\Iban`, `service('iban')`, `iban_helper`, spark commands), and the test
+suite/docs. v1.1 added national check-digit validators for **9 countries**
+(ES/BE/PT/SI/FI/FR/MC/IT/SM), an optional `CachedProvider` (opt-in via `Config\Iban::$cacheTtl`), and
+the bank-data importer framework with **5 bundled official-source importers** and a functional
+`iban:update` (see [`docs/importers.md`](importers.md)). 860 tests / 1720 assertions, PHPStan level 8,
+PSR-12 — all green.
 
 ## References
 
