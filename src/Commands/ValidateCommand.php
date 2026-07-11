@@ -6,6 +6,7 @@ namespace Daycry\Iban\Commands;
 
 use CodeIgniter\CLI\BaseCommand;
 use CodeIgniter\CLI\CLI;
+use Daycry\Iban\Config\Iban as IbanConfig;
 use Daycry\Iban\Iban as IbanService;
 
 /**
@@ -31,7 +32,8 @@ final class ValidateCommand extends BaseCommand
 
     /** @var array<string, string> */
     protected $options = [
-        '--national' => 'Also run the country-specific national check-digit validator, if one is registered.',
+        '--national' => 'Also run the country-specific national check-digit validator, if one is registered. '
+            . 'When omitted, the effective value comes from Config\\Iban::$checkNationalByDefault.',
         '--json'     => 'Emit the result as JSON instead of colored CLI text.',
     ];
 
@@ -42,7 +44,12 @@ final class ValidateCommand extends BaseCommand
         /** @var IbanService $svc */
         $svc = service('iban');
 
-        $result    = $svc->validate($iban, (bool) CLI::getOption('national'));
+        $nationalOption = CLI::getOption('national');
+        $checkNational  = $nationalOption === null
+            ? config(IbanConfig::class)->checkNationalByDefault
+            : (bool) $nationalOption;
+
+        $result    = $svc->validate($iban, $checkNational);
         $violation = $result->firstViolation();
 
         if (CLI::getOption('json')) {

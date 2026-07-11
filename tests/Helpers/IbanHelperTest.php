@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Helpers;
 
 use CodeIgniter\Test\CIUnitTestCase;
+use Daycry\Iban\Config\Iban as IbanConfig;
 use Daycry\Iban\Core\Mod97;
 use Daycry\Iban\DTO\ParsedIban;
 use Daycry\Iban\DTO\ValidationResult;
@@ -17,6 +18,8 @@ use Daycry\Iban\DTO\ValidationResult;
  *
  * @see \Daycry\Iban\Config\Registrar
  * @see docs/superpowers/specs/2026-07-10-daycry-iban-v1-design.md
+ * @see .superpowers/sdd/task-v3-brief.md (V-3: `$defaultFormat` /
+ *      `$checkNationalByDefault` wiring)
  */
 final class IbanHelperTest extends CIUnitTestCase
 {
@@ -27,6 +30,18 @@ final class IbanHelperTest extends CIUnitTestCase
         parent::setUp();
 
         helper('iban');
+    }
+
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+
+        // A handful of tests below mutate the shared `Config\Iban`
+        // singleton to prove `$defaultFormat`/`$checkNationalByDefault`
+        // are actually consumed; undo that so later tests keep seeing the
+        // documented defaults (mirrors `Tests\Config\ServicesTest`).
+        config(IbanConfig::class)->defaultFormat         = 'print';
+        config(IbanConfig::class)->checkNationalByDefault = false;
     }
 
     public function testIbanIsValidReturnsTrueForAValidIban(): void
@@ -100,6 +115,30 @@ final class IbanHelperTest extends CIUnitTestCase
         );
     }
 
+    /**
+     * V-3: with no explicit `$format`, `iban_format()` now consults
+     * `Config\Iban::$defaultFormat` instead of hardcoding `'print'`.
+     */
+    public function testIbanFormatUsesConfiguredDefaultFormatWhenNoneGiven(): void
+    {
+        config(IbanConfig::class)->defaultFormat = 'electronic';
+
+        self::assertSame(self::VALID_IBAN, iban_format(self::VALID_IBAN));
+    }
+
+    /**
+     * An explicit `$format` argument always wins over the config default.
+     */
+    public function testIbanFormatExplicitArgOverridesConfiguredDefaultFormat(): void
+    {
+        config(IbanConfig::class)->defaultFormat = 'electronic';
+
+        self::assertSame(
+            'ES91 2100 0418 4502 0005 1332',
+            iban_format(self::VALID_IBAN, 'print'),
+        );
+    }
+
     public function testBankNameReturnsNullWithAnEmptyDatabase(): void
     {
         self::assertNull(bank_name(self::VALID_IBAN));
@@ -155,6 +194,80 @@ final class IbanHelperTest extends CIUnitTestCase
         $result = iban_validate($this->esIbanWithBadNationalCheckDigits(), checkNational: true);
 
         self::assertFalse($result->isValid());
+    }
+
+    /**
+     * V-3: with no explicit `$checkNational`, `iban_validate()` now
+     * consults `Config\Iban::$checkNationalByDefault` instead of
+     * hardcoding `false`. With the documented default (`false`), behavior
+     * is unchanged from before this task.
+     */
+    public function testIbanValidateDefaultsToConfiguredCheckNationalByDefaultFalse(): void
+    {
+        self::assertTrue(iban_validate($this->esIbanWithBadNationalCheckDigits())->isValid());
+    }
+
+    public function testIbanValidateHonorsConfiguredCheckNationalByDefaultTrue(): void
+    {
+        config(IbanConfig::class)->checkNationalByDefault = true;
+
+        self::assertFalse(iban_validate($this->esIbanWithBadNationalCheckDigits())->isValid());
+    }
+
+    /**
+     * An explicit `checkNational: false` argument always wins over a
+     * config default of `true` — proves the sentinel is `null`, not a
+     * falsy check (`??`, not `?:`).
+     */
+    public function testIbanValidateExplicitFalseOverridesConfiguredCheckNationalByDefaultTrue(): void
+    {
+        config(IbanConfig::class)->checkNationalByDefault = true;
+
+        $result = iban_validate($this->esIbanWithBadNationalCheckDigits(), checkNational: false);
+
+        self::assertTrue($result->isValid());
+    }
+
+    /**
+     * V-3: `iban_is_valid()` gains the same `$checkNational` parameter as
+     * `iban_validate()`/the facade's `validate()`, defaulting to
+     * `Config\Iban::$checkNationalByDefault` (documented default: `false`).
+     */
+    public function testIbanIsValidDefaultsToConfiguredCheckNationalByDefaultFalse(): void
+    {
+        self::assertTrue(iban_is_valid($this->esIbanWithBadNationalCheckDigits()));
+    }
+
+    public function testIbanIsValidHonorsConfiguredCheckNationalByDefaultTrue(): void
+    {
+        config(IbanConfig::class)->checkNationalByDefault = true;
+
+        self::assertFalse(iban_is_valid($this->esIbanWithBadNationalCheckDigits()));
+    }
+
+    public function testIbanIsValidExplicitFalseOverridesConfiguredCheckNationalByDefaultTrue(): void
+    {
+        config(IbanConfig::class)->checkNationalByDefault = true;
+
+        self::assertTrue(iban_is_valid($this->esIbanWithBadNationalCheckDigits(), false));
+    }
+
+    /**
+     * `iban_valid()` is a straight alias of `iban_is_valid()`: the config
+     * default and explicit-override behavior must match exactly.
+     */
+    public function testIbanValidAliasHonorsConfiguredCheckNationalByDefaultTrue(): void
+    {
+        config(IbanConfig::class)->checkNationalByDefault = true;
+
+        self::assertFalse(iban_valid($this->esIbanWithBadNationalCheckDigits()));
+    }
+
+    public function testIbanValidAliasExplicitFalseOverridesConfiguredCheckNationalByDefaultTrue(): void
+    {
+        config(IbanConfig::class)->checkNationalByDefault = true;
+
+        self::assertTrue(iban_valid($this->esIbanWithBadNationalCheckDigits(), false));
     }
 
     /**

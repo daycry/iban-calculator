@@ -32,11 +32,15 @@ copy-pasted.
 | **Wikipedia's IBAN formats table** | CC BY-SA — copyleft, requires attribution *and* share-alike licensing of derivative works. Incompatible with a plain MIT release without carrying that obligation forward. |
 | **EPC Register of SEPA Participants (per-PSP reachability data)** | Large, volatile, and not needed for v1.0's scope. Only the much smaller, stable **country-level** SEPA scope list (EPC409-09 — "is country X in SEPA at all") is hardcoded into the registry, as the `sepa` field on `CountryStructure` / `ParsedIban::$sepaCountry`. Per-PSP reachability (`BankResult::$sepaSct`, `$sepaSctInst`, `$sepaSddCore`, `$sepaSddB2b`) is left `null` unless a configured `ProviderInterface` (e.g. a future licensed importer) supplies it. |
 
-Because of all of the above, **v1.0 ships an empty `banks` table** (`Daycry\Iban\Database\Seeds\BanksSeeder` intentionally inserts nothing) and `iban:update` is a **documented no-op** that prints these
-exact licensing constraints rather than silently doing nothing — see
-[`docs/usage.md`](usage.md#spark-commands). Bank-entity resolution (`resolve()`) still works end to end
-via `DatabaseProvider`; it simply has no data to find until you seed it yourself or a future licensed
-importer does.
+Because of all of the above, **v1.0 shipped an empty `banks` table** (`Daycry\Iban\Database\Seeds\BanksSeeder`
+intentionally inserts nothing) and `iban:update` was a documented no-op that printed these exact
+licensing constraints rather than silently doing nothing. As of v1.1, `iban:update` is a **functional
+importer command**: it lists, selects, and runs the five bundled per-source importers described below
+(see [`docs/importers.md`](importers.md) and [`docs/usage.md`](usage.md#spark-commands)) — but the
+package still ships **no bundled bank data in the repo**; the licensing rationale above for why is
+unchanged, the operator always runs the import themselves into their own `banks` table. Bank-entity
+resolution (`resolve()`) still works end to end via `DatabaseProvider`; it simply has no data to find
+until you seed it yourself or run one of the bundled importers.
 
 ## Independent authorship + MIT cross-check
 
@@ -77,21 +81,24 @@ it is the operative legal statement, not incidental wording.
 ## v1.1 source roadmap (bank-entity data)
 
 None of the above blocks bank-entity *structural* resolution (`DatabaseProvider` + your own seeded
-data) today. For a future bundled/importable dataset, sources are being evaluated in order of license
-cleanliness (see [`docs/roadmap.md`](roadmap.md) for the full v1.1 plan):
+data) today. As of v1.1 the package bundles per-source importers for five official registries — but still ships
+**no bank data in the repo**: the operator runs `iban:update --source=... [--file=...]` to import
+into their own `banks` table (see [`docs/importers.md`](importers.md)). The five sources, in order of
+license cleanliness:
 
 1. **Austria (OeNB)** — CC BY 4.0. Attribution-only, no share-alike — the cleanest option.
-2. **Switzerland (SIX)** — published as "free to use."
-3. **Germany (Bundesbank)** — free to use with mandatory, unaltered attribution ("Source: Deutsche
+2. **Switzerland (SIX)** — published as "free to use" (the BIC column remains SWIFT's property).
+3. **Germany (Bundesbank)** — free to use with mandatory, unaltered attribution ("Deutsche
    Bundesbank").
-4. **Netherlands (Betaalvereniging)** — freely available as an Excel export; would need to be marked
-   incomplete/best-effort pending further verification.
-5. **Spain (BdE)** — no clear open license today; would require manual export and explicit legal
-   review before any import.
+4. **Netherlands (Betaalvereniging)** — the source is an Excel export (consumed as CSV; no Excel
+   dependency); its terms require consent to redistribute, so it is import-path-only, never bundled.
+5. **Spain (BdE)** — no standard open license; imported from the machine-readable MFI list under
+   Banco de España's conditional attribution terms (the literal Registro de Entidades is portal/PDF
+   only). Confirm terms before commercial redistribution.
 
-Each future source would be imported via a per-source `ImporterInterface` (`countryCode()`,
-`sourceId()`, `license()`, `fetch()`, `import()`), with `source_id` / `source_version` /
-`source_license` recorded per row in the `banks` table (already present in the v1.0 schema — see
-`src/Database/Migrations/2026-07-10-000001_CreateBanksTable.php`) so every resolved `BankResult`
-carries its own attribution back to the caller (`BankResult::$sourceId`, `$sourceVersion`,
-`$sourceLicense`).
+Each source is imported via a per-source `ImporterInterface` (`countryCode()`, `sourceId()`,
+`sourceName()`, `license()`, `sourceUrl()`, `rows(?string $localFile = null)`), with `source_id` /
+`source_version` / `source_license` recorded per row in the `banks` table (present since the v1.0
+schema — see `src/Database/Migrations/2026-07-10-000001_CreateBanksTable.php`) so every resolved
+`BankResult` carries its own attribution back to the caller (`BankResult::$sourceId`,
+`$sourceVersion`, `$sourceLicense`).

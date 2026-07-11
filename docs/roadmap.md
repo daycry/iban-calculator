@@ -1,6 +1,6 @@
 # Roadmap
 
-`daycry/iban` v1.0 is feature-complete (see [`CHANGELOG.md`](../CHANGELOG.md)). This page tracks what's
+`daycry/iban` v1.1 is feature-complete (see [`CHANGELOG.md`](../CHANGELOG.md)). This page tracks what's
 planned beyond it, per §12 of the design spec
 (`docs/superpowers/specs/2026-07-10-daycry-iban-v1-design.md`). Nothing here is scheduled or committed
 — it's a statement of direction, not a promise.
@@ -9,35 +9,45 @@ For the historical, per-task breakdown of how v1.0 itself was built, see
 [`docs/roadmap/2026-07-10-daycry-iban-v1/`](roadmap/2026-07-10-daycry-iban-v1/) (`spec.md`,
 `evaluation.md`, `improvement-plan.md`, `tasks.md`).
 
-## v1.1 — real bank-data import
+## v1.1 — shipped
 
-The single biggest gap in v1.0 is that `resolve()` has nothing to resolve out of the box: the `banks`
-table ships empty and `iban:update` is a documented no-op (see
-[`docs/licensing.md`](licensing.md) for why). v1.1's focus is closing that gap without compromising the
-licensing discipline v1.0 established:
+Everything planned for v1.1 in the previous revision of this page has shipped — see
+[`CHANGELOG.md`](../CHANGELOG.md#110---2026-07-11) for the authoritative list, and
+[`docs/importers.md`](importers.md) for the full importer reference. Summary, with the actual API as
+built (it differs from what was originally sketched here):
 
-- **`ImporterInterface`** — a per-source contract:
-  `countryCode(): string`, `sourceId(): string`, `license(): string`, `fetch(): iterable`,
-  `import(): ImportReport`. Registered by `countryCode + sourceId`, so multiple sources can coexist per
-  country (e.g. an official central-bank list plus a community-maintained supplement).
-- **`iban:update` becomes a real importer**, not a scaffold: it downloads/ingests from registered
-  `ImporterInterface`s, honoring the `--source=`/`--country=`/`--dry-run` flags already accepted (and
-  currently ignored) by the v1.0 command.
-- **Source priority**, by license cleanliness (see [`docs/licensing.md`](licensing.md#v11-source-roadmap-bank-entity-data)
-  for the full rationale):
-  1. Austria (OeNB) — CC BY 4.0.
-  2. Switzerland (SIX) — "free to use."
-  3. Germany (Bundesbank) — free to use, mandatory unaltered attribution.
-  4. Netherlands (Betaalvereniging) — Excel export, marked incomplete pending review.
-  5. Spain (BdE) — no clear open license; manual export, explicit review required.
-- **Incremental update** — re-running an importer updates only changed rows (keyed by
-  `country_code + bank_code + branch_code`, already unique-indexed in the v1.0 schema) instead of a
-  full table rebuild.
-- **Caching** — avoid re-fetching unchanged upstream sources on every `iban:update` run.
-- **Additional national check-digit validators** — the `checkNational` hook (`Validator`'s
-  `$nationalValidators` map, keyed by country code) already supports registering more than one
-  validator; v1.0 ships only `ES`. Planned next: **BE**, **FR**, **IT** (exact algorithms TBD per
-  country during implementation).
+- **`ImporterInterface`** shipped with a different, real method set than originally planned:
+  `countryCode(): string`, `sourceId(): string`, `sourceName(): string`, `license(): string`,
+  `sourceUrl(): string`, `rows(?string $localFile = null): iterable` — no separate `fetch()`/
+  `import()` pair; a single `rows()` generator covers both the live-fetch and offline-file cases, and
+  the actual upsert-into-`banks` logic lives in `Import\ImportRunner`, not the importer itself.
+  Registered by `(countryCode, sourceId)` via `Import\ImporterRegistry`, so multiple sources can
+  coexist per country, as originally intended.
+- **`iban:update` is a real importer command**, not a scaffold: `--country=`/`--source=`/`--dry-run`
+  (all already accepted, previously ignored, in v1.0) now do something, plus a new `--file=<path>` for
+  offline import from a previously-downloaded/exported file.
+- **All 5 originally-prioritized sources shipped**, in the same license-cleanliness order this page
+  previously described: Austria (OeNB, CC-BY-4.0), Switzerland (SIX, free use), Germany (Bundesbank,
+  free use + mandatory attribution), Netherlands (Betaalvereniging, consumed as a CSV export of the
+  source `.xlsx`, import-only via `--file` due to its redistribution terms), Spain (BdE, MFI-list CSV,
+  attribution + no-alteration terms).
+- **Additional national check-digit validators**: `BE`, `PT`, `SI`, `FI`, `FR` (+`MC`), `IT` (+`SM`)
+  joined `ES` in `Core\Validator`'s default `$nationalValidators` map — more countries than the
+  original BE/FR/IT shortlist, and `MC`/`SM` ride along for free since they share France's/Italy's BBAN
+  structure and algorithm exactly. Estonia (`EE`) was evaluated and deliberately **not** added — see
+  [`docs/usage.md`](usage.md#national-check-digit-validators) for why a generic implementation would
+  be actively wrong for it.
+- **Optional resolver cache** (`Providers\CachedProvider`, opt-in via `Config\Iban::$cacheTtl`) —
+  addresses the "avoid re-querying on every lookup" goal from this page's original caching bullet, at
+  the `resolve()` layer rather than the importer-fetch layer.
+- **`Config\Iban::$defaultFormat`/`$checkNationalByDefault` are now actually honored** by the helper
+  and commands (they were declared but inert in v1.0) — not part of the original v1.1 bullet list, but
+  shipped alongside it as a related config-completeness fix.
+
+**Not carried forward from the original plan**: incremental/changed-rows-only re-import wasn't built
+as a distinct feature — `ImportRunner` always upserts every yielded row by natural key on each run
+(cheap enough in practice for these source sizes); a future "only touch rows whose upstream data
+actually changed" optimization remains open if a source's row count grows large enough to matter.
 
 ## v2.0 — external providers and standalone distribution
 

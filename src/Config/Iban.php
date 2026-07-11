@@ -59,4 +59,17 @@ class Iban extends BaseConfig
      * {@see \Daycry\Iban\Providers\DatabaseProvider} / {@see \Daycry\Iban\Models\BankModel}.
      */
     public string $table = 'banks';
+
+    /**
+     * Cache TTL, in seconds, for resolved bank lookups.
+     *
+     * `0` (the default) disables caching entirely: {@see \Daycry\Iban\Config\Services::iban()}
+     * leaves the resolver's provider unwrapped, so behavior is identical to
+     * pre-cache versions of this package. Any value `> 0` wraps the
+     * provider in a {@see \Daycry\Iban\Providers\CachedProvider} (backed by
+     * CI4's `service('cache')`) with this TTL, so repeated identical
+     * `findByBankCode()`/`findByIban()` lookups -- including misses -- are
+     * served from cache instead of re-querying the underlying provider.
+     */
+    public int $cacheTtl = 0;
 }

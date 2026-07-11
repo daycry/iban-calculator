@@ -5,6 +5,93 @@ All notable changes to `daycry/iban` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-07-11
+
+### Added
+
+- **8 more national check-digit validators**, taking `Core\Validator`'s default `$nationalValidators`
+  map from ES-only to **ES/BE/PT/SI/FI/FR/MC/IT/SM** (`src/National/`), each invoked the same way via
+  `validate(..., checkNational: true)` / `Config\Iban::$checkNationalByDefault`:
+  - `BelgianNationalCheckValidator` (BE) — mod-97 over the first 10 BBAN digits (bank+account), 0
+    mapped to 97.
+  - `PortugueseNationalCheckValidator` (PT) — weighted mod-97 NIB check over the 19 bank+branch+account
+    digits.
+  - `SlovenianNationalCheckValidator` (SI) — ISO 7064 MOD 97-10 style check over the 13 bank+account
+    digits.
+  - `FinnishNationalCheckValidator` (FI) — Luhn (mod-10) check digit over the 13 bank+account digits.
+  - `FrenchNationalCheckValidator` (FR, also **MC**) — RIB key (`97 - ((89*bank + 15*branch +
+    3*account) mod 97)`, with a letter-to-digit table for alphanumeric account characters).
+  - `ItalianNationalCheckValidator` (IT, also **SM**) — CIN odd/even weighted-sum-mod-26 check letter
+    over the 22-character ABI+CAB+account tail.
+  - Estonia (**EE**) was deliberately **not** added: its real national check depends on a
+    bank-specific, variable-length raw domestic account number that can't be reconstructed from the
+    fixed-width IBAN fields alone — shipping a generic implementation would reject real, valid IBANs
+    (see `src/Core/Validator.php`'s `$nationalValidators` docblock).
+- **Optional resolver cache**: `Providers\CachedProvider`, a `ProviderInterface` decorator that caches
+  `findByBankCode()`/`findByIban()` lookups (hits **and** misses, via an internal sentinel) behind a
+  CI4 `CacheInterface`. Opt-in via `Config\Iban::$cacheTtl` (seconds; default `0` = disabled).
+  `Config\Services::iban()` wraps the resolved provider in `CachedProvider` only when `$cacheTtl > 0`
+  and the provider isn't `NullProvider` (which never resolves anything, so caching it would be a
+  pointless round-trip).
+- **Bank-data importer framework**: `Contracts\ImporterInterface` (framework-free contract —
+  `countryCode()`, `sourceId()`, `sourceName()`, `license()`, `sourceUrl()`,
+  `rows(?string $localFile): iterable`), `Import\ImportReport` (framework-free result DTO),
+  `Import\ImporterRegistry` (in-memory catalog keyed by `(countryCode, sourceId)`, registers the 5
+  bundled importers via `registerDefaults()`), and `Import\ImportRunner` (CI4-dependent: runs one
+  importer against the `banks` table, upserting by the natural key
+  `(country_code, bank_code, branch_code)` and stamping provenance —
+  `source_id`/`source_version`/`source_license`/`updated_at` — once per run).
+- **`iban:update` is now functional**, no longer a no-op: with no `--country`/`--source`, it lists
+  the registered importers (`Commands\UpdateCommand`); given a selection, it runs each matching
+  importer through `ImportRunner`, honoring `--dry-run` (counts without writing) and `--file=<path>`
+  (offline import from a previously-downloaded file instead of a live fetch). Prints an
+  `ImportReport` (`fetched`/`imported`/`skipped`) plus the source's name/URL/license per run. v1.0's
+  licensing notices (SWIFT IBAN Registry / SWIFT BIC Directory / per-source attribution) are still
+  printed first, unconditionally.
+- **5 bundled official-source importers** (`src/Import/Importers/`), none of them bundling any actual
+  data — the operator runs `iban:update --source=... [--file=...]` themselves, preserving v1.0's
+  licensing discipline (see `docs/licensing.md`):
+  - `OenbImporter` (AT, `--source=oenb`) — OeNB's semicolon-CSV "Bankstellenverzeichnis", CC-BY-4.0.
+  - `BundesbankImporter` (DE, `--source=bundesbank`) — Deutsche Bundesbank's fixed-width
+    ISO-8859-1 "Bankleitzahlendatei", free use with mandatory attribution.
+  - `SixImporter` (CH, `--source=six`) — SIX Interbank Clearing's semicolon-CSV Bank Master V3
+    (UTF-8), "free to use" (the BIC column remains SWIFT's property — not for standalone
+    redistribution).
+  - `BetaalverenigingImporter` (NL, `--source=betaalvereniging`) — Betaalvereniging Nederland's
+    BIC-lijst NL, consumed as a CSV export of the source `.xlsx` (no spreadsheet-parsing dependency);
+    reproduction/redistribution requires the publisher's written consent, so this source is
+    import-only via `--file`, never live-fetched in practice.
+  - `BancoDeEspanaImporter` (ES, `--source=bde`) — Banco de España's MFI-list CSV (the literal
+    "Registro de Entidades" is portal/PDF-only), UTF-8 with a leading BOM, reproduction authorized
+    subject to attribution and no alteration.
+  - New reference doc: `docs/importers.md`.
+- **`docs/importers.md`** (new): full reference for the importer subsystem — `ImporterInterface`
+  contract, `iban:update` flags with example invocations per source, a table of the 5 bundled
+  importers, how provenance is stored, and how to write/register a custom importer.
+
+### Changed
+
+- **`Config\Iban::$defaultFormat` and `$checkNationalByDefault` are now honored**, not just declared:
+  the `iban_format()` helper falls back to `$defaultFormat` when its caller omits `$format`, and
+  `iban_validate()`/`iban_is_valid()`/`iban_valid()` plus the `iban:validate` command fall back to
+  `$checkNationalByDefault` when `--national`/`$checkNational` isn't explicitly passed.
+- **New runtime dependency**: `ext-mbstring` (`composer.json`), used by the CSV/fixed-width importers
+  to normalize source encodings (`mb_convert_encoding()`/`mb_check_encoding()`). The core validation/
+  parsing/formatting path still has zero framework dependencies; the package as a whole now requires
+  PHP `^8.3` **and** `ext-mbstring`.
+- CI hardening: GitHub Actions pinned by commit SHA, a `composer audit` step added to CI, atomic
+  registry-file regeneration in `bin/generate-registry.php`.
+- Long-tail country structure corrections in `src/Registry/data/countries.php`, found during the
+  national-validator verification work.
+- **Quality gates**: 860 tests / 1720 assertions (PHPUnit), PHPStan level 8 clean, PSR-12 clean.
+
+### Fixed
+
+- `Core\Validator` fails fast on over-long input (`MAX_INPUT_LENGTH`) before normalization, a
+  defense-in-depth hardening carried over from the pre-v1.1 security audit.
+
+[1.1.0]: https://github.com/daycry/iban-calculator/compare/1.0.0...1.1.0
+
 ## [1.0.0] - 2026-07-10
 
 ### Added

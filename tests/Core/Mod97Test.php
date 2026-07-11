@@ -90,4 +90,30 @@ final class Mod97Test extends TestCase
         self::assertSame('84', $check);
         self::assertTrue($this->mod97->isValid($countryCode . $check . $bban));
     }
+
+    /**
+     * `mod97()` is public so 32-bit-unsafe national check-digit validators
+     * (Belgian, Slovenian) can reuse this overflow-safe windowed reducer
+     * instead of casting long digit strings to (int) directly.
+     *
+     * @return array<string, array{0: string, 1: int}>
+     */
+    public static function mod97Provider(): array
+    {
+        return [
+            // BE68539007547034: first 10 BBAN digits '5390075470', mod 97 = 34.
+            'BE first10 digits'         => ['5390075470', 34],
+            // SI56263300012039086: thirteen digits '2633000120390' with "00"
+            // appended, mod 97 = 12 (so the SI check digit is 98 - 12 = 86).
+            'SI thirteen digits + "00"' => ['263300012039000', 12],
+            'zero'                      => ['0', 0],
+            'exact multiple of 97'      => ['9700000000', 0],
+        ];
+    }
+
+    #[DataProvider('mod97Provider')]
+    public function testMod97ReturnsModuloOfPlainDigitString(string $numeric, int $expected): void
+    {
+        self::assertSame($expected, $this->mod97->mod97($numeric));
+    }
 }

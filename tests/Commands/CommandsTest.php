@@ -6,11 +6,13 @@ namespace Tests\Commands;
 
 use CodeIgniter\CLI\CLI;
 use CodeIgniter\Test\CIUnitTestCase;
+use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\StreamFilterTrait;
 use Daycry\Iban\Commands\ParseCommand;
 use Daycry\Iban\Commands\ResolveCommand;
 use Daycry\Iban\Commands\UpdateCommand;
 use Daycry\Iban\Commands\ValidateCommand;
+use Daycry\Iban\Config\Iban as IbanConfig;
 use Daycry\Iban\Core\Mod97;
 use Daycry\Iban\Enums\ViolationCode;
 
@@ -45,9 +47,26 @@ use Daycry\Iban\Enums\ViolationCode;
  */
 final class CommandsTest extends CIUnitTestCase
 {
+    use DatabaseTestTrait;
     use StreamFilterTrait;
 
+    // `iban:update`'s file-based import tests (V-7a) write to the real
+    // `banks` table via `BankModel`/`ImportRunner`, so this class also
+    // migrates/refreshes the `tests` SQLite `:memory:` database, same setup
+    // as `tests/Import/ImportRunnerTest.php`.
+    protected $namespace   = 'Daycry\Iban';
+    protected $DBGroup     = 'tests';
+    protected $migrate     = true;
+    protected $migrateOnce = false;
+    protected $refresh     = true;
+
     private const VALID_ES_IBAN = 'ES9121000418450200051332';
+
+    private const OENB_FIXTURE             = __DIR__ . '/../Fixtures/import/oenb_sample.csv';
+    private const BUNDESBANK_FIXTURE       = __DIR__ . '/../Fixtures/import/bundesbank_sample.txt';
+    private const SIX_FIXTURE              = __DIR__ . '/../Fixtures/import/six_sample.csv';
+    private const BETAALVERENIGING_FIXTURE = __DIR__ . '/../Fixtures/import/betaalvereniging_sample.csv';
+    private const BDE_FIXTURE              = __DIR__ . '/../Fixtures/import/bde_sample.csv';
 
     // Same length/structure as VALID_ES_IBAN but with the check digits
     // ('91' -> '90') broken, so MOD-97 fails: deterministic ChecksumFailed.
@@ -62,6 +81,13 @@ final class CommandsTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        // A couple of `iban:validate` tests below mutate the shared
+        // `Config\Iban` singleton to prove `$checkNationalByDefault` is
+        // actually consumed when `--national` isn't passed; undo that so
+        // later tests keep seeing the documented default (mirrors
+        // `Tests\Config\ServicesTest` / `Tests\Helpers\IbanHelperTest`).
+        config(IbanConfig::class)->checkNationalByDefault = false;
+
         $this->tearDownStreamFilterTrait();
 
         parent::tearDown();
@@ -178,6 +204,41 @@ final class CommandsTest extends CIUnitTestCase
         self::assertStringContainsString(ViolationCode::NationalCheckFailed->value, $outputWith);
     }
 
+    /**
+     * V-3: when `--national` isn't passed at all, `iban:validate` now
+     * consults `Config\Iban::$checkNationalByDefault` instead of always
+     * defaulting to `false` -- with it set `true`, a MOD-97-valid but
+     * nationally-invalid ES IBAN fails even without the flag.
+     */
+    public function testValidateWithoutNationalFlagHonorsConfiguredCheckNationalByDefaultTrue(): void
+    {
+        config(IbanConfig::class)->checkNationalByDefault = true;
+
+        $iban = $this->esIbanWithBadNationalCheckDigits();
+
+        [$exit, $output] = $this->runSpark(['iban:validate', $iban]);
+
+        self::assertSame(EXIT_ERROR, $exit);
+        self::assertStringContainsString(ViolationCode::NationalCheckFailed->value, $output);
+    }
+
+    /**
+     * Passing `--national` explicitly still works when the config default
+     * is already `true` (redundant, but confirms the flag isn't broken by
+     * the config wiring).
+     */
+    public function testValidateExplicitNationalFlagStillWorksWhenConfigDefaultIsTrue(): void
+    {
+        config(IbanConfig::class)->checkNationalByDefault = true;
+
+        $iban = $this->esIbanWithBadNationalCheckDigits();
+
+        [$exit, $output] = $this->runSpark(['iban:validate', $iban, '--national']);
+
+        self::assertSame(EXIT_ERROR, $exit);
+        self::assertStringContainsString(ViolationCode::NationalCheckFailed->value, $output);
+    }
+
     // -- iban:parse --------------------------------------------------------
 
     public function testParseValidIbanPrintsTableWithCountryCode(): void
@@ -241,7 +302,16 @@ final class CommandsTest extends CIUnitTestCase
 
     // -- iban:update -------------------------------------------------------
 
-    public function testUpdatePrintsLicenseNoticesImportersAndDeferralAndExitsSuccess(): void
+    /**
+     * V-7a bundled the first two concrete official-source importers --
+     * `OenbImporter` (AT) and `BundesbankImporter` (DE) -- into
+     * `ImporterRegistry::registerDefaults()` (empty since V-6). V-7b adds
+     * three more -- `SixImporter` (CH), `BetaalverenigingImporter` (NL) and
+     * `BancoDeEspanaImporter` (ES). So with no `--country`/`--source`
+     * selection, `iban:update` now lists all five alongside the v1.0
+     * licensing notices instead of the old "nothing bundled yet" deferral.
+     */
+    public function testUpdatePrintsLicenseNoticesAndListsTheBundledImportersAndExitsSuccess(): void
     {
         [$exit, $output] = $this->runSpark(['iban:update']);
 
@@ -249,16 +319,122 @@ final class CommandsTest extends CIUnitTestCase
         self::assertStringContainsString('SWIFT IBAN Registry', $output);
         self::assertStringContainsString('SWIFT BIC Directory', $output);
         self::assertStringContainsString('National lists require per-source attribution.', $output);
-        self::assertStringContainsString('Registered importers: 0', $output);
-        self::assertStringContainsString('deferred to v1.1', $output);
+        self::assertStringContainsString('Registered importers: 5', $output);
+        self::assertStringContainsString('oenb', $output);
+        self::assertStringContainsString('bundesbank', $output);
+        self::assertStringContainsString('six', $output);
+        self::assertStringContainsString('betaalvereniging', $output);
+        self::assertStringContainsString('bde', $output);
+        self::assertStringContainsString('AT', $output);
+        self::assertStringContainsString('DE', $output);
+        self::assertStringContainsString('CH', $output);
+        self::assertStringContainsString('NL', $output);
+        self::assertStringContainsString('ES', $output);
+        self::assertStringContainsString('Select one with --country=/--source= to run it', $output);
     }
 
-    public function testUpdateAcceptsDryRunAndCountryOptionsWithoutError(): void
+    public function testUpdateAcceptsDryRunAndCountryOptionsWithoutErrorAndReportsNoMatch(): void
     {
-        [$exit, $output] = $this->runSpark(['iban:update', '--dry-run', '--country', 'ES']);
+        // 'FR' matches none of the 5 bundled importers (AT/DE/CH/NL/ES), so
+        // this stays the graceful "no match" branch -- and, crucially,
+        // never reaches the network/file fetch.
+        [$exit, $output] = $this->runSpark(['iban:update', '--dry-run', '--country', 'FR']);
 
         self::assertSame(EXIT_SUCCESS, $exit);
-        self::assertStringContainsString('deferred to v1.1', $output);
+        self::assertStringContainsString('SWIFT IBAN Registry', $output);
+        self::assertStringContainsString('No bundled importer matches that selection.', $output);
+        // A selection was made, so this is the "no match" branch, not the
+        // no-selection listing -- the registry-size line must NOT appear.
+        self::assertStringNotContainsString('Registered importers:', $output);
+    }
+
+    public function testUpdateWithSourceOptionAloneAlsoReportsNoMatchGracefully(): void
+    {
+        // A source id that isn't bundled by any registered importer -- kept
+        // distinct from 'oenb'/'bundesbank' (V-7a) so this stays a genuine
+        // no-match case instead of triggering a live network fetch.
+        [$exit, $output] = $this->runSpark(['iban:update', '--source', 'not-a-real-source']);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('No bundled importer matches that selection.', $output);
+    }
+
+    /**
+     * V-7a acceptance criterion: `iban:update --source=oenb --country=AT
+     * --file=<fixture>` actually imports (offline, no network) and reports
+     * non-zero `imported`. The DB-level assertions (rows/provenance) live in
+     * `tests/Import/ImportRunnerImportersTest.php`; this test only proves
+     * the command wiring (selection + `--file` + report printing) end-to-end.
+     */
+    public function testUpdateWithFileOptionImportsTheOenbFixtureAndReportsImportedCount(): void
+    {
+        [$exit, $output] = $this->runSpark([
+            'iban:update', '--source', 'oenb', '--country', 'AT', '--file', self::OENB_FIXTURE,
+        ]);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('[AT/oenb] fetched=2 imported=2 skipped=0', $output);
+        self::assertStringContainsString('CC-BY-4.0 (OeNB)', $output);
+    }
+
+    public function testUpdateWithFileOptionImportsTheBundesbankFixtureAndReportsImportedCount(): void
+    {
+        [$exit, $output] = $this->runSpark([
+            'iban:update', '--source', 'bundesbank', '--country', 'DE', '--file', self::BUNDESBANK_FIXTURE,
+        ]);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('[DE/bundesbank] fetched=3 imported=3 skipped=0', $output);
+        self::assertStringContainsString('Deutsche Bundesbank', $output);
+    }
+
+    /**
+     * V-7b acceptance criterion: `iban:update --source=six --country=CH
+     * --file=<fixture>` actually imports (offline, no network) and reports
+     * non-zero `imported`.
+     */
+    public function testUpdateWithFileOptionImportsTheSixFixtureAndReportsImportedCount(): void
+    {
+        [$exit, $output] = $this->runSpark([
+            'iban:update', '--source', 'six', '--country', 'CH', '--file', self::SIX_FIXTURE,
+        ]);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('[CH/six] fetched=2 imported=2 skipped=0', $output);
+        self::assertStringContainsString('SIX Interbank Clearing (free use)', $output);
+    }
+
+    public function testUpdateWithFileOptionImportsTheBetaalverenigingFixtureAndReportsImportedCount(): void
+    {
+        [$exit, $output] = $this->runSpark([
+            'iban:update', '--source', 'betaalvereniging', '--country', 'NL', '--file', self::BETAALVERENIGING_FIXTURE,
+        ]);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('[NL/betaalvereniging] fetched=3 imported=3 skipped=0', $output);
+        self::assertStringContainsString('Betaalvereniging Nederland (see terms)', $output);
+    }
+
+    public function testUpdateWithFileOptionImportsTheBdeFixtureAndReportsImportedCount(): void
+    {
+        [$exit, $output] = $this->runSpark([
+            'iban:update', '--source', 'bde', '--country', 'ES', '--file', self::BDE_FIXTURE,
+        ]);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('[ES/bde] fetched=3 imported=3 skipped=0', $output);
+        self::assertStringContainsString('Banco de España', $output);
+    }
+
+    public function testUpdateWithFileOptionAndDryRunDoesNotWriteToTheBanksTable(): void
+    {
+        [$exit, $output] = $this->runSpark([
+            'iban:update', '--source', 'oenb', '--country', 'AT', '--file', self::OENB_FIXTURE, '--dry-run',
+        ]);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('(dry-run — nothing written)', $output);
+        self::assertSame(0, $this->db->table('banks')->countAllResults());
     }
 
     // -- Discovery -----------------------------------------------------------

@@ -10,6 +10,7 @@ use Daycry\Iban\Config\Iban as IbanConfig;
 use Daycry\Iban\Contracts\ProviderInterface;
 use Daycry\Iban\Iban as IbanService;
 use Daycry\Iban\Models\BankModel;
+use Daycry\Iban\Providers\CachedProvider;
 use Daycry\Iban\Providers\DatabaseProvider;
 use Daycry\Iban\Providers\NullProvider;
 use Daycry\Iban\Registry\Registry;
@@ -69,6 +70,13 @@ class Services extends BaseService
             'database' => new DatabaseProvider(new BankModel($config->table, $config->dbGroup)),
             default    => self::instantiateProvider($config->provider),
         };
+
+        // Opt-in caching layer (Config\Iban::$cacheTtl > 0). Skipped for
+        // NullProvider: it never resolves anything, so wrapping it would
+        // only add a pointless cache round-trip per resolve() call.
+        if ($config->cacheTtl > 0 && ! $provider instanceof NullProvider) {
+            $provider = new CachedProvider($provider, service('cache'), $config->cacheTtl);
+        }
 
         return new IbanService(new Registry(), $provider);
     }
