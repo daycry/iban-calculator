@@ -5,6 +5,26 @@ All notable changes to `daycry/iban` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-07-11
+
+### Added
+
+- **Optional iban.com API fallback.** New `Config\Iban::$ibanComApiKey` (default `''`; set it via
+  `.env` as `iban.ibanComApiKey`). When non-empty, `Config\Services::iban()` chains a new
+  `Providers\IbanComProvider` **after** the primary provider (via `Providers\ChainProvider`), so an
+  IBAN the local `banks` table can't resolve is looked up through the iban.com Validation API
+  (`POST /clients/api/v4/iban/`; `bank_data`/`sepa_data` → `BankInfo`). This lets resolution reach
+  countries with no bundled importer (e.g. IT/Italy, whose ABI/CAB directory is commercial). Opt-in
+  only — with no key, nothing is sent anywhere and behavior is identical. When `$cacheTtl > 0` the
+  chain is wrapped in `CachedProvider`, so repeated lookups don't re-hit the paid API. The provider
+  **never throws**: any network/timeout/HTTP/parse failure (or an empty result) degrades to an
+  unresolved `BankResult`. Sending IBANs to iban.com is a privacy/cost trade-off the operator opts
+  into by configuring the key.
+- **`Providers\ChainProvider`**: composes `ProviderInterface`s in order and returns the first non-null
+  result — the mechanism behind the local-then-iban.com fallback.
+
+[1.4.0]: https://github.com/daycry/iban-calculator/compare/1.3.1...1.4.0
+
 ## [1.3.1] - 2026-07-11
 
 ### Fixed
