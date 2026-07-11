@@ -251,6 +251,170 @@ final class ValidatorNationalTest extends TestCase
         self::assertSame([], $result->violations());
     }
 
+    // -- FR: registered by default (T-V4b) --------------------------------
+
+    /**
+     * Builds a MOD-97-valid FR IBAN whose national (RIB key) check digits
+     * are wrong: same bank/branch/account as the real fixture
+     * (FR1420041010050500013M02606, national check '06'), but the BBAN
+     * carries a wrong national check ('07').
+     */
+    private function frIbanWithBadNationalCheckDigits(): string
+    {
+        $bank    = '20041';
+        $branch  = '01005';
+        $account = '0500013M026';
+        $badDc   = '07'; // correct value would be '06'
+
+        $bban = $bank . $branch . $account . $badDc;
+
+        $checkDigits = (new Mod97())->checkDigits('FR', $bban);
+
+        return 'FR' . $checkDigits . $bban;
+    }
+
+    public function testWrongFrenchNationalCheckDigitsFailWhenCheckNationalIsRequested(): void
+    {
+        $iban      = $this->frIbanWithBadNationalCheckDigits();
+        $result    = $this->validator->validate($iban, checkNational: true);
+        $violation = $result->firstViolation();
+
+        self::assertFalse($result->isValid());
+        self::assertNotNull($violation);
+        self::assertSame(ViolationCode::NationalCheckFailed, $violation->code);
+    }
+
+    public function testValidFrIbanPassesTheNationalCheckWhenRequested(): void
+    {
+        $result = $this->validator->validate('FR1420041010050500013M02606', checkNational: true);
+
+        self::assertTrue($result->isValid());
+        self::assertSame([], $result->violations());
+    }
+
+    // -- MC: registered by default (T-V4b), shares FR's RIB algorithm -----
+
+    /**
+     * Builds a MOD-97-valid MC IBAN whose national (RIB key) check digits
+     * are wrong: same bank/branch/account as the real fixture
+     * (MC5811222000010123456789030, national check '30'), but the BBAN
+     * carries a wrong national check ('31').
+     */
+    private function mcIbanWithBadNationalCheckDigits(): string
+    {
+        $bank    = '11222';
+        $branch  = '00001';
+        $account = '01234567890';
+        $badDc   = '31'; // correct value would be '30'
+
+        $bban = $bank . $branch . $account . $badDc;
+
+        $checkDigits = (new Mod97())->checkDigits('MC', $bban);
+
+        return 'MC' . $checkDigits . $bban;
+    }
+
+    public function testWrongMonacoNationalCheckDigitsFailWhenCheckNationalIsRequested(): void
+    {
+        $iban      = $this->mcIbanWithBadNationalCheckDigits();
+        $result    = $this->validator->validate($iban, checkNational: true);
+        $violation = $result->firstViolation();
+
+        self::assertFalse($result->isValid());
+        self::assertNotNull($violation);
+        self::assertSame(ViolationCode::NationalCheckFailed, $violation->code);
+    }
+
+    public function testValidMcIbanPassesTheNationalCheckWhenRequested(): void
+    {
+        $result = $this->validator->validate('MC5811222000010123456789030', checkNational: true);
+
+        self::assertTrue($result->isValid());
+        self::assertSame([], $result->violations());
+    }
+
+    // -- IT: registered by default (T-V4b) --------------------------------
+
+    /**
+     * Builds a MOD-97-valid IT IBAN whose national (CIN) check letter is
+     * wrong: same bank(ABI)/branch(CAB)/account as the real fixture
+     * (IT60X0542811101000000123456, CIN 'X'), but the BBAN carries a wrong
+     * CIN ('Y'). Note the CIN is the FIRST character of the BBAN for IT.
+     */
+    private function itIbanWithBadNationalCheckDigits(): string
+    {
+        $bank    = '05428';
+        $branch  = '11101';
+        $account = '000000123456';
+        $badCin  = 'Y'; // correct value would be 'X'
+
+        $bban = $badCin . $bank . $branch . $account;
+
+        $checkDigits = (new Mod97())->checkDigits('IT', $bban);
+
+        return 'IT' . $checkDigits . $bban;
+    }
+
+    public function testWrongItalianCinFailsWhenCheckNationalIsRequested(): void
+    {
+        $iban      = $this->itIbanWithBadNationalCheckDigits();
+        $result    = $this->validator->validate($iban, checkNational: true);
+        $violation = $result->firstViolation();
+
+        self::assertFalse($result->isValid());
+        self::assertNotNull($violation);
+        self::assertSame(ViolationCode::NationalCheckFailed, $violation->code);
+    }
+
+    public function testValidItIbanPassesTheNationalCheckWhenRequested(): void
+    {
+        $result = $this->validator->validate('IT60X0542811101000000123456', checkNational: true);
+
+        self::assertTrue($result->isValid());
+        self::assertSame([], $result->violations());
+    }
+
+    // -- SM: registered by default (T-V4b), shares IT's CIN algorithm -----
+
+    /**
+     * Builds a MOD-97-valid SM IBAN whose national (CIN) check letter is
+     * wrong: same bank/branch/account as the real fixture
+     * (SM86U0322509800000000270100, CIN 'U'), but the BBAN carries a wrong
+     * CIN ('V').
+     */
+    private function smIbanWithBadNationalCheckDigits(): string
+    {
+        $bank    = '03225';
+        $branch  = '09800';
+        $account = '000000270100';
+        $badCin  = 'V'; // correct value would be 'U'
+
+        $bban = $badCin . $bank . $branch . $account;
+
+        $checkDigits = (new Mod97())->checkDigits('SM', $bban);
+
+        return 'SM' . $checkDigits . $bban;
+    }
+
+    public function testWrongSanMarinoCinFailsWhenCheckNationalIsRequested(): void
+    {
+        $iban      = $this->smIbanWithBadNationalCheckDigits();
+        $result    = $this->validator->validate($iban, checkNational: true);
+        $violation = $result->firstViolation();
+
+        self::assertFalse($result->isValid());
+        self::assertNotNull($violation);
+        self::assertSame(ViolationCode::NationalCheckFailed, $violation->code);
+    }
+
+    public function testValidSmIbanPassesTheNationalCheckWhenRequested(): void
+    {
+        $result = $this->validator->validate('SM86U0322509800000000270100', checkNational: true);
+
+        self::assertTrue($result->isValid());
+        self::assertSame([], $result->violations());
+    }
+
     // -- EE: deliberately NOT registered (T-V4a) ---------------------------
 
     public function testEstoniaIsSkippedEvenWithTheFlagBecauseItWasDeliberatelyOmitted(): void

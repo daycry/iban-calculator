@@ -12,6 +12,8 @@ use Daycry\Iban\DTO\Violation;
 use Daycry\Iban\Enums\ViolationCode;
 use Daycry\Iban\National\BelgianNationalCheckValidator;
 use Daycry\Iban\National\FinnishNationalCheckValidator;
+use Daycry\Iban\National\FrenchNationalCheckValidator;
+use Daycry\Iban\National\ItalianNationalCheckValidator;
 use Daycry\Iban\National\PortugueseNationalCheckValidator;
 use Daycry\Iban\National\SlovenianNationalCheckValidator;
 use Daycry\Iban\National\SpanishNationalCheckValidator;
@@ -55,11 +57,14 @@ final class Validator implements ValidatorInterface
          *
          * Only countries whose national check-digit algorithm was verified
          * against real, MOD-97-valid IBANs are wired in by default (see
-         * `.superpowers/sdd/task-v4a-report.md`). Estonia (EE) was
-         * deliberately NOT added: its real algorithm depends on a
-         * bank-specific, variable-length raw domestic account number that
-         * cannot be reconstructed from the fixed-width IBAN fields alone,
-         * so a generic implementation would reject real, valid IBANs.
+         * `.superpowers/sdd/task-v4a-report.md` and
+         * `.superpowers/sdd/task-v4b-report.md`). MC shares FR's RIB key
+         * algorithm/structure and SM shares IT's CIN algorithm/structure.
+         * Estonia (EE) was deliberately NOT added: its real algorithm
+         * depends on a bank-specific, variable-length raw domestic account
+         * number that cannot be reconstructed from the fixed-width IBAN
+         * fields alone, so a generic implementation would reject real,
+         * valid IBANs.
          *
          * @var array<string, NationalCheckValidatorInterface>
          */
@@ -67,8 +72,12 @@ final class Validator implements ValidatorInterface
             'BE' => new BelgianNationalCheckValidator(),
             'ES' => new SpanishNationalCheckValidator(),
             'FI' => new FinnishNationalCheckValidator(),
+            'FR' => new FrenchNationalCheckValidator(),
+            'IT' => new ItalianNationalCheckValidator(),
+            'MC' => new FrenchNationalCheckValidator(),
             'PT' => new PortugueseNationalCheckValidator(),
             'SI' => new SlovenianNationalCheckValidator(),
+            'SM' => new ItalianNationalCheckValidator(),
         ],
     ) {
     }
