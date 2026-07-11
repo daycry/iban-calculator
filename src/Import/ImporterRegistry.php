@@ -8,9 +8,13 @@ use Daycry\Iban\Contracts\ImporterInterface;
 use Daycry\Iban\Import\Importers\BancoDeEspanaImporter;
 use Daycry\Iban\Import\Importers\BankOfSloveniaImporter;
 use Daycry\Iban\Import\Importers\BetaalverenigingImporter;
+use Daycry\Iban\Import\Importers\BulgarianNationalBankImporter;
 use Daycry\Iban\Import\Importers\BundesbankImporter;
+use Daycry\Iban\Import\Importers\CentralBankOfAzerbaijanImporter;
 use Daycry\Iban\Import\Importers\CzechNationalBankImporter;
 use Daycry\Iban\Import\Importers\HellenicBankAssociationImporter;
+use Daycry\Iban\Import\Importers\NationalBankOfMoldovaImporter;
+use Daycry\Iban\Import\Importers\NationalBankOfPolandImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter;
 use Daycry\Iban\Import\Importers\OenbImporter;
 use Daycry\Iban\Import\Importers\SixImporter;
@@ -30,13 +34,19 @@ use Daycry\Iban\Import\Importers\SixImporter;
  * (AT) and {@see \Daycry\Iban\Import\Importers\BundesbankImporter} (DE) --
  * v1.1's V-7b added three more -- {@see \Daycry\Iban\Import\Importers\SixImporter}
  * (CH), {@see \Daycry\Iban\Import\Importers\BetaalverenigingImporter} (NL)
- * and {@see \Daycry\Iban\Import\Importers\BancoDeEspanaImporter} (ES) -- and
- * v1.2 adds four more -- {@see \Daycry\Iban\Import\Importers\CzechNationalBankImporter}
+ * and {@see \Daycry\Iban\Import\Importers\BancoDeEspanaImporter} (ES) --
+ * v1.2 added four more -- {@see \Daycry\Iban\Import\Importers\CzechNationalBankImporter}
  * (CZ), {@see \Daycry\Iban\Import\Importers\HellenicBankAssociationImporter}
  * (GR), {@see \Daycry\Iban\Import\Importers\BankOfSloveniaImporter} (SI) and
  * {@see \Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter} (SK)
- * -- so `new ImporterRegistry()` picks up all nine automatically for every
- * consumer (`iban:update` included) without any other call site changing.
+ * -- and v1.2's follow-up batch adds four more XML-sourced importers --
+ * {@see \Daycry\Iban\Import\Importers\BulgarianNationalBankImporter} (BG),
+ * {@see \Daycry\Iban\Import\Importers\NationalBankOfMoldovaImporter} (MD),
+ * {@see \Daycry\Iban\Import\Importers\NationalBankOfPolandImporter} (PL) and
+ * {@see \Daycry\Iban\Import\Importers\CentralBankOfAzerbaijanImporter} (AZ)
+ * -- so `new ImporterRegistry()` picks up all thirteen automatically for
+ * every consumer (`iban:update` included) without any other call site
+ * changing.
  *
  * @see \Daycry\Iban\Commands\UpdateCommand
  * @see ImportRunner
@@ -119,13 +129,18 @@ class ImporterRegistry
      * two concrete official-source importers -- {@see OenbImporter} (AT) and
      * {@see BundesbankImporter} (DE). v1.1's V-7b added three more --
      * {@see SixImporter} (CH), {@see BetaalverenigingImporter} (NL) and
-     * {@see BancoDeEspanaImporter} (ES). v1.2 adds four more --
+     * {@see BancoDeEspanaImporter} (ES). v1.2 added four more --
      * {@see CzechNationalBankImporter} (CZ),
      * {@see HellenicBankAssociationImporter} (GR),
      * {@see BankOfSloveniaImporter} (SI) and
-     * {@see NationalBankOfSlovakiaImporter} (SK) -- so every consumer
-     * (`iban:update` included) picks up all nine automatically without any
-     * other call site changing.
+     * {@see NationalBankOfSlovakiaImporter} (SK) -- and this v1.2 follow-up
+     * batch adds four more XML-sourced importers --
+     * {@see BulgarianNationalBankImporter} (BG),
+     * {@see NationalBankOfMoldovaImporter} (MD),
+     * {@see NationalBankOfPolandImporter} (PL) and
+     * {@see CentralBankOfAzerbaijanImporter} (AZ) -- so every consumer
+     * (`iban:update` included) picks up all thirteen automatically without
+     * any other call site changing.
      */
     protected function registerDefaults(): void
     {
@@ -138,6 +153,10 @@ class ImporterRegistry
         $this->register(new HellenicBankAssociationImporter());
         $this->register(new BankOfSloveniaImporter());
         $this->register(new NationalBankOfSlovakiaImporter());
+        $this->register(new BulgarianNationalBankImporter());
+        $this->register(new NationalBankOfMoldovaImporter());
+        $this->register(new NationalBankOfPolandImporter());
+        $this->register(new CentralBankOfAzerbaijanImporter());
     }
 
     private static function key(string $countryCode, string $sourceId): string

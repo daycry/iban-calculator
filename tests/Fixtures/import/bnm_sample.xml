@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="latin1"?>
+<Update>
+<UpdateInfo>
+<PreparationDate>17.06.2026 21:31:45</PreparationDate>
+<PreparationWorkplace>BackOffice</PreparationWorkplace>
+<SystemBIC>NBMDMD2XXIPS</SystemBIC>
+<ExportVersion>1.0</ExportVersion>
+</UpdateInfo>
+<Participants>
+<Participant BIC="VICBMD2X479" SWIFTReg="N" IBANIdentifier="" Name="B.C.'VICTORIABANK'S.A. suc.nr.24 Ialoveni" ShortName="280101479" Country="MD">
+</Participant>
+<Participant BIC="AGRNMD2X" SWIFTReg="Y" IBANIdentifier="AG" Name="BC'MAIB'S.A." ShortName="280101805" Country="MD">
+<Account Code="22224805" TypeCode="CBSA"/>
+</Participant>
+<Participant BIC="NBMDMD2X" SWIFTReg="Y" IBANIdentifier="NB" Name="BANCA NATIONALA A MOLDOVEI" ShortName="280101140" Country="MD">
+<Account Code="48514140" TypeCode="CBSA"/>
+</Participant>
+<Participant BIC="VICBMD2X" SWIFTReg="Y" IBANIdentifier="VI" Name="B.C.'VICTORIABANK'S.A." ShortName="280101701" Country="MD">
+<Account Code="35216701" TypeCode="SA"/>
+</Participant>
+<Participant BIC="ARLCMD2X" SWIFTReg="Y" IBANIdentifier="AR" Name="'BPAY' SRL" ShortName="280101906" Country="MD">
+</Participant>
+<Participant BIC="TIRCMD2X" SWIFTReg="N" IBANIdentifier="TI" Name="Centrul de casa si decontari Tiraspol" ShortName="280101901" Country="MD">
+<Account Code="35254901" TypeCode="SA"/>
+</Participant>
+</Participants>
+</Update>
