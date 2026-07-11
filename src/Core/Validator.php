@@ -10,6 +10,10 @@ use Daycry\Iban\DTO\ParsedIban;
 use Daycry\Iban\DTO\ValidationResult;
 use Daycry\Iban\DTO\Violation;
 use Daycry\Iban\Enums\ViolationCode;
+use Daycry\Iban\National\BelgianNationalCheckValidator;
+use Daycry\Iban\National\FinnishNationalCheckValidator;
+use Daycry\Iban\National\PortugueseNationalCheckValidator;
+use Daycry\Iban\National\SlovenianNationalCheckValidator;
 use Daycry\Iban\National\SpanishNationalCheckValidator;
 use Daycry\Iban\Registry\Registry;
 
@@ -46,8 +50,26 @@ final class Validator implements ValidatorInterface
         private Normalizer $normalizer = new Normalizer(),
         private StructureCompiler $compiler = new StructureCompiler(),
         private Mod97 $mod97 = new Mod97(),
-        /** @var array<string, NationalCheckValidatorInterface> keyed by upper-case country code */
-        private array $nationalValidators = ['ES' => new SpanishNationalCheckValidator()],
+        /**
+         * Keyed by upper-case country code; override-able per instance.
+         *
+         * Only countries whose national check-digit algorithm was verified
+         * against real, MOD-97-valid IBANs are wired in by default (see
+         * `.superpowers/sdd/task-v4a-report.md`). Estonia (EE) was
+         * deliberately NOT added: its real algorithm depends on a
+         * bank-specific, variable-length raw domestic account number that
+         * cannot be reconstructed from the fixed-width IBAN fields alone,
+         * so a generic implementation would reject real, valid IBANs.
+         *
+         * @var array<string, NationalCheckValidatorInterface>
+         */
+        private array $nationalValidators = [
+            'BE' => new BelgianNationalCheckValidator(),
+            'ES' => new SpanishNationalCheckValidator(),
+            'FI' => new FinnishNationalCheckValidator(),
+            'PT' => new PortugueseNationalCheckValidator(),
+            'SI' => new SlovenianNationalCheckValidator(),
+        ],
     ) {
     }
 

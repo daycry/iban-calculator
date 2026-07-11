@@ -88,4 +88,177 @@ final class ValidatorNationalTest extends TestCase
         self::assertTrue($result->isValid());
         self::assertSame([], $result->violations());
     }
+
+    // -- BE: registered by default (T-V4a) -------------------------------
+
+    /**
+     * Builds a MOD-97-valid BE IBAN whose national (mod-97 of the first
+     * 10 BBAN digits) check digits are wrong: same bank/account as the
+     * real fixture (BE68539007547034, national check '34'), but the BBAN
+     * carries a wrong national check ('35'). The IBAN-level check digits
+     * are then recomputed over that (bad) BBAN via Mod97::checkDigits().
+     */
+    private function beIbanWithBadNationalCheckDigits(): string
+    {
+        $bank    = '539';
+        $account = '0075470';
+        $badDc   = '35'; // correct value would be '34'
+
+        $bban = $bank . $account . $badDc;
+
+        $checkDigits = (new Mod97())->checkDigits('BE', $bban);
+
+        return 'BE' . $checkDigits . $bban;
+    }
+
+    public function testWrongBelgianNationalCheckDigitsFailWhenCheckNationalIsRequested(): void
+    {
+        $iban      = $this->beIbanWithBadNationalCheckDigits();
+        $result    = $this->validator->validate($iban, checkNational: true);
+        $violation = $result->firstViolation();
+
+        self::assertFalse($result->isValid());
+        self::assertNotNull($violation);
+        self::assertSame(ViolationCode::NationalCheckFailed, $violation->code);
+    }
+
+    public function testValidBeIbanPassesTheNationalCheckWhenRequested(): void
+    {
+        $result = $this->validator->validate('BE68539007547034', checkNational: true);
+
+        self::assertTrue($result->isValid());
+        self::assertSame([], $result->violations());
+    }
+
+    // -- PT: registered by default (T-V4a) --------------------------------
+
+    /**
+     * Builds a MOD-97-valid PT IBAN whose national (weighted mod-97 over
+     * bank+branch+account) check digits are wrong: same bank/branch/
+     * account as the real fixture (PT50000201231234567890154, national
+     * check '54'), but the BBAN carries a wrong national check ('55').
+     */
+    private function ptIbanWithBadNationalCheckDigits(): string
+    {
+        $bank    = '0002';
+        $branch  = '0123';
+        $account = '12345678901';
+        $badDc   = '55'; // correct value would be '54'
+
+        $bban = $bank . $branch . $account . $badDc;
+
+        $checkDigits = (new Mod97())->checkDigits('PT', $bban);
+
+        return 'PT' . $checkDigits . $bban;
+    }
+
+    public function testWrongPortugueseNationalCheckDigitsFailWhenCheckNationalIsRequested(): void
+    {
+        $iban      = $this->ptIbanWithBadNationalCheckDigits();
+        $result    = $this->validator->validate($iban, checkNational: true);
+        $violation = $result->firstViolation();
+
+        self::assertFalse($result->isValid());
+        self::assertNotNull($violation);
+        self::assertSame(ViolationCode::NationalCheckFailed, $violation->code);
+    }
+
+    public function testValidPtIbanPassesTheNationalCheckWhenRequested(): void
+    {
+        $result = $this->validator->validate('PT50000201231234567890154', checkNational: true);
+
+        self::assertTrue($result->isValid());
+        self::assertSame([], $result->violations());
+    }
+
+    // -- SI: registered by default (T-V4a) --------------------------------
+
+    /**
+     * Builds a MOD-97-valid SI IBAN whose national (mod-97-of-13-digits,
+     * ISO 7064 style) check digits are wrong: same bank/account as the
+     * real fixture (SI56263300012039086, national check '86'), but the
+     * BBAN carries a wrong national check ('87').
+     */
+    private function siIbanWithBadNationalCheckDigits(): string
+    {
+        $bank    = '26330';
+        $account = '00012039';
+        $badDc   = '87'; // correct value would be '86'
+
+        $bban = $bank . $account . $badDc;
+
+        $checkDigits = (new Mod97())->checkDigits('SI', $bban);
+
+        return 'SI' . $checkDigits . $bban;
+    }
+
+    public function testWrongSlovenianNationalCheckDigitsFailWhenCheckNationalIsRequested(): void
+    {
+        $iban      = $this->siIbanWithBadNationalCheckDigits();
+        $result    = $this->validator->validate($iban, checkNational: true);
+        $violation = $result->firstViolation();
+
+        self::assertFalse($result->isValid());
+        self::assertNotNull($violation);
+        self::assertSame(ViolationCode::NationalCheckFailed, $violation->code);
+    }
+
+    public function testValidSiIbanPassesTheNationalCheckWhenRequested(): void
+    {
+        $result = $this->validator->validate('SI56263300012039086', checkNational: true);
+
+        self::assertTrue($result->isValid());
+        self::assertSame([], $result->violations());
+    }
+
+    // -- FI: registered by default (T-V4a) --------------------------------
+
+    /**
+     * Builds a MOD-97-valid FI IBAN whose national (Luhn mod-10) check
+     * digit is wrong: same bank/account as the real fixture
+     * (FI2112345600000785, national check '5'), but the BBAN carries a
+     * wrong national check ('6').
+     */
+    private function fiIbanWithBadNationalCheckDigits(): string
+    {
+        $bank    = '123';
+        $account = '4560000078';
+        $badDc   = '6'; // correct value would be '5'
+
+        $bban = $bank . $account . $badDc;
+
+        $checkDigits = (new Mod97())->checkDigits('FI', $bban);
+
+        return 'FI' . $checkDigits . $bban;
+    }
+
+    public function testWrongFinnishNationalCheckDigitFailsWhenCheckNationalIsRequested(): void
+    {
+        $iban      = $this->fiIbanWithBadNationalCheckDigits();
+        $result    = $this->validator->validate($iban, checkNational: true);
+        $violation = $result->firstViolation();
+
+        self::assertFalse($result->isValid());
+        self::assertNotNull($violation);
+        self::assertSame(ViolationCode::NationalCheckFailed, $violation->code);
+    }
+
+    public function testValidFiIbanPassesTheNationalCheckWhenRequested(): void
+    {
+        $result = $this->validator->validate('FI2112345600000785', checkNational: true);
+
+        self::assertTrue($result->isValid());
+        self::assertSame([], $result->violations());
+    }
+
+    // -- EE: deliberately NOT registered (T-V4a) ---------------------------
+
+    public function testEstoniaIsSkippedEvenWithTheFlagBecauseItWasDeliberatelyOmitted(): void
+    {
+        // No EE entry in the default $nationalValidators map (see
+        // .superpowers/sdd/task-v4a-report.md for why) => silent skip.
+        $result = $this->validator->validate('EE382200221020145685', checkNational: true);
+
+        self::assertTrue($result->isValid());
+    }
 }
