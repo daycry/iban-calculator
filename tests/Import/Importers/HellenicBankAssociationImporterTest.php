@@ -75,7 +75,15 @@ final class HellenicBankAssociationImporterTest extends TestCase
         self::assertNull($nbg['branch_code']);
 
         self::assertSame('014', $rows[1]['bank_code']);
-        self::assertSame('ALPHA BANK S.A.', $rows[1]['name']);
+        // The fixture's name column embeds genuine Windows-1253 bytes for the
+        // Greek name of the institution ("Άλφα Τράπεζα Α.Ε.") -- this pins the
+        // Windows-1253 -> UTF-8 conversion against a MAPPED column, not just
+        // the unmapped address column (see the class docblock's ENCODING note
+        // and testFixtureIsGenuineWindows1253Bytes() below).
+        self::assertSame(
+            'ALPHA BANK S.A. (ΑΛΦΑ ΤΡΑΠΕΖΑ Α.Ε.)',
+            $rows[1]['name'],
+        );
 
         self::assertSame('017', $rows[2]['bank_code']);
         self::assertSame('PIRAEUS BANK S.A.', $rows[2]['name']);

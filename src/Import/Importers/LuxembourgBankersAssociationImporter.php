@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Daycry\Iban\Import\Importers;
 
 use Daycry\Iban\Contracts\ImporterInterface;
-use Daycry\Iban\Import\Support\XlsxReader;
-use RuntimeException;
+use Daycry\Iban\Import\Importers\Concerns\ReadsXlsxSource;
 
 /**
  * Official-source importer for Luxembourg (LU): the ABBL's (Association des
@@ -57,6 +56,8 @@ use RuntimeException;
  */
 final class LuxembourgBankersAssociationImporter implements ImporterInterface
 {
+    use ReadsXlsxSource;
+
     private const BANK_CODE_PATTERN = '/^[0-9]{3}$/';
 
     public function countryCode(): string
@@ -89,50 +90,18 @@ final class LuxembourgBankersAssociationImporter implements ImporterInterface
      */
     public function rows(?string $localFile = null): iterable
     {
-        if ($localFile !== null) {
-            $path = $localFile;
-            $tmp  = null;
-        } else {
-            // The landing page ({@see self::sourceUrl()}) never resolves to
-            // the spreadsheet itself -- the real download is a rotating,
-            // per-request URL the page generates. A live fetch would need
-            // that URL discovered out-of-band, so this importer only
-            // supports offline import (`$localFile`); a bare live call
-            // gracefully yields nothing rather than importing the landing
-            // page's HTML as bogus data.
-            $raw = @file_get_contents($this->sourceUrl());
-
-            if ($raw === false || $raw === '') {
-                return;
-            }
-
-            $tmp = tempnam(sys_get_temp_dir(), 'iban_xlsx_');
-
-            if ($tmp === false) {
-                return;
-            }
-
-            file_put_contents($tmp, $raw);
-            $path = $tmp;
-        }
-
-        try {
-            $grid = XlsxReader::readFirstSheet($path);
-        } catch (RuntimeException) {
-            if ($tmp !== null) {
-                @unlink($tmp);
-            }
-
-            return;
-        }
+        // The landing page ({@see self::sourceUrl()}) never resolves to the
+        // spreadsheet itself -- the real download is a rotating, per-request
+        // URL the page generates. A live fetch would need that URL
+        // discovered out-of-band, so this importer only supports offline
+        // import (`$localFile`); a bare live call gracefully yields nothing
+        // ({@see ReadsXlsxSource::readXlsxGrid()} returns `[]`) rather than
+        // importing the landing page's HTML as bogus data.
+        $grid = $this->readXlsxGrid($localFile, $this->sourceUrl());
 
         $header = self::locateHeader($grid);
 
         if ($header === null) {
-            if ($tmp !== null) {
-                @unlink($tmp);
-            }
-
             return;
         }
 
@@ -152,10 +121,6 @@ final class LuxembourgBankersAssociationImporter implements ImporterInterface
                 'name'        => self::nullableTrim($row[$columns['name']] ?? ''),
                 'bic'         => self::normalizeBic($row[$columns['bic']] ?? ''),
             ];
-        }
-
-        if ($tmp !== null) {
-            @unlink($tmp);
         }
     }
 

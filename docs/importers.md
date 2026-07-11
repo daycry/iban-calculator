@@ -143,18 +143,18 @@ five EPC registrations (all `epc`, disambiguated by `--country=`).
 | Country | `--source=` | Publisher | Format | License |
 |---|---|---|---|---|
 | AT | `oenb` | Oesterreichische Nationalbank | `;`-CSV, UTF-8/Windows-1252 fallback | CC-BY-4.0 (OeNB) |
-| DE | `bundesbank` | Deutsche Bundesbank | Fixed-width ASCII (168 chars/record), ISO-8859-1 | Deutsche Bundesbank (free use, mandatory attribution) |
+| DE | `bundesbank` | Deutsche Bundesbank | Fixed-width ASCII (168 chars/record), ISO-8859-1 | Deutsche Bundesbank |
 | CH | `six` | SIX Interbank Clearing | `;`-CSV (Bank Master V3), UTF-8 | SIX Interbank Clearing (free use) |
-| NL | `betaalvereniging` | Betaalvereniging Nederland | `;`-CSV export of the source `.xlsx`, UTF-8 | Betaalvereniging Nederland (see terms — written consent needed to redistribute) |
-| ES | `bde` | Banco de España | `,`-CSV, UTF-8 with leading BOM | Banco de España (attribution + no alteration) |
+| NL | `betaalvereniging` | Betaalvereniging Nederland | `;`-CSV export of the source `.xlsx`, UTF-8 | Betaalvereniging Nederland (see terms) |
+| ES | `bde` | Banco de España | `,`-CSV, UTF-8 with leading BOM | Banco de España |
 | CZ | `cnb` | Czech National Bank | `;`-CSV, UTF-8 with leading BOM | Czech National Bank (cite source, no changes) |
-| GR | `hba` | Hellenic Bank Association (HEBIC) | `;`-CSV, Windows-1253 | Hellenic Bank Association (HEBIC) — no explicit license stated |
+| GR | `hba` | Hellenic Bank Association (HEBIC) | `;`-CSV, Windows-1253 | Hellenic Bank Association (HEBIC) |
 | SI | `bsi` | Bank of Slovenia | `;`-CSV, Windows-1250 | Bank of Slovenia (cite source, no changes) |
 | SK | `nbs` | National Bank of Slovakia | `;`-CSV, Windows-1250 | National Bank of Slovakia |
 | BG | `bnb` | Bulgarian National Bank | SpreadsheetML XML (`.xls` in name only), UTF-8 with BOM | Bulgarian National Bank |
 | MD | `bnm` | National Bank of Moldova | XML (`latin1`-declared, decoded natively by libxml) | National Bank of Moldova |
 | PL | `nbp` | Narodowy Bank Polski (EWIB) | XML, UTF-8 | Narodowy Bank Polski (public sector information, free reuse) |
-| AZ | `cbar` | Central Bank of Azerbaijan | XML, UTF-8 | Central Bank of Azerbaijan — no explicit license stated |
+| AZ | `cbar` | Central Bank of Azerbaijan | XML, UTF-8 | Central Bank of Azerbaijan |
 | BE | `nbb` | National Bank of Belgium | `.xlsx` (via `XlsxReader`) | National Bank of Belgium |
 | HR | `hnb` | Croatian National Bank | `.xlsx` (via `XlsxReader`) | Croatian National Bank (cite source, no changes) |
 | LU | `abbl` | ABBL (Luxembourg Register of IBAN/BIC) | `.xlsx` (via `XlsxReader`), offline (`--file`) only — rotating download URL | ABBL Luxembourg IBAN/BIC Register |
@@ -173,6 +173,14 @@ five EPC registrations (all `epc`, disambiguated by `--country=`).
 | LV | `epc` | European Payments Council (SEPA Register) | `,`-CSV, one file per SEPA scheme | EPC SEPA Register (credit EPC, no resale as-is) |
 | RO | `epc` | European Payments Council (SEPA Register) | `,`-CSV, one file per SEPA scheme | EPC SEPA Register (credit EPC, no resale as-is) |
 
+The License column above is the exact string each importer's `license()` returns (and thus what gets
+stored verbatim in `banks.source_license` — see
+[Provenance](#provenance-how-imported-data-is-stored)). A few publishers state further terms beyond
+that short string, which aren't part of the stored value: Deutsche Bundesbank permits free use with
+mandatory attribution; Betaalvereniging Nederland's "(see terms)" means written consent is needed to
+redistribute; Banco de España requires attribution and no alteration; Hellenic Bank Association (HEBIC)
+and Central Bank of Azerbaijan state no explicit license.
+
 Each importer's class docblock (`src/Import/Importers/*.php`) documents its exact column
 layout/positions, encoding quirks, and any row-filtering/dedup rules (e.g. OeNB and Bundesbank dedupe
 per-branch rows down to one head-office record per bank code; several XML/JSON sources dedupe several
@@ -184,7 +192,7 @@ release").
 ## Coverage matrix
 
 30 of the 78 registry countries now have a bundled importer. Of the 42 SEPA-scheme countries, **24 now
-resolve** through a bundled importer (the 23 non-EPC SEPA countries below, plus GB/GI/IE/LV/RO via the
+resolve** through a bundled importer (the 19 non-EPC SEPA countries below, plus GB/GI/IE/LV/RO via the
 EPC SEPA Register).
 
 **Covered (30)** — grouped by source shape:
@@ -213,8 +221,8 @@ below; full per-country reasoning is in the v1.2 research record):
 |---|---|
 | Paywalled | FR, IT (GB's EISCD was also paywalled — GB is now covered via the EPC SEPA Register instead) |
 | PDF-only | PT, SE, DK, LT, CY, RS, EG, LB, MC, MU, PK, QA, SC, TN, LC |
-| Portal/HTML-only, no bulk export | AL, BA, ME, MK, EE, SA, SV, TL, KW, JO, SM, BH |
-| SWIFT-only (`bank_code` = BIC prefix, non-SEPA so not in the EPC register) | DO, VG, IQ, ST, LY, MR, AE, CR, GT, XK, VA, AD |
+| Portal/HTML-only, no bulk export | AL, BA, ME, MK, EE, SA, SV, TL, KW, JO, SM, BH, VA, AD |
+| SWIFT-only (`bank_code` = BIC prefix, non-SEPA so not in the EPC register) | DO, VG, IQ, ST, LY, MR, AE, CR, GT, XK |
 | Other (inherit another country's blocker, no directory at all, or fail on licensing/freshness) | FO and GL (use Denmark's `registreringsnummer` system — see DK, PDF-only), IS (no official directory of any kind; SWIFT-only in practice), PS (PMA's directory is address-only, currently unreachable, and PS's `bank_code` is itself SWIFT-derived), TR (the only downloadable file is a stale one-off 2022 export with no maintained refresh path or stated license) |
 
 IE, LV, RO, GI and GB were previously bucketed as SWIFT-only/portal-only/paywalled in the pre-EPC

@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Daycry\Iban\Import\Importers;
 
 use Daycry\Iban\Contracts\ImporterInterface;
-use Daycry\Iban\Import\Support\XlsxReader;
-use RuntimeException;
+use Daycry\Iban\Import\Importers\Concerns\ReadsXlsxSource;
 
 /**
  * Official-source importer for Georgia (GE): the National Bank of Georgia's
@@ -62,6 +61,8 @@ use RuntimeException;
  */
 final class NationalBankOfGeorgiaImporter implements ImporterInterface
 {
+    use ReadsXlsxSource;
+
     public function countryCode(): string
     {
         return 'GE';
@@ -92,43 +93,11 @@ final class NationalBankOfGeorgiaImporter implements ImporterInterface
      */
     public function rows(?string $localFile = null): iterable
     {
-        if ($localFile !== null) {
-            $path = $localFile;
-            $tmp  = null;
-        } else {
-            $raw = @file_get_contents($this->sourceUrl());
-
-            if ($raw === false || $raw === '') {
-                return;
-            }
-
-            $tmp = tempnam(sys_get_temp_dir(), 'iban_xlsx_');
-
-            if ($tmp === false) {
-                return;
-            }
-
-            file_put_contents($tmp, $raw);
-            $path = $tmp;
-        }
-
-        try {
-            $grid = XlsxReader::readFirstSheet($path);
-        } catch (RuntimeException) {
-            if ($tmp !== null) {
-                @unlink($tmp);
-            }
-
-            return;
-        }
+        $grid = $this->readXlsxGrid($localFile, $this->sourceUrl());
 
         $header = self::locateHeader($grid);
 
         if ($header === null) {
-            if ($tmp !== null) {
-                @unlink($tmp);
-            }
-
             return;
         }
 
@@ -148,10 +117,6 @@ final class NationalBankOfGeorgiaImporter implements ImporterInterface
                 'name'        => self::nullableTrim($row[$columns['name']] ?? ''),
                 'bic'         => self::nullableUpperTrim($row[$columns['bic']] ?? ''),
             ];
-        }
-
-        if ($tmp !== null) {
-            @unlink($tmp);
         }
     }
 
