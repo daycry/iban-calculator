@@ -164,6 +164,8 @@ tests/          mirrors src/ (PHPUnit, CIUnitTestCase where CI4 is involved)
 bin/            generate-registry.php — regenerates src/Registry/data/countries.php from an
                  independently authored fact source (annual refresh tooling)
 docs/
+  api-reference.md                        complete per-symbol API reference (facade/helper/config/
+                                            DTOs/enums/exceptions/contracts/registry), code-verified
   usage.md                                facade/helper/command API, ViolationCode table, national
                                             validators, resolve()/caching, Config\Iban reference
   importers.md                            importer framework, iban:update reference, the 30 bundled
@@ -217,4 +219,5 @@ CHANGELOG.md    Keep a Changelog history, starting at [1.0.0], [1.1.0]/[1.2.0] a
 - `Contracts\ImporterInterface` (v1.1): `countryCode()`, `sourceId()`, `sourceName()`, `license()`,
   `sourceUrl()`, `rows(?string $localFile = null): iterable` — see `docs/importers.md`.
 
-See `docs/usage.md` for the full reference with examples verified against the code.
+See `docs/api-reference.md` for the complete per-symbol reference, and `docs/usage.md` for the
+task-oriented guide with examples verified against the code.

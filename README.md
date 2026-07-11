@@ -104,8 +104,9 @@ php spark iban:update                          # lists the 30 bundled importers
 php spark iban:update --source=oenb --dry-run   # preview an import, write nothing
 ```
 
-Full API reference, the 8 `ViolationCode` cases, the national validators, caching, and the `Config\Iban`
-options: see [`docs/usage.md`](docs/usage.md). Importer/`iban:update` reference: see [`docs/importers.md`](docs/importers.md).
+Complete per-symbol API reference: [`docs/api-reference.md`](docs/api-reference.md). Task-oriented guide —
+the 8 `ViolationCode` cases, the national validators, caching, and the `Config\Iban` options: see
+[`docs/usage.md`](docs/usage.md). Importer/`iban:update` reference: see [`docs/importers.md`](docs/importers.md).
 
 ## Features
 
@@ -166,6 +167,7 @@ CodeIgniter 4 is optional (`require-dev` only) — the core works on plain PHP 8
 
 ## Documentation
 
+- [`docs/api-reference.md`](docs/api-reference.md) — the complete public-API reference: every facade method, helper function, config property, DTO, enum, exception, contract, and registry member, verified against the source.
 - [`docs/usage.md`](docs/usage.md) — full facade/helper/command API, the 8 `ViolationCode` cases, national check-digit validators, `resolve()` with `NullProvider`/`DatabaseProvider`/`CachedProvider`, `Config\Iban` reference.
 - [`docs/importers.md`](docs/importers.md) — the bank-data importer framework, `iban:update` reference, the 30 bundled official-source importers with a coverage matrix, and how to write a custom one.
 - [`docs/formatting.md`](docs/formatting.md) — `Electronic` / `Print` / `Anonymized` formats, with the exact `Anonymized` mask scheme.

@@ -1,7 +1,9 @@
 # Usage
 
-Full API reference for `daycry/iban`, current through v1.2. Every example on this page has been run
-against the real code (see `tests/` for the source of truth these examples are drawn from).
+Task-oriented guide for `daycry/iban`, current through v1.2. Every example on this page has been run
+against the real code (see `tests/` for the source of truth these examples are drawn from). For the
+exhaustive per-symbol reference — every facade method, helper function, config property, DTO field,
+enum case, exception, and contract — see [`docs/api-reference.md`](api-reference.md).
 
 - [The facade: `Daycry\Iban\Iban`](#the-facade-daycryibaniban)
 - [Validation and the 8 `ViolationCode` cases](#validation-and-the-8-violationcode-cases)
