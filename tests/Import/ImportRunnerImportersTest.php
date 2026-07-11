@@ -12,6 +12,7 @@ use Daycry\Iban\Import\Importers\BankOfIsraelImporter;
 use Daycry\Iban\Import\Importers\BankOfSloveniaImporter;
 use Daycry\Iban\Import\Importers\BetaalverenigingImporter;
 use Daycry\Iban\Import\Importers\BitsNorwayImporter;
+use Daycry\Iban\Import\Importers\BrazilianCentralBankImporter;
 use Daycry\Iban\Import\Importers\BulgarianNationalBankImporter;
 use Daycry\Iban\Import\Importers\BundesbankImporter;
 use Daycry\Iban\Import\Importers\CentralBankOfAzerbaijanImporter;
@@ -19,6 +20,7 @@ use Daycry\Iban\Import\Importers\CentralBankOfMaltaImporter;
 use Daycry\Iban\Import\Importers\CroatianNationalBankImporter;
 use Daycry\Iban\Import\Importers\CzechNationalBankImporter;
 use Daycry\Iban\Import\Importers\HellenicBankAssociationImporter;
+use Daycry\Iban\Import\Importers\LiechtensteinImporter;
 use Daycry\Iban\Import\Importers\LuxembourgBankersAssociationImporter;
 use Daycry\Iban\Import\Importers\MagyarNemzetiBankImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfBelgiumImporter;
@@ -68,6 +70,14 @@ use Tests\_support\XlsxFixtureFactory;
  * `NationalBankOfKazakhstanImporter` (KZ) -- reading committed JSON fixtures
  * under `tests/Fixtures/import/`, same as the CSV/XML importers above.
  *
+ * This v1.2 final BR/LI batch adds two more -- `BrazilianCentralBankImporter`
+ * (BR, comma CSV) and `LiechtensteinImporter` (LI, which reuses `SixImporter`'s
+ * shared SIX Bank Master V3 fixture, filtered to `Country=LI` instead of
+ * `Country=CH`). It also proves the `SixImporter` country-filtering bugfix
+ * that shipped alongside them: the shared fixture's `Country=LI` row must
+ * never leak into a CH-scoped import (see
+ * `testSixImporterImportDoesNotLeakTheLiechtensteinBankAsACHRow()`).
+ *
  * @see \Daycry\Iban\Import\Importers\OenbImporter
  * @see \Daycry\Iban\Import\Importers\BundesbankImporter
  * @see \Daycry\Iban\Import\Importers\SixImporter
@@ -91,6 +101,8 @@ use Tests\_support\XlsxFixtureFactory;
  * @see \Daycry\Iban\Import\Importers\BankOfIsraelImporter
  * @see \Daycry\Iban\Import\Importers\NationalBankOfUkraineImporter
  * @see \Daycry\Iban\Import\Importers\NationalBankOfKazakhstanImporter
+ * @see \Daycry\Iban\Import\Importers\LiechtensteinImporter
+ * @see \Daycry\Iban\Import\Importers\BrazilianCentralBankImporter
  * @see \Daycry\Iban\Import\ImportRunner
  * @see \Daycry\Iban\Resolver\Resolver
  */
@@ -120,6 +132,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const BOI_FIXTURE              = __DIR__ . '/../Fixtures/import/boi_sample.json';
     private const NBU_FIXTURE              = __DIR__ . '/../Fixtures/import/nbu_sample.json';
     private const NBK_FIXTURE              = __DIR__ . '/../Fixtures/import/nbk_sample.json';
+    private const BCB_FIXTURE              = __DIR__ . '/../Fixtures/import/bcb_sample.csv';
 
     private const CZ_EXAMPLE_IBAN = 'CZ6508000000192000145399';
     private const GR_EXAMPLE_IBAN = 'GR1601101250000000012300695';
@@ -139,6 +152,8 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const IL_EXAMPLE_IBAN = 'IL620108000000099999999';
     private const UA_EXAMPLE_IBAN = 'UA903052992990004149123456789';
     private const KZ_EXAMPLE_IBAN = 'KZ86125KZT5004100100';
+    private const LI_EXAMPLE_IBAN = 'LI21088100002324013AA';
+    private const BR_EXAMPLE_IBAN = 'BR9700360305000010009795493P1';
 
     private ?string $nbbFixture = null;
 
@@ -377,6 +392,103 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
             'name'         => 'PostFinance AG',
             'bic'          => 'POFICHBEXXX',
         ]);
+    }
+
+    /**
+     * Regression test for the latent country-filtering bug fixed alongside
+     * {@see LiechtensteinImporter}'s introduction: the shared SIX Bank
+     * Master V3 fixture also carries a `Country=LI` row (IID 8810,
+     * Liechtensteinische Landesbank AG) -- importing it via `SixImporter`
+     * must NOT leak that row in as a CH bank, so resolving its own LI IBAN
+     * against a CH-only import must fail to resolve (and certainly must
+     * never resolve to the LI bank's name).
+     */
+    public function testSixImporterImportDoesNotLeakTheLiechtensteinBankAsACHRow(): void
+    {
+        (new ImportRunner())->run(new SixImporter(), new BankModel(), false, self::SIX_FIXTURE);
+
+        $this->dontSeeInDatabase('banks', ['bank_code' => '08810']);
+        $this->dontSeeInDatabase('banks', ['name' => 'Liechtensteinische Landesbank AG']);
+
+        $iban   = new Iban(provider: new DatabaseProvider(new BankModel()));
+        $result = $iban->resolve(self::LI_EXAMPLE_IBAN);
+
+        self::assertFalse($result->isResolved());
+    }
+
+    public function testLiechtensteinImporterImportsRowsWithProvenanceAndResolvesTheExampleIban(): void
+    {
+        $report = (new ImportRunner())->run(new LiechtensteinImporter(), new BankModel(), false, self::SIX_FIXTURE);
+
+        self::assertSame('LI', $report->countryCode);
+        self::assertSame('six', $report->sourceId);
+        self::assertSame(1, $report->fetched);
+        self::assertSame(1, $report->imported);
+        self::assertSame(0, $report->skipped);
+
+        self::assertSame(1, $this->db->table('banks')->countAllResults());
+
+        $this->seeInDatabase('banks', [
+            'country_code'   => 'LI',
+            'bank_code'      => '08810', // '8810' left-padded to 5 digits
+            'branch_code'    => null,
+            'name'           => 'Liechtensteinische Landesbank AG',
+            'city'           => 'Vaduz',
+            'bic'            => 'LILALI2XXXX',
+            'source_id'      => 'six',
+            'source_license' => 'SIX Interbank Clearing (free use)',
+        ]);
+
+        // The CH rows/merger stub in the same shared fixture must not have
+        // been imported by this LI-scoped run.
+        $this->dontSeeInDatabase('banks', ['bank_code' => '00700']);
+        $this->dontSeeInDatabase('banks', ['bank_code' => '09000']);
+
+        // The real proof: resolving the SIX registry's own LI example IBAN
+        // (bank code '08810') against the seeded bank-level row.
+        $iban   = new Iban(provider: new DatabaseProvider(new BankModel()));
+        $result = $iban->resolve(self::LI_EXAMPLE_IBAN);
+
+        self::assertTrue($result->isResolved());
+        self::assertSame('Liechtensteinische Landesbank AG', $result->bankName);
+    }
+
+    public function testBrazilianCentralBankImporterImportsRowsWithProvenanceAndResolvesTheExampleIban(): void
+    {
+        $report = (new ImportRunner())->run(new BrazilianCentralBankImporter(), new BankModel(), false, self::BCB_FIXTURE);
+
+        self::assertSame('BR', $report->countryCode);
+        self::assertSame('bcb', $report->sourceId);
+        self::assertSame(3, $report->fetched);
+        self::assertSame(3, $report->imported);
+        self::assertSame(0, $report->skipped);
+
+        self::assertSame(3, $this->db->table('banks')->countAllResults());
+
+        $this->seeInDatabase('banks', [
+            'country_code'   => 'BR',
+            'bank_code'      => '00360305',
+            'branch_code'    => null,
+            'name'           => 'CAIXA ECONOMICA FEDERAL',
+            'source_id'      => 'bcb',
+            'source_license' => 'Banco Central do Brasil (ODbL)',
+        ]);
+
+        $this->seeInDatabase('banks', [
+            'country_code' => 'BR',
+            'bank_code'    => '00000000',
+            'name'         => 'Banco do Brasil S.A.',
+        ]);
+
+        // The real proof: resolving BCB's own example IBAN (ISPB bank code
+        // '00360305', WITH a branch segment the bank-level row has no exact
+        // match for) against the seeded bank-level row, via the Resolver's
+        // findByBankCode(cc, bank, null) fallback.
+        $iban   = new Iban(provider: new DatabaseProvider(new BankModel()));
+        $result = $iban->resolve(self::BR_EXAMPLE_IBAN);
+
+        self::assertTrue($result->isResolved());
+        self::assertSame('CAIXA ECONOMICA FEDERAL', $result->bankName);
     }
 
     public function testBetaalverenigingImporterImportsRowsWithProvenanceSkippingThePreamble(): void
@@ -1069,7 +1181,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
         self::assertSame('ING-DiBa', $deModel['name']);
     }
 
-    public function testAllTwentyThreeImportersCanCoexistInTheSameBanksTable(): void
+    public function testAllTwentyFiveImportersCanCoexistInTheSameBanksTable(): void
     {
         $runner = new ImportRunner();
         $model  = new BankModel();
@@ -1097,12 +1209,22 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
         $runner->run(new BankOfIsraelImporter(), $model, false, self::BOI_FIXTURE);
         $runner->run(new NationalBankOfUkraineImporter(), $model, false, self::NBU_FIXTURE);
         $runner->run(new NationalBankOfKazakhstanImporter(), $model, false, self::NBK_FIXTURE);
+        $runner->run(new LiechtensteinImporter(), $model, false, self::SIX_FIXTURE);
+        $runner->run(new BrazilianCentralBankImporter(), $model, false, self::BCB_FIXTURE);
 
         // 2 (AT) + 3 (DE) + 2 (CH) + 3 (NL) + 3 (ES) + 8 (CZ) + 5 (GR) + 4 (SI)
         // + 4 (SK) + 5 (BG) + 5 (MD) + 3 (PL) + 5 (AZ) + 3 (BE) + 3 (HR)
         // + 3 (LU) + 3 (MT) + 2 (HU) + 2 (NO) + 2 (GE) + 4 (IL) + 3 (UA)
-        // + 3 (KZ) = 80.
-        self::assertSame(80, $this->db->table('banks')->countAllResults());
+        // + 3 (KZ) + 1 (LI) + 3 (BR) = 84.
+        self::assertSame(84, $this->db->table('banks')->countAllResults());
+
+        $liModel = (new BankModel())->findByNaturalKey('LI', '08810', null);
+        self::assertIsArray($liModel);
+        self::assertSame('Liechtensteinische Landesbank AG', $liModel['name']);
+
+        $brModel = (new BankModel())->findByNaturalKey('BR', '00360305', null);
+        self::assertIsArray($brModel);
+        self::assertSame('CAIXA ECONOMICA FEDERAL', $brModel['name']);
 
         $chModel = (new BankModel())->findByNaturalKey('CH', '09000', null);
         self::assertIsArray($chModel);
