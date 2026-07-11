@@ -1,0 +1,17 @@
+[
+    {
+        "code": "125",
+        "bic": "IRTYKZKA",
+        "name": "ForteBank JSC (fixture — KZ registry example bank code)"
+    },
+    {
+        "code": "722",
+        "bic": "CASPKZKA",
+        "name": "Kaspi Bank JSC"
+    },
+    {
+        "code": "196",
+        "bic": "HSBKKZKX",
+        "name": "Halyk Bank of Kazakhstan JSC"
+    }
+]

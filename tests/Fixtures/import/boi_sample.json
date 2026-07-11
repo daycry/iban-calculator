@@ -1,0 +1,16 @@
+{
+    "help": "https://data.gov.il/api/3/action/help_show?name=datastore_search",
+    "success": true,
+    "result": {
+        "resource_id": "6f3bda2a-8cde-4b86-a1c8-2761862b1224",
+        "records": [
+            {"_id": 1, "Bank_Code": "1", "Bank_Name": "ISRACARD LTD. ", "Branch_Code": 10, "Branch_Name": "isracard", "City": "BENE BERAQ"},
+            {"_id": 2, "Bank_Code": "3", "Bank_Name": "Bank Esh Israel Ltd", "Branch_Code": 1, "Branch_Name": "Israel", "City": "TEL AVIV - YAFO"},
+            {"_id": 3, "Bank_Code": "3", "Bank_Name": "Bank Esh Israel Ltd", "Branch_Code": 900, "Branch_Name": "Operational", "City": "TEL AVIV - YAFO"},
+            {"_id": 4, "Bank_Code": "4", "Bank_Name": "Bank Yahav  for Government Employees Ltd", "Branch_Code": 145, "Branch_Name": "Hanhala  Rashit", "City": "JERUSALEM"},
+            {"_id": 5, "Bank_Code": "4", "Bank_Name": "Bank Yahav  for Government Employees Ltd", "Branch_Code": 146, "Branch_Name": "Hanhala  Rashit", "City": "JERUSALEM"},
+            {"_id": 103, "Bank_Code": "10", "Bank_Name": "Bank Leumi Le-Israel B.M", "Branch_Code": 696, "Branch_Name": "Banking center rishon Ashkelon", "City": "ASHQELON"},
+            {"_id": 114, "Bank_Code": "10", "Bank_Name": "Bank Leumi Le-Israel B.M", "Branch_Code": 989, "Branch_Name": "BANK SERVICES CENTER", "City": "LOD"}
+        ]
+    }
+}

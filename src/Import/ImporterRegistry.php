@@ -6,6 +6,7 @@ namespace Daycry\Iban\Import;
 
 use Daycry\Iban\Contracts\ImporterInterface;
 use Daycry\Iban\Import\Importers\BancoDeEspanaImporter;
+use Daycry\Iban\Import\Importers\BankOfIsraelImporter;
 use Daycry\Iban\Import\Importers\BankOfSloveniaImporter;
 use Daycry\Iban\Import\Importers\BetaalverenigingImporter;
 use Daycry\Iban\Import\Importers\BitsNorwayImporter;
@@ -20,9 +21,11 @@ use Daycry\Iban\Import\Importers\LuxembourgBankersAssociationImporter;
 use Daycry\Iban\Import\Importers\MagyarNemzetiBankImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfBelgiumImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfGeorgiaImporter;
+use Daycry\Iban\Import\Importers\NationalBankOfKazakhstanImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfMoldovaImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfPolandImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter;
+use Daycry\Iban\Import\Importers\NationalBankOfUkraineImporter;
 use Daycry\Iban\Import\Importers\OenbImporter;
 use Daycry\Iban\Import\Importers\SixImporter;
 
@@ -60,8 +63,13 @@ use Daycry\Iban\Import\Importers\SixImporter;
  * {@see \Daycry\Iban\Import\Importers\MagyarNemzetiBankImporter} (HU),
  * {@see \Daycry\Iban\Import\Importers\BitsNorwayImporter} (NO) and
  * {@see \Daycry\Iban\Import\Importers\NationalBankOfGeorgiaImporter} (GE) --
- * so `new ImporterRegistry()` picks up all twenty automatically for every
- * consumer (`iban:update` included) without any other call site changing.
+ * and this v1.2 IL/UA/KZ batch adds three more, JSON-sourced importers --
+ * {@see \Daycry\Iban\Import\Importers\BankOfIsraelImporter} (IL),
+ * {@see \Daycry\Iban\Import\Importers\NationalBankOfUkraineImporter} (UA)
+ * and {@see \Daycry\Iban\Import\Importers\NationalBankOfKazakhstanImporter}
+ * (KZ) -- so `new ImporterRegistry()` picks up all twenty-three
+ * automatically for every consumer (`iban:update` included) without any
+ * other call site changing.
  *
  * @see \Daycry\Iban\Commands\UpdateCommand
  * @see ImportRunner
@@ -161,9 +169,12 @@ class ImporterRegistry
      * {@see CentralBankOfMaltaImporter} (MT) -- and this v1.2 HU/NO/GE batch
      * adds three more, also XLSX-sourced -- {@see MagyarNemzetiBankImporter}
      * (HU), {@see BitsNorwayImporter} (NO) and
-     * {@see NationalBankOfGeorgiaImporter} (GE) -- so every consumer
-     * (`iban:update` included) picks up all twenty automatically without any
-     * other call site changing.
+     * {@see NationalBankOfGeorgiaImporter} (GE) -- and this v1.2 IL/UA/KZ
+     * batch adds three more, JSON-sourced importers --
+     * {@see BankOfIsraelImporter} (IL), {@see NationalBankOfUkraineImporter}
+     * (UA) and {@see NationalBankOfKazakhstanImporter} (KZ) -- so every
+     * consumer (`iban:update` included) picks up all twenty-three
+     * automatically without any other call site changing.
      */
     protected function registerDefaults(): void
     {
@@ -187,6 +198,9 @@ class ImporterRegistry
         $this->register(new MagyarNemzetiBankImporter());
         $this->register(new BitsNorwayImporter());
         $this->register(new NationalBankOfGeorgiaImporter());
+        $this->register(new BankOfIsraelImporter());
+        $this->register(new NationalBankOfUkraineImporter());
+        $this->register(new NationalBankOfKazakhstanImporter());
     }
 
     private static function key(string $countryCode, string $sourceId): string
