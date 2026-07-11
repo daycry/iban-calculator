@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Daycry\Iban\Import;
 
 use Daycry\Iban\Contracts\ImporterInterface;
+use Daycry\Iban\Import\Importers\BancoDeEspanaImporter;
+use Daycry\Iban\Import\Importers\BetaalverenigingImporter;
 use Daycry\Iban\Import\Importers\BundesbankImporter;
 use Daycry\Iban\Import\Importers\OenbImporter;
+use Daycry\Iban\Import\Importers\SixImporter;
 
 /**
  * In-memory catalog of {@see ImporterInterface} instances, keyed by their
@@ -17,12 +20,14 @@ use Daycry\Iban\Import\Importers\OenbImporter;
  * to be the CI4 consumer in this package).
  *
  * {@see self::registerDefaults()} was intentionally empty in v1.1's V-6 --
- * that task only built the framework. v1.1's V-7a registers the first two
+ * that task only built the framework. v1.1's V-7a registered the first two
  * bundled official-source importers there -- {@see \Daycry\Iban\Import\Importers\OenbImporter}
  * (AT) and {@see \Daycry\Iban\Import\Importers\BundesbankImporter} (DE) --
- * so `new ImporterRegistry()` picks them up automatically for every
+ * and v1.1's V-7b adds three more -- {@see \Daycry\Iban\Import\Importers\SixImporter}
+ * (CH), {@see \Daycry\Iban\Import\Importers\BetaalverenigingImporter} (NL)
+ * and {@see \Daycry\Iban\Import\Importers\BancoDeEspanaImporter} (ES) -- so
+ * `new ImporterRegistry()` picks up all five automatically for every
  * consumer (`iban:update` included) without any other call site changing.
- * v1.1's V-7b is expected to add more (SIX/NL/ES/...).
  *
  * @see \Daycry\Iban\Commands\UpdateCommand
  * @see ImportRunner
@@ -101,16 +106,21 @@ class ImporterRegistry
      * Registers this package's bundled default importers.
      *
      * Was deliberately empty in v1.1's V-6 (the importer framework itself
-     * had nothing to bundle yet). v1.1's V-7a fills this in with the first
+     * had nothing to bundle yet). v1.1's V-7a filled this in with the first
      * two concrete official-source importers -- {@see OenbImporter} (AT) and
-     * {@see BundesbankImporter} (DE) -- so every consumer (`iban:update`
-     * included) picks them up automatically without any other call site
-     * changing. v1.1's V-7b is expected to add more (SIX/NL/ES/...).
+     * {@see BundesbankImporter} (DE). v1.1's V-7b adds three more --
+     * {@see SixImporter} (CH), {@see BetaalverenigingImporter} (NL) and
+     * {@see BancoDeEspanaImporter} (ES) -- so every consumer (`iban:update`
+     * included) picks up all five automatically without any other call site
+     * changing.
      */
     protected function registerDefaults(): void
     {
         $this->register(new OenbImporter());
         $this->register(new BundesbankImporter());
+        $this->register(new SixImporter());
+        $this->register(new BetaalverenigingImporter());
+        $this->register(new BancoDeEspanaImporter());
     }
 
     private static function key(string $countryCode, string $sourceId): string

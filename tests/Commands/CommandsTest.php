@@ -62,8 +62,11 @@ final class CommandsTest extends CIUnitTestCase
 
     private const VALID_ES_IBAN = 'ES9121000418450200051332';
 
-    private const OENB_FIXTURE       = __DIR__ . '/../Fixtures/import/oenb_sample.csv';
-    private const BUNDESBANK_FIXTURE = __DIR__ . '/../Fixtures/import/bundesbank_sample.txt';
+    private const OENB_FIXTURE             = __DIR__ . '/../Fixtures/import/oenb_sample.csv';
+    private const BUNDESBANK_FIXTURE       = __DIR__ . '/../Fixtures/import/bundesbank_sample.txt';
+    private const SIX_FIXTURE              = __DIR__ . '/../Fixtures/import/six_sample.csv';
+    private const BETAALVERENIGING_FIXTURE = __DIR__ . '/../Fixtures/import/betaalvereniging_sample.csv';
+    private const BDE_FIXTURE              = __DIR__ . '/../Fixtures/import/bde_sample.csv';
 
     // Same length/structure as VALID_ES_IBAN but with the check digits
     // ('91' -> '90') broken, so MOD-97 fails: deterministic ChecksumFailed.
@@ -300,12 +303,13 @@ final class CommandsTest extends CIUnitTestCase
     // -- iban:update -------------------------------------------------------
 
     /**
-     * V-7a bundles the first two concrete official-source importers --
+     * V-7a bundled the first two concrete official-source importers --
      * `OenbImporter` (AT) and `BundesbankImporter` (DE) -- into
-     * `ImporterRegistry::registerDefaults()` (empty since V-6). So with no
-     * `--country`/`--source` selection, `iban:update` now lists both
-     * alongside the v1.0 licensing notices instead of the old "nothing
-     * bundled yet" deferral.
+     * `ImporterRegistry::registerDefaults()` (empty since V-6). V-7b adds
+     * three more -- `SixImporter` (CH), `BetaalverenigingImporter` (NL) and
+     * `BancoDeEspanaImporter` (ES). So with no `--country`/`--source`
+     * selection, `iban:update` now lists all five alongside the v1.0
+     * licensing notices instead of the old "nothing bundled yet" deferral.
      */
     public function testUpdatePrintsLicenseNoticesAndListsTheBundledImportersAndExitsSuccess(): void
     {
@@ -315,20 +319,26 @@ final class CommandsTest extends CIUnitTestCase
         self::assertStringContainsString('SWIFT IBAN Registry', $output);
         self::assertStringContainsString('SWIFT BIC Directory', $output);
         self::assertStringContainsString('National lists require per-source attribution.', $output);
-        self::assertStringContainsString('Registered importers: 2', $output);
+        self::assertStringContainsString('Registered importers: 5', $output);
         self::assertStringContainsString('oenb', $output);
         self::assertStringContainsString('bundesbank', $output);
+        self::assertStringContainsString('six', $output);
+        self::assertStringContainsString('betaalvereniging', $output);
+        self::assertStringContainsString('bde', $output);
         self::assertStringContainsString('AT', $output);
         self::assertStringContainsString('DE', $output);
+        self::assertStringContainsString('CH', $output);
+        self::assertStringContainsString('NL', $output);
+        self::assertStringContainsString('ES', $output);
         self::assertStringContainsString('Select one with --country=/--source= to run it', $output);
     }
 
     public function testUpdateAcceptsDryRunAndCountryOptionsWithoutErrorAndReportsNoMatch(): void
     {
-        // 'ES' matches neither the bundled OenbImporter (AT) nor
-        // BundesbankImporter (DE), so this stays the graceful "no match"
-        // branch -- and, crucially, never reaches the network/file fetch.
-        [$exit, $output] = $this->runSpark(['iban:update', '--dry-run', '--country', 'ES']);
+        // 'FR' matches none of the 5 bundled importers (AT/DE/CH/NL/ES), so
+        // this stays the graceful "no match" branch -- and, crucially,
+        // never reaches the network/file fetch.
+        [$exit, $output] = $this->runSpark(['iban:update', '--dry-run', '--country', 'FR']);
 
         self::assertSame(EXIT_SUCCESS, $exit);
         self::assertStringContainsString('SWIFT IBAN Registry', $output);
@@ -376,6 +386,44 @@ final class CommandsTest extends CIUnitTestCase
         self::assertSame(EXIT_SUCCESS, $exit);
         self::assertStringContainsString('[DE/bundesbank] fetched=3 imported=3 skipped=0', $output);
         self::assertStringContainsString('Deutsche Bundesbank', $output);
+    }
+
+    /**
+     * V-7b acceptance criterion: `iban:update --source=six --country=CH
+     * --file=<fixture>` actually imports (offline, no network) and reports
+     * non-zero `imported`.
+     */
+    public function testUpdateWithFileOptionImportsTheSixFixtureAndReportsImportedCount(): void
+    {
+        [$exit, $output] = $this->runSpark([
+            'iban:update', '--source', 'six', '--country', 'CH', '--file', self::SIX_FIXTURE,
+        ]);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('[CH/six] fetched=2 imported=2 skipped=0', $output);
+        self::assertStringContainsString('SIX Interbank Clearing (free use)', $output);
+    }
+
+    public function testUpdateWithFileOptionImportsTheBetaalverenigingFixtureAndReportsImportedCount(): void
+    {
+        [$exit, $output] = $this->runSpark([
+            'iban:update', '--source', 'betaalvereniging', '--country', 'NL', '--file', self::BETAALVERENIGING_FIXTURE,
+        ]);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('[NL/betaalvereniging] fetched=3 imported=3 skipped=0', $output);
+        self::assertStringContainsString('Betaalvereniging Nederland (see terms)', $output);
+    }
+
+    public function testUpdateWithFileOptionImportsTheBdeFixtureAndReportsImportedCount(): void
+    {
+        [$exit, $output] = $this->runSpark([
+            'iban:update', '--source', 'bde', '--country', 'ES', '--file', self::BDE_FIXTURE,
+        ]);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('[ES/bde] fetched=3 imported=3 skipped=0', $output);
+        self::assertStringContainsString('Banco de España', $output);
     }
 
     public function testUpdateWithFileOptionAndDryRunDoesNotWriteToTheBanksTable(): void
