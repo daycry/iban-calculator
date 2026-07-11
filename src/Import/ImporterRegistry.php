@@ -8,6 +8,7 @@ use Daycry\Iban\Contracts\ImporterInterface;
 use Daycry\Iban\Import\Importers\BancoDeEspanaImporter;
 use Daycry\Iban\Import\Importers\BankOfSloveniaImporter;
 use Daycry\Iban\Import\Importers\BetaalverenigingImporter;
+use Daycry\Iban\Import\Importers\BitsNorwayImporter;
 use Daycry\Iban\Import\Importers\BulgarianNationalBankImporter;
 use Daycry\Iban\Import\Importers\BundesbankImporter;
 use Daycry\Iban\Import\Importers\CentralBankOfAzerbaijanImporter;
@@ -16,7 +17,9 @@ use Daycry\Iban\Import\Importers\CroatianNationalBankImporter;
 use Daycry\Iban\Import\Importers\CzechNationalBankImporter;
 use Daycry\Iban\Import\Importers\HellenicBankAssociationImporter;
 use Daycry\Iban\Import\Importers\LuxembourgBankersAssociationImporter;
+use Daycry\Iban\Import\Importers\MagyarNemzetiBankImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfBelgiumImporter;
+use Daycry\Iban\Import\Importers\NationalBankOfGeorgiaImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfMoldovaImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfPolandImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter;
@@ -53,9 +56,12 @@ use Daycry\Iban\Import\Importers\SixImporter;
  * {@see \Daycry\Iban\Import\Importers\CroatianNationalBankImporter} (HR),
  * {@see \Daycry\Iban\Import\Importers\LuxembourgBankersAssociationImporter}
  * (LU) and {@see \Daycry\Iban\Import\Importers\CentralBankOfMaltaImporter}
- * (MT) -- so `new ImporterRegistry()` picks up all seventeen automatically
- * for every consumer (`iban:update` included) without any other call site
- * changing.
+ * (MT) -- and this v1.2 HU/NO/GE batch adds three more, also XLSX-sourced --
+ * {@see \Daycry\Iban\Import\Importers\MagyarNemzetiBankImporter} (HU),
+ * {@see \Daycry\Iban\Import\Importers\BitsNorwayImporter} (NO) and
+ * {@see \Daycry\Iban\Import\Importers\NationalBankOfGeorgiaImporter} (GE) --
+ * so `new ImporterRegistry()` picks up all twenty automatically for every
+ * consumer (`iban:update` included) without any other call site changing.
  *
  * @see \Daycry\Iban\Commands\UpdateCommand
  * @see ImportRunner
@@ -152,9 +158,12 @@ class ImporterRegistry
      * {@see NationalBankOfBelgiumImporter} (BE),
      * {@see CroatianNationalBankImporter} (HR),
      * {@see LuxembourgBankersAssociationImporter} (LU) and
-     * {@see CentralBankOfMaltaImporter} (MT) -- so every consumer
-     * (`iban:update` included) picks up all seventeen automatically without
-     * any other call site changing.
+     * {@see CentralBankOfMaltaImporter} (MT) -- and this v1.2 HU/NO/GE batch
+     * adds three more, also XLSX-sourced -- {@see MagyarNemzetiBankImporter}
+     * (HU), {@see BitsNorwayImporter} (NO) and
+     * {@see NationalBankOfGeorgiaImporter} (GE) -- so every consumer
+     * (`iban:update` included) picks up all twenty automatically without any
+     * other call site changing.
      */
     protected function registerDefaults(): void
     {
@@ -175,6 +184,9 @@ class ImporterRegistry
         $this->register(new CroatianNationalBankImporter());
         $this->register(new LuxembourgBankersAssociationImporter());
         $this->register(new CentralBankOfMaltaImporter());
+        $this->register(new MagyarNemzetiBankImporter());
+        $this->register(new BitsNorwayImporter());
+        $this->register(new NationalBankOfGeorgiaImporter());
     }
 
     private static function key(string $countryCode, string $sourceId): string
