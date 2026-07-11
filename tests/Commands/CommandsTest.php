@@ -9,6 +9,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\StreamFilterTrait;
 use Daycry\Iban\Commands\ParseCommand;
+use Daycry\Iban\Commands\PublishCommand;
 use Daycry\Iban\Commands\ResolveCommand;
 use Daycry\Iban\Commands\UpdateCommand;
 use Daycry\Iban\Commands\ValidateCommand;
@@ -740,7 +741,7 @@ final class CommandsTest extends CIUnitTestCase
 
     // -- Discovery -----------------------------------------------------------
 
-    public function testAllFourCommandsAreDiscoveredUnderTheIbanGroup(): void
+    public function testAllFiveCommandsAreDiscoveredUnderTheIbanGroup(): void
     {
         $commands = service('commands')->getCommands();
 
@@ -749,6 +750,7 @@ final class CommandsTest extends CIUnitTestCase
             'iban:parse'    => ParseCommand::class,
             'iban:resolve'  => ResolveCommand::class,
             'iban:update'   => UpdateCommand::class,
+            'iban:publish'  => PublishCommand::class,
         ] as $name => $class) {
             self::assertArrayHasKey($name, $commands);
             self::assertSame($class, $commands[$name]['class']);
