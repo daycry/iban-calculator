@@ -5,6 +5,20 @@ All notable changes to `daycry/iban` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-07-11
+
+### Added
+
+- **`iban:publish` command**: publishes the package config into the consuming app as
+  `app/Config/Iban.php` — the idiomatic CodeIgniter "publish a config" pattern (à la
+  `daycry/auth`/Shield). The published class is `namespace Config; class Iban extends
+  \Daycry\Iban\Config\Iban`, so `config()`/`service('iban')` pick it up automatically and it stays
+  forward-compatible: any property the app doesn't override keeps inheriting the package default
+  (including options added in future versions), and it's a real type-checked subclass rather than a
+  drift-prone copy. Refuses to overwrite an existing `app/Config/Iban.php` unless `--force` is passed.
+
+[1.3.0]: https://github.com/daycry/iban-calculator/compare/1.2.1...1.3.0
+
 ## [1.2.1] - 2026-07-11
 
 ### Fixed
