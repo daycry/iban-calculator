@@ -10,7 +10,7 @@ resolution — that is also usable **standalone**, outside of any framework.
 - Composer package name: `daycry/iban`. GitHub repo slug: `daycry/iban-calculator`.
 - PHP `^8.3`. CodeIgniter 4 `^4.6` is a **dev-only peer dependency** (`require-dev`), never a hard
   `require` — the core works without CI4 installed at all.
-- **Current status: v1.1 is feature-complete.** 860 tests / 1720 assertions green, PHPStan level 8
+- **Current status: v1.2 is feature-complete.** 1,036 tests / 2,699 assertions green, PHPStan level 8
   clean (`src` + `tests`, with the `codeigniter/phpstan-codeigniter` extension), PSR-12 clean. v1.0's
   8 roadmap phases (`docs/roadmap/2026-07-10-daycry-iban-v1/tasks.md`) were done first: structural
   registry (78 countries), algorithmic core, Spanish national check-digit validator, resolver +
@@ -22,7 +22,15 @@ resolution — that is also usable **standalone**, outside of any framework.
   official-source importers (OeNB/Bundesbank/SIX/Betaalvereniging/Banco de España) that make
   `iban:update` functional instead of a no-op, `Config\Iban::$defaultFormat`/`$checkNationalByDefault`
   actually being honored, and a new `ext-mbstring` requirement (used by the CSV/fixed-width
-  importers).
+  importers). v1.2 (see `CHANGELOG.md`'s `[1.2.0]` section) expanded the importer framework from 5 to
+  **30 bundled importers**: 20 more national official-source importers (CZ/GR/SI/SK/BG/MD/PL/AZ/BE/
+  HR/LU/MT/HU/NO/GE/IL/UA/KZ/LI/BR) plus a supranational `EpcRegisterImporter` registered five times
+  (GB/GI/IE/LV/RO, the SEPA countries whose `bank_code` is a BIC prefix) — 24 of 42 SEPA countries now
+  resolve. It also added `Import\Support\XlsxReader` (a minimal read-only `.xlsx` reader, no
+  PhpSpreadsheet dependency), a `Resolver` bank-level fallback (`findByBankCode($cc, $bank, null)` when
+  an exact IBAN match misses, so branch-carrying IBANs resolve against bank-level-only rows), a
+  `SixImporter` fix (now filters `Country === 'CH'`, previously also imported Liechtenstein rows), and
+  two new runtime requirements, `ext-iconv` and `ext-zip`.
 
 ## Layered architecture — the unidirectional dependency rule
 
@@ -60,8 +68,10 @@ flowing **one way only**:
   of v1.1, wired via `Core\Validator`'s `$nationalValidators` map. EE deliberately has no validator
   (see that map's docblock in `src/Core/Validator.php`).
 - `src/Resolver` — `Resolver` (composes `BankResult` from a `ParsedIban` + a `ProviderInterface`
-  overlay); must stay usable without CI4, so it is guarded even though `DatabaseProvider` (a
-  `ProviderInterface` implementation it can be handed) is not.
+  overlay; v1.2 added a bank-level fallback — `findByBankCode($cc, $bank, null)` when `findByIban()`
+  misses — so IBANs carrying a branch segment still resolve against bank-level-only rows); must stay
+  usable without CI4, so it is guarded even though `DatabaseProvider` (a `ProviderInterface`
+  implementation it can be handed) is not.
 
 **Allowed to depend on CI4 (kept as thin adapters, no domain logic):**
 - `src/Config` (`Config\Iban`, `Config\Services`, `Config\Registrar`), `src/Commands` (4 spark
@@ -71,22 +81,31 @@ flowing **one way only**:
   provider) even though `Providers/` as a directory is not itself guarded — `DatabaseProvider` lives
   there too and does depend on CI4. `Providers/CachedProvider` (v1.1) also depends on CI4 (a
   `CodeIgniter\Cache\CacheInterface`), same reasoning.
-- `src/Import` (v1.1, importer framework) is a **split directory, not itself guarded**:
-  `Contracts/ImporterInterface`, `Import/ImportReport` and `Import/ImporterRegistry` are written
-  framework-free by discipline (no `CodeIgniter\` import), and so are the 5 bundled importers under
-  `Import/Importers/` (they fetch via plain `file_get_contents()`/`fgetcsv()`, never a CI4 HTTP
-  client) — but `Import/ImportRunner` genuinely depends on CI4 (`Models\BankModel`), which is why the
-  whole `Import/` directory isn't in `GUARDED_DIRECTORIES`. Don't assume every file under `Import/` is
-  framework-free — check the individual file's own docblock, which states its status explicitly.
+- `src/Import` (v1.1, importer framework; v1.2 expanded it) is a **split directory, not itself
+  guarded**: `Contracts/ImporterInterface`, `Import/ImportReport`, `Import/ImporterRegistry`,
+  `Import/Support/XlsxReader` (v1.2) and all 30 bundled importers under `Import/Importers/` (including
+  the shared `Import/Importers/Concerns/ParsesSixBankMaster` trait) are written framework-free by
+  discipline (they fetch via plain `file_get_contents()`/`fgetcsv()`/`SimpleXMLElement`/`ZipArchive`,
+  never a CI4 HTTP client) — but `Import/ImportRunner` genuinely depends on CI4 (`Models\BankModel`),
+  which is why the whole `Import/` directory isn't in `GUARDED_DIRECTORIES`. Don't assume every file
+  under `Import/` is framework-free — check the individual file's own docblock, which states its
+  status explicitly. **Known gap**: `tests/Architecture/CoreIsFrameworkFreeTest.php`'s `GUARDED_FILES`
+  list still only enumerates v1.1's five importers (plus `ImporterRegistry.php`/`ImportReport.php`);
+  the 20 v1.2 national importers, `EpcRegisterImporter.php` and `Import/Support/XlsxReader.php` are
+  framework-free in practice but not yet added to that list — a follow-up, not a v1.2 blocker.
 
 **This rule is enforced by a test**, not just convention: `tests/Architecture/CoreIsFrameworkFreeTest.php`
 scans `Core/`, `Contracts/`, `DTO/`, `Enums/`, `Exceptions/`, `Registry/`, `National/`, `Resolver/` for
 the strings `CodeIgniter\` and `codeigniter4`, and fails if either appears. It also scans a file-level
 `GUARDED_FILES` list for the same two files-can't-live-in-a-guarded-directory cases: `src/Iban.php` (the
 standalone facade), plus — since v1.1 — the framework-free half of the importer framework:
-`Import/ImporterRegistry.php`, `Import/ImportReport.php` and the 5 `Import/Importers/*Importer.php`
-classes. `Import/ImportRunner.php` is intentionally **not** in `GUARDED_FILES` (it depends on CI4's
-`Models\BankModel`). It also carries two self-tests proving the detector isn't a trivial
+`Import/ImporterRegistry.php`, `Import/ImportReport.php` and v1.1's 5 `Import/Importers/*Importer.php`
+classes (OeNB/Bundesbank/SIX/Betaalvereniging/Banco de España). `Import/ImportRunner.php` is
+intentionally **not** in `GUARDED_FILES` (it depends on CI4's `Models\BankModel`). As of v1.2,
+`GUARDED_FILES` has **not** been extended to the 20 new national importers, `EpcRegisterImporter.php`
+or `Import/Support/XlsxReader.php` — they're written framework-free by the same discipline (see each
+file's own docblock), but the guard test doesn't check them yet; treat this as an open follow-up, not
+as evidence they depend on CI4. It also carries two self-tests proving the detector isn't a trivial
 always-true/always-false stub. If you add a new guarded directory, extend `GUARDED_DIRECTORIES` in that
 test; for a single framework-free file outside a guarded directory, extend `GUARDED_FILES` instead.
 
@@ -97,7 +116,7 @@ in. If it's one of the guarded ones, the dependency belongs one layer up instead
 
 ```bash
 composer update    # NOT `composer install` — see "No composer.lock" below
-composer test        # PHPUnit (tests/) — 860 tests / 1720 assertions
+composer test        # PHPUnit (tests/) — 1,036 tests / 2,699 assertions
 composer analyze      # PHPStan, level 8, paths: src + tests (phpstan.neon)
 composer cs            # PHP-CS-Fixer, PSR-12 + strict_types, dry-run (add `fix` locally to apply)
 ```
@@ -129,8 +148,10 @@ src/
   Resolver/     Resolver — composes BankResult from ParsedIban + ProviderInterface
   Providers/    NullProvider (framework-free, default), DatabaseProvider (CI4, opt-in),
                  CachedProvider (CI4, opt-in decorator, v1.1)
-  Import/       (v1.1) ImportReport, ImporterRegistry (framework-free); ImportRunner (CI4-dependent);
-                 Importers/ — 5 bundled official-source importers (framework-free), see docs/importers.md
+  Import/       ImportReport, ImporterRegistry (framework-free); ImportRunner (CI4-dependent);
+                 Support/XlsxReader (v1.2, framework-free, ext-zip, read-only .xlsx reader);
+                 Importers/ — 30 bundled official-source importers (framework-free) + shared
+                 Importers/Concerns/ParsesSixBankMaster trait, see docs/importers.md
   Config/       Config\Iban ($cacheTtl added v1.1), Config\Services (service('iban') factory,
                  wraps CachedProvider when cacheTtl>0), Config\Registrar (CI4)
   Commands/     spark commands: iban:validate, iban:parse, iban:resolve, iban:update (CI4;
@@ -145,8 +166,8 @@ bin/            generate-registry.php — regenerates src/Registry/data/countrie
 docs/
   usage.md                                facade/helper/command API, ViolationCode table, national
                                             validators, resolve()/caching, Config\Iban reference
-  importers.md                            (v1.1) importer framework, iban:update reference, the 5
-                                            bundled importers, writing a custom importer
+  importers.md                            importer framework, iban:update reference, the 30 bundled
+                                            importers + coverage matrix, writing a custom importer
   formatting.md                           Electronic/Print/Anonymized format reference
   i18n.md                                 message i18n decision (English core, optional CI4 Language/)
   licensing.md                            data-licensing rationale for the registry
@@ -156,7 +177,7 @@ docs/
   superpowers/specs/2026-07-10-daycry-iban-v1-design.md   source design spec
   roadmap/2026-07-10-daycry-iban-v1/     spec.md, evaluation.md, improvement-plan.md, tasks.md
                                            (controller's own task-tracking; do not edit as "docs")
-CHANGELOG.md    Keep a Changelog history, starting at [1.0.0], [1.1.0] added 2026-07-11
+CHANGELOG.md    Keep a Changelog history, starting at [1.0.0], [1.1.0]/[1.2.0] added 2026-07-11
 ```
 
 ## Coding standards
@@ -189,7 +210,7 @@ CHANGELOG.md    Keep a Changelog history, starting at [1.0.0], [1.1.0] added 202
 - Helper (`helper('iban')`): `iban_validate()`, `iban_is_valid()`, `iban_parse()`, `iban_format()`,
   `iban_resolve()`, `bank_name()`, `bank_bic()`, `iban_country()`, `iban_valid()`.
 - Commands: `iban:validate`, `iban:parse`, `iban:resolve`, `iban:update` (functional since v1.1 —
-  lists/runs the 5 bundled importers via `ImporterRegistry`/`ImportRunner`, `--country`/`--source`/
+  lists/runs the 30 bundled importers via `ImporterRegistry`/`ImportRunner`, `--country`/`--source`/
   `--dry-run`/`--file` flags).
 - `Config\Iban`: `$provider` (`'null'|'database'|FQCN`), `$defaultFormat`, `$checkNationalByDefault`,
   `$dbGroup`, `$table`, `$cacheTtl` (v1.1, seconds; `0` disables `CachedProvider` wrapping).
