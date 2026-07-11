@@ -16,8 +16,15 @@ use Daycry\Iban\Providers\NullProvider;
  * provider overlay.
  *
  * Precedence when the provider supports the IBAN's country: `findByIban()`
- * is tried first; if it returns null, `findByBankCode()` is used as a
- * fallback. When given a string, it is parsed via {@see Parser::parse()}
+ * is tried first (an exact match on the IBAN's own bank + branch); if it
+ * returns null, `findByBankCode()` is used as a BANK-LEVEL fallback — the
+ * branch code is deliberately omitted (passed as `null`) so that an IBAN
+ * whose specific branch isn't stored still resolves to its bank when only a
+ * bank-level row (`branch_code IS NULL`) was seeded. This matters for every
+ * country whose IBAN carries a branch segment (e.g. ES/GR/HU/MT/PL/…) but
+ * whose bundled importer publishes bank-level rows only.
+ *
+ * When given a string, it is parsed via {@see Parser::parse()}
  * (which throws {@see \Daycry\Iban\Exceptions\InvalidIbanException} on
  * invalid input); when given an already-parsed {@see ParsedIban}, it is
  * used as-is without re-parsing.
@@ -42,7 +49,7 @@ final class Resolver implements ResolverInterface
                 ?? $this->provider->findByBankCode(
                     $parsed->countryCode,
                     $parsed->bankIdentifier,
-                    $parsed->branchIdentifier,
+                    null,
                 );
         }
 
