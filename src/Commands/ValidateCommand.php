@@ -6,7 +6,7 @@ namespace Daycry\Iban\Commands;
 
 use CodeIgniter\CLI\BaseCommand;
 use CodeIgniter\CLI\CLI;
-use Daycry\Iban\Config\Iban as IbanConfig;
+use Daycry\Iban\Config\Services;
 use Daycry\Iban\Iban as IbanService;
 
 /**
@@ -46,7 +46,7 @@ final class ValidateCommand extends BaseCommand
 
         $nationalOption = CLI::getOption('national');
         $checkNational  = $nationalOption === null
-            ? config(IbanConfig::class)->checkNationalByDefault
+            ? Services::config()->checkNationalByDefault
             : (bool) $nationalOption;
 
         $result    = $svc->validate($iban, $checkNational);

@@ -5,6 +5,23 @@ All notable changes to `daycry/iban` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-07-11
+
+### Fixed
+
+- **A published `app/Config/Iban.php` is now actually honored.** The package resolved its config by the
+  fully-qualified class name (`config(Daycry\Iban\Config\Iban::class)`), but CI4's `Factories` only
+  prefers the app's `Config\` namespace for a *non-namespaced* alias — so a published override
+  (`Config\Iban extends \Daycry\Iban\Config\Iban`, as written by `iban:publish` in 1.3.0) was silently
+  ignored and the package default always won. Every config read — `service('iban')`, `iban:update`,
+  `iban:validate`, and the helper's `$defaultFormat` / `$checkNationalByDefault` fallbacks — now
+  resolves through a single typed `Config\Services::config()` that requests the **short name** `'Iban'`,
+  so a published override wins (via CI4's `preferApp`) while the package default still applies when
+  nothing is published. (`.env` `iban.*` overrides were never affected and continue to work.) Added a
+  regression test.
+
+[1.3.1]: https://github.com/daycry/iban-calculator/compare/1.3.0...1.3.1
+
 ## [1.3.0] - 2026-07-11
 
 ### Added

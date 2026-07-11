@@ -53,17 +53,7 @@ class Services extends BaseService
             return $instance;
         }
 
-        // Equivalent to `config(IbanConfig::class)`, spelled out via the
-        // underlying `Factories` call: lets a consuming app's published
-        // `App\Config\Iban` override this package's default, while
-        // resolving through a real, PHPStan-visible method (the global
-        // `config()`/`helper()` functions live in a CI4 file this
-        // package's `phpstan.neon` doesn't scan).
-        $config = Factories::get('config', IbanConfig::class);
-
-        if (! $config instanceof IbanConfig) {
-            $config = new IbanConfig();
-        }
+        $config = self::config();
 
         $provider = match ($config->provider) {
             'null'     => new NullProvider(),
@@ -79,6 +69,35 @@ class Services extends BaseService
         }
 
         return new IbanService(new Registry(), $provider);
+    }
+
+    /**
+     * Resolves the effective {@see IbanConfig}, honoring a consuming app's
+     * published `app/Config/Iban.php` override.
+     *
+     * IMPORTANT — this resolves by the SHORT name `'Iban'`, NOT the package
+     * FQCN. CI4's {@see Factories::locateClass()} only prefers the app's
+     * `Config\` namespace for a *non-namespaced* alias; requesting
+     * `IbanConfig::class` (namespaced) always returns this package's own
+     * config and silently ignores a published `Config\Iban extends
+     * \Daycry\Iban\Config\Iban`. The short name lets that published override
+     * win (via `preferApp`), while still resolving the package default (via
+     * the file locator) when nothing is published. The FQCN lookup is a
+     * defensive fallback for any unexpected resolution.
+     */
+    public static function config(): IbanConfig
+    {
+        $config = Factories::get('config', 'Iban');
+
+        if ($config instanceof IbanConfig) {
+            return $config;
+        }
+
+        // Defensive fallback to the package's own config by FQCN, for any
+        // unexpected short-name resolution.
+        $config = Factories::get('config', IbanConfig::class);
+
+        return $config instanceof IbanConfig ? $config : new IbanConfig();
     }
 
     /**

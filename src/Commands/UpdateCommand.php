@@ -6,7 +6,7 @@ namespace Daycry\Iban\Commands;
 
 use CodeIgniter\CLI\BaseCommand;
 use CodeIgniter\CLI\CLI;
-use Daycry\Iban\Config\Iban as IbanConfig;
+use Daycry\Iban\Config\Services;
 use Daycry\Iban\Contracts\ImporterInterface;
 use Daycry\Iban\Import\ImporterRegistry;
 use Daycry\Iban\Import\ImportReport;
@@ -122,7 +122,7 @@ final class UpdateCommand extends BaseCommand
             return EXIT_SUCCESS;
         }
 
-        $config = config(IbanConfig::class);
+        $config = Services::config();
         $runner = new ImportRunner();
 
         foreach ($matches as $importer) {
@@ -153,7 +153,7 @@ final class UpdateCommand extends BaseCommand
             return EXIT_SUCCESS;
         }
 
-        $config = config(IbanConfig::class);
+        $config = Services::config();
         $runner = new ImportRunner();
 
         $withRows = 0;
