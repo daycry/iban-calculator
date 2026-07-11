@@ -13,8 +13,10 @@ use Daycry\Iban\Commands\ResolveCommand;
 use Daycry\Iban\Commands\UpdateCommand;
 use Daycry\Iban\Commands\ValidateCommand;
 use Daycry\Iban\Config\Iban as IbanConfig;
+use Daycry\Iban\Contracts\ImporterInterface;
 use Daycry\Iban\Core\Mod97;
 use Daycry\Iban\Enums\ViolationCode;
+use Daycry\Iban\Import\ImporterRegistry;
 
 /**
  * Exercises the 4 `daycry/iban` spark commands (T-41/42/43) through CI4's
@@ -503,6 +505,237 @@ final class CommandsTest extends CIUnitTestCase
         self::assertSame(EXIT_SUCCESS, $exit);
         self::assertStringContainsString('(dry-run — nothing written)', $output);
         self::assertSame(0, $this->db->table('banks')->countAllResults());
+    }
+
+    // -- iban:update --all (v1.2) ------------------------------------------
+
+    // The `--all` run loop is exercised against an INJECTED registry of fake
+    // importers (via `UpdateCommand::$registry`) rather than the 30 bundled
+    // ones. The bundled importers fetch their source live over the network --
+    // and several official sources ARE reachable from CI and return large
+    // payloads -- so a real `--all` run in the test suite would be
+    // non-deterministic, slow, and memory-heavy. Fakes make the selection,
+    // per-importer failure isolation, and aggregate-summary assertions exact
+    // and offline. (`ImporterRegistry`'s default catalog of 30 is covered by
+    // `tests/Import/ImporterRegistryTest.php`; `--all` selects it via
+    // `$registry->all()`.)
+
+    /**
+     * Builds an in-memory {@see ImporterRegistry} pre-populated ONLY with the
+     * given fakes (its default catalog is suppressed), so `--all` selects
+     * exactly these and nothing that touches the network.
+     */
+    private function registryOf(ImporterInterface ...$importers): ImporterRegistry
+    {
+        $registry = new class () extends ImporterRegistry {
+            protected function registerDefaults(): void
+            {
+                // Intentionally empty: keep the catalog to injected fakes only.
+            }
+        };
+
+        foreach ($importers as $importer) {
+            $registry->register($importer);
+        }
+
+        return $registry;
+    }
+
+    /**
+     * A framework-free fake {@see ImporterInterface}. When `$throws` is true
+     * its `rows()` raises, proving one importer failing doesn't abort the
+     * rest of an `--all` run; otherwise it yields `$rows` verbatim.
+     *
+     * @param list<array<string, mixed>> $rows
+     */
+    private function fakeImporter(string $country, string $source, bool $throws = false, array $rows = []): ImporterInterface
+    {
+        return new class ($country, $source, $throws, $rows) implements ImporterInterface {
+            /** @param list<array<string, mixed>> $rows */
+            public function __construct(
+                private readonly string $country,
+                private readonly string $source,
+                private readonly bool $throws,
+                private readonly array $rows,
+            ) {
+            }
+
+            public function countryCode(): string
+            {
+                return $this->country;
+            }
+
+            public function sourceId(): string
+            {
+                return $this->source;
+            }
+
+            public function sourceName(): string
+            {
+                return 'Fake ' . $this->source;
+            }
+
+            public function license(): string
+            {
+                return 'test-fixture (no license)';
+            }
+
+            public function sourceUrl(): string
+            {
+                return 'https://example.test/' . $this->source;
+            }
+
+            /**
+             * @return iterable<array<string, mixed>>
+             */
+            public function rows(?string $localFile = null): iterable
+            {
+                if ($this->throws) {
+                    throw new \RuntimeException('simulated source failure');
+                }
+
+                return $this->rows;
+            }
+        };
+    }
+
+    /**
+     * Runs `iban:update` with an injected registry, mirroring `runSpark()`'s
+     * argv seeding + `CLI::init()` reparse but constructing the command
+     * directly so `UpdateCommand::$registry` (the test seam) can be set --
+     * `service('commands')->run()` always news the command with the default
+     * registry, giving no injection point.
+     *
+     * @param list<string> $argv
+     *
+     * @return array{0: int, 1: string} [exitCode, captured STDOUT/STDERR]
+     */
+    private function runUpdateWith(array $argv, ImporterRegistry $registry): array
+    {
+        service('superglobals')->setServer('argv', array_merge(['spark'], $argv));
+        CLI::init();
+
+        $params = array_merge(CLI::getSegments(), CLI::getOptions());
+        array_shift($params);
+
+        $command           = new UpdateCommand(service('logger'), service('commands'));
+        $command->registry = $registry;
+
+        $this->resetStreamFilterBuffer();
+
+        $exitCode = $command->run($params);
+
+        return [$exitCode, $this->getStreamFilterBuffer()];
+    }
+
+    /**
+     * `--all --dry-run`: every selected importer runs, an aggregate summary
+     * reports how many produced rows / were empty / failed, and (dry-run)
+     * nothing is written. One fake throws -- the run still completes and the
+     * other two are reported, proving per-importer failure isolation.
+     */
+    public function testUpdateAllDryRunRunsEveryImporterIsolatesFailuresAndPrintsAggregateSummary(): void
+    {
+        $registry = $this->registryOf(
+            $this->fakeImporter('AT', 'fa', rows: [['bank_code' => '0001', 'name' => 'Fake AT Bank']]),
+            $this->fakeImporter('DE', 'fb'),           // no rows -> empty
+            $this->fakeImporter('CH', 'fc', throws: true),
+        );
+
+        [$exit, $output] = $this->runUpdateWith(['iban:update', '--all', '--dry-run'], $registry);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('SWIFT IBAN Registry', $output);
+        self::assertStringContainsString('[AT/fa]', $output);
+        self::assertStringContainsString('[DE/fb]', $output);
+        // The throwing importer is reported as a failure, not fatal.
+        self::assertStringContainsString('[CH/fc] failed: simulated source failure', $output);
+        self::assertStringContainsString(
+            'Ran 3 importers: 1 with rows, 1 empty, 1 failed. (dry-run)',
+            $output,
+        );
+        // --dry-run: the AT fake's row is counted but never written.
+        self::assertSame(0, $this->db->table('banks')->countAllResults());
+    }
+
+    /**
+     * Without `--dry-run`, `--all` really writes each surviving importer's
+     * rows; the throwing importer in the middle neither aborts the run nor
+     * prevents the importer after it from writing.
+     */
+    public function testUpdateAllWritesSurvivingImportersRowsDespiteAFailureInTheMiddle(): void
+    {
+        $registry = $this->registryOf(
+            $this->fakeImporter('AT', 'fa', rows: [['bank_code' => '0001', 'name' => 'Fake AT Bank']]),
+            $this->fakeImporter('DE', 'fb', throws: true),
+            $this->fakeImporter('CH', 'fc', rows: [['bank_code' => '0002', 'name' => 'Fake CH Bank']]),
+        );
+
+        [$exit, $output] = $this->runUpdateWith(['iban:update', '--all'], $registry);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('[DE/fb] failed: simulated source failure', $output);
+        self::assertStringContainsString(
+            'Ran 3 importers: 2 with rows, 0 empty, 1 failed.',
+            $output,
+        );
+        self::assertStringNotContainsString('(dry-run)', $output);
+        // Both surviving importers wrote their single row.
+        self::assertSame(2, $this->db->table('banks')->countAllResults());
+    }
+
+    /**
+     * `--all` combined with `--country` narrows the selection to
+     * {@see ImporterRegistry::forCountry()} instead of running every
+     * importer; `--source` is ignored under `--all`.
+     */
+    public function testUpdateAllWithCountryNarrowsToThatCountrysImportersOnly(): void
+    {
+        $registry = $this->registryOf(
+            $this->fakeImporter('GB', 'fgb', rows: [['bank_code' => 'AAAA', 'name' => 'Fake GB Bank']]),
+            $this->fakeImporter('AT', 'fat', rows: [['bank_code' => '0001', 'name' => 'Fake AT Bank']]),
+        );
+
+        [$exit, $output] = $this->runUpdateWith(['iban:update', '--all', '--country', 'GB', '--dry-run'], $registry);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('[GB/fgb]', $output);
+        self::assertStringNotContainsString('[AT/fat]', $output);
+        self::assertStringContainsString(
+            'Ran 1 importers: 1 with rows, 0 empty, 0 failed. (dry-run)',
+            $output,
+        );
+    }
+
+    /**
+     * `--all` cannot be combined with `--file`: a single local file can't
+     * feed multiple importers, so the command errors out (before any fetch)
+     * and exits non-zero. Uses the real dispatch path -- no fetch occurs.
+     */
+    public function testUpdateAllCannotBeCombinedWithFileAndExitsError(): void
+    {
+        [$exit, $output] = $this->runSpark(['iban:update', '--all', '--file', '/x']);
+
+        self::assertSame(EXIT_ERROR, $exit);
+        self::assertStringContainsString(
+            '--all cannot be combined with --file (a single local file cannot feed multiple importers).',
+            $output,
+        );
+    }
+
+    /**
+     * `--all` narrowed to a country with no registered importer hits the
+     * graceful "no match" notice (and never fetches).
+     */
+    public function testUpdateAllWithCountryHavingNoImporterReportsNoMatch(): void
+    {
+        [$exit, $output] = $this->runUpdateWith(
+            ['iban:update', '--all', '--country', 'ZZ'],
+            $this->registryOf($this->fakeImporter('AT', 'fa')),
+        );
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('No bundled importer matches that selection.', $output);
     }
 
     // -- Discovery -----------------------------------------------------------
