@@ -30,7 +30,13 @@ resolution — that is also usable **standalone**, outside of any framework.
   PhpSpreadsheet dependency), a `Resolver` bank-level fallback (`findByBankCode($cc, $bank, null)` when
   an exact IBAN match misses, so branch-carrying IBANs resolve against bank-level-only rows), a
   `SixImporter` fix (now filters `Country === 'CH'`, previously also imported Liechtenstein rows), and
-  two new runtime requirements, `ext-iconv` and `ext-zip`.
+  two new runtime requirements, `ext-iconv` and `ext-zip`. Since then: v1.3 added `iban:publish`; v1.4
+  added the opt-in iban.com fallback (`Config\Iban::$ibanComApiKey`, `Providers\IbanComProvider` +
+  `ChainProvider`); v2.0 made `$cacheTtl` `?int` (BREAKING — `null` now disables, `0` = never-expires)
+  and added `BankInfo::$resolvedBy` provenance; **v2.1** (see `CHANGELOG.md`'s `[2.1.0]`) added **BIC
+  (ISO 9362) validation/parsing/IBAN↔BIC cross-check/BIC-first resolution** and a framework-free **ISO
+  3166-1 country registry** (249 codes) to back it. The specific test/assertion counts below predate
+  these releases — trust `composer test`'s output, not the number.
 
 ## Layered architecture — the unidirectional dependency rule
 
@@ -38,29 +44,38 @@ The package is split into a framework-free core and a thin CodeIgniter 4 adapter
 flowing **one way only**:
 
 ```
-[ CI4 integration ]  Config, Services('iban'), iban_helper, spark commands
+[ CI4 integration ]  Config, Services('iban'/'isoCountries'), iban_helper, spark commands
         |  (thin adapter, no domain logic)
         v
 [ Resolver ]  ResolverInterface -> ProviderInterface (NullProvider | DatabaseProvider)
-        |     produces BankResult (composes ParsedIban + nullable bank data)
+        |     + optional BicProviderInterface (resolveBic); produces BankResult / BankInfo
         v
-[ Core ]  structural registry (in code) -> normalize/validate/parse/format
-          zero dependencies, usable outside CI4, produces ParsedIban / ValidationResult
+[ Core ]  IBAN: structural registry -> normalize/validate/parse/format -> ParsedIban
+          BIC (v2.1): ISO 3166-1 registry -> BicValidator/BicParser -> ParsedBic + IbanBicCrossChecker
+          zero dependencies, usable outside CI4, produces ParsedIban / ParsedBic / ValidationResult
 ```
 
 **Framework-free — must never import `codeigniter4/*` or reference `CodeIgniter\`:**
-- `src/Contracts` — seven interfaces (`ValidatorInterface`, `ParserInterface`, `ProviderInterface`,
+- `src/Contracts` — nine interfaces (`ValidatorInterface`, `ParserInterface`, `ProviderInterface`,
   `ResolverInterface`, `RegistryLoaderInterface`, `NationalCheckValidatorInterface`,
-  `ImporterInterface`, added v1.1).
-- `src/Core` — `Normalizer`, `Mod97`, `StructureCompiler`, `Validator`, `Parser`, `Formatter`.
-- `src/DTO` — `Violation`, `ValidationResult`, `ParsedIban`, `BankInfo`, `BankResult`. All
-  `final readonly`.
-- `src/Enums` — `ViolationCode` (backed `string` enum, 8 cases), `IbanFormat` (pure enum:
+  `ImporterInterface` (v1.1), `BicProviderInterface` (v2.1, optional/additive BIC resolution),
+  `IsoCountryLoaderInterface` (v2.1)).
+- `src/Core` — `Normalizer`, `Mod97`, `StructureCompiler`, `Validator`, `Parser`, `Formatter`; plus
+  (v2.1) `BicValidator`, `BicParser`, `IbanBicCrossChecker` (BIC has no checksum — "valid" = well-formed
+  + recognised ISO country; the cross-check compares the *bank* only for the 19 4-letter-alpha-bank-code
+  countries, derived at runtime from the registry).
+- `src/DTO` — `Violation`, `ValidationResult`, `ParsedIban`, `ParsedBic` (v2.1), `BankInfo`,
+  `BankResult`, `IsoCountry` (v2.1). All `final readonly`.
+- `src/Enums` — `ViolationCode` (backed `string` enum, 16 cases: 8 IBAN + 5 BIC + 2 cross-check +
+  `NothingToValidate`, the latter 8 added v2.1), `IbanFormat` (pure enum:
   `Electronic` / `Print` / `Anonymized`).
 - `src/Exceptions` — `IbanException` (`extends \RuntimeException`), `InvalidIbanException` (`final`,
-  carries the `ValidationResult` that caused a strict parse failure via `result()`).
-- `src/Registry` — `Registry`, `PhpRegistryLoader`, `CountryStructure`, plus the raw
-  `src/Registry/data/countries.php` data array (78 countries).
+  carries the `ValidationResult` via `result()`), `InvalidBicException` (v2.1, `final`, same shape —
+  thrown only by `BicParser::parse()`).
+- `src/Registry` — `Registry`, `PhpRegistryLoader`, `CountryStructure` + `data/countries.php` (78
+  countries); plus (v2.1) `IsoCountryRegistry`, `PhpIsoCountryLoader` + `data/iso_countries.php` (249
+  officially assigned ISO 3166-1 codes, independently authored — used by BIC validation, which must
+  recognise every BIC-issuing country, not just the ~78 IBAN ones).
 - `src/National` — country-specific national check-digit validators: `SpanishNationalCheckValidator`
   (ES, weighted mod-11), `BelgianNationalCheckValidator` (BE), `PortugueseNationalCheckValidator` (PT),
   `SlovenianNationalCheckValidator` (SI), `FinnishNationalCheckValidator` (FI),
@@ -69,45 +84,44 @@ flowing **one way only**:
   (see that map's docblock in `src/Core/Validator.php`).
 - `src/Resolver` — `Resolver` (composes `BankResult` from a `ParsedIban` + a `ProviderInterface`
   overlay; v1.2 added a bank-level fallback — `findByBankCode($cc, $bank, null)` when `findByIban()`
-  misses — so IBANs carrying a branch segment still resolve against bank-level-only rows); must stay
+  misses — so IBANs carrying a branch segment still resolve against bank-level-only rows; v2.1 added
+  `resolveBic()`, consulting the provider only when it implements `BicProviderInterface`); must stay
   usable without CI4, so it is guarded even though `DatabaseProvider` (a `ProviderInterface`
   implementation it can be handed) is not.
 
 **Allowed to depend on CI4 (kept as thin adapters, no domain logic):**
-- `src/Config` (`Config\Iban`, `Config\Services`, `Config\Registrar`), `src/Commands` (4 spark
-  commands), `src/Models` (`BankModel`), `src/Database` (Migrations/Seeds),
-  `src/Providers/DatabaseProvider`, `src/Helpers` (`iban_helper.php`).
+- `src/Config` (`Config\Iban`, `Config\Services` — now also `service('isoCountries')`, `Config\Registrar`),
+  `src/Commands` (6 spark commands, incl. `iban:bic` v2.1), `src/Models` (`BankModel`, `IsoCountryModel`
+  v2.1), `src/Database` (Migrations `CreateBanksTable`/`CreateIsoCountriesTable`, Seeds
+  `BanksSeeder`/`IsoCountriesSeeder`), `src/Providers/DatabaseProvider`, `src/Helpers` (`iban_helper.php`).
 - `src/Providers/NullProvider` stays framework-free by design (it is the default, zero-dependency
   provider) even though `Providers/` as a directory is not itself guarded — `DatabaseProvider` lives
   there too and does depend on CI4. `Providers/CachedProvider` (v1.1) also depends on CI4 (a
-  `CodeIgniter\Cache\CacheInterface`), same reasoning.
-- `src/Import` (v1.1, importer framework; v1.2 expanded it) is a **split directory, not itself
-  guarded**: `Contracts/ImporterInterface`, `Import/ImportReport`, `Import/ImporterRegistry`,
-  `Import/Support/XlsxReader` (v1.2) and all 30 bundled importers under `Import/Importers/` (including
-  the shared `Import/Importers/Concerns/ParsesSixBankMaster` trait) are written framework-free by
-  discipline (they fetch via plain `file_get_contents()`/`fgetcsv()`/`SimpleXMLElement`/`ZipArchive`,
-  never a CI4 HTTP client) — but `Import/ImportRunner` genuinely depends on CI4 (`Models\BankModel`),
-  which is why the whole `Import/` directory isn't in `GUARDED_DIRECTORIES`. Don't assume every file
-  under `Import/` is framework-free — check the individual file's own docblock, which states its
-  status explicitly. **Known gap**: `tests/Architecture/CoreIsFrameworkFreeTest.php`'s `GUARDED_FILES`
-  list still only enumerates v1.1's five importers (plus `ImporterRegistry.php`/`ImportReport.php`);
-  the 20 v1.2 national importers, `EpcRegisterImporter.php` and `Import/Support/XlsxReader.php` are
-  framework-free in practice but not yet added to that list — a follow-up, not a v1.2 blocker.
+  `CodeIgniter\Cache\CacheInterface`), same reasoning. `Providers/DatabaseIsoCountryLoader` (v2.1, the
+  DB-backed `IsoCountryLoaderInterface`) lives here — NOT beside `PhpIsoCountryLoader` in the guarded
+  `src/Registry/` — precisely because it depends on CI4 (`Models\IsoCountryModel`).
+- `src/Import` (v1.1, importer framework; v1.2 expanded it) is a **split directory**: the `Import/Importers/`
+  and `Import/Support/` subtrees ARE guarded recursively (all 30 bundled importers, the shared
+  `Import/Importers/Concerns/ParsesSixBankMaster` trait, and `Import/Support/XlsxReader`), and
+  `Import/ImporterRegistry` + `Import/ImportReport` are guarded as individual files — all framework-free
+  (they fetch via plain `file_get_contents()`/`fgetcsv()`/`SimpleXMLElement`/`ZipArchive`, never a CI4
+  HTTP client). Only `Import/ImportRunner` genuinely depends on CI4 (`Models\BankModel`), which is why
+  the top-level `Import/` directory isn't guarded as a whole. Check the individual file's own docblock,
+  which states its status explicitly.
 
 **This rule is enforced by a test**, not just convention: `tests/Architecture/CoreIsFrameworkFreeTest.php`
-scans `Core/`, `Contracts/`, `DTO/`, `Enums/`, `Exceptions/`, `Registry/`, `National/`, `Resolver/` for
-the strings `CodeIgniter\` and `codeigniter4`, and fails if either appears. It also scans a file-level
-`GUARDED_FILES` list for the same two files-can't-live-in-a-guarded-directory cases: `src/Iban.php` (the
-standalone facade), plus — since v1.1 — the framework-free half of the importer framework:
-`Import/ImporterRegistry.php`, `Import/ImportReport.php` and v1.1's 5 `Import/Importers/*Importer.php`
-classes (OeNB/Bundesbank/SIX/Betaalvereniging/Banco de España). `Import/ImportRunner.php` is
-intentionally **not** in `GUARDED_FILES` (it depends on CI4's `Models\BankModel`). As of v1.2,
-`GUARDED_FILES` has **not** been extended to the 20 new national importers, `EpcRegisterImporter.php`
-or `Import/Support/XlsxReader.php` — they're written framework-free by the same discipline (see each
-file's own docblock), but the guard test doesn't check them yet; treat this as an open follow-up, not
-as evidence they depend on CI4. It also carries two self-tests proving the detector isn't a trivial
-always-true/always-false stub. If you add a new guarded directory, extend `GUARDED_DIRECTORIES` in that
-test; for a single framework-free file outside a guarded directory, extend `GUARDED_FILES` instead.
+scans its `GUARDED_DIRECTORIES` — `Core/`, `Contracts/`, `DTO/`, `Enums/`, `Exceptions/`, `Registry/`,
+`National/`, `Resolver/`, `Import/Importers/`, `Import/Support/` — for the strings `CodeIgniter\` and
+`codeigniter4`, and fails if either appears. It also scans a file-level `GUARDED_FILES` list for the
+files-can't-live-in-a-guarded-directory cases: `src/Iban.php` (the standalone facade),
+`Import/ImporterRegistry.php` and `Import/ImportReport.php` (the framework-free files living directly
+under the un-guarded `Import/`). `Import/ImportRunner.php` is intentionally **not** guarded (it depends
+on CI4's `Models\BankModel`). The v2.1 additions need no guard-list change: the new `Core/`, `DTO/`,
+`Enums/`, `Exceptions/`, `Contracts/` and `Registry/` files are all covered by those already-guarded
+directories, and `DatabaseIsoCountryLoader` correctly lives in the un-guarded `src/Providers/`. It also
+carries two self-tests proving the detector isn't a trivial always-true/always-false stub. If you add a
+new guarded directory, extend `GUARDED_DIRECTORIES`; for a single framework-free file outside a guarded
+directory, extend `GUARDED_FILES`.
 
 Before adding any `use CodeIgniter\...` or CI4-only helper/function call, check which directory you're
 in. If it's one of the guarded ones, the dependency belongs one layer up instead.
@@ -138,28 +152,33 @@ platform resolution despite the missing lock file.
 
 ```
 src/
-  Contracts/    7 interfaces (framework-free), incl. ImporterInterface (v1.1)
-  Core/         algorithmic core: Normalizer, Mod97, StructureCompiler, Validator, Parser, Formatter
-  DTO/          final readonly value objects: Violation, ValidationResult, ParsedIban, BankInfo, BankResult
-  Enums/        ViolationCode (8 cases), IbanFormat (Electronic/Print/Anonymized)
-  Exceptions/   IbanException, InvalidIbanException
-  Registry/     Registry, PhpRegistryLoader, CountryStructure + data/countries.php (78 countries)
+  Contracts/    9 interfaces (framework-free): +BicProviderInterface, IsoCountryLoaderInterface (v2.1)
+  Core/         Normalizer, Mod97, StructureCompiler, Validator, Parser, Formatter; +BicValidator,
+                 BicParser, IbanBicCrossChecker (v2.1)
+  DTO/          final readonly VOs: Violation, ValidationResult, ParsedIban, ParsedBic (v2.1),
+                 BankInfo, BankResult, IsoCountry (v2.1)
+  Enums/        ViolationCode (16 cases: 8 IBAN + 8 BIC/cross-check/combined v2.1), IbanFormat
+  Exceptions/   IbanException, InvalidIbanException, InvalidBicException (v2.1)
+  Registry/     Registry, PhpRegistryLoader, CountryStructure + data/countries.php (78 countries);
+                 IsoCountryRegistry, PhpIsoCountryLoader + data/iso_countries.php (249 ISO codes, v2.1)
   National/     9 national check-digit validators (v1.1): ES, BE, PT, SI, FI, FR(+MC), IT(+SM)
-  Resolver/     Resolver — composes BankResult from ParsedIban + ProviderInterface
-  Providers/    NullProvider (framework-free, default), DatabaseProvider (CI4, opt-in),
-                 CachedProvider (CI4, opt-in decorator, v1.1)
+  Resolver/     Resolver — composes BankResult from ParsedIban + ProviderInterface; resolveBic() (v2.1)
+  Providers/    NullProvider (framework-free, default), DatabaseProvider (CI4; +findByBic v2.1),
+                 CachedProvider/ChainProvider/IbanComProvider (CI4; +findByBic v2.1),
+                 DatabaseIsoCountryLoader (CI4, opt-in ISO source, v2.1)
   Import/       ImportReport, ImporterRegistry (framework-free); ImportRunner (CI4-dependent);
                  Support/XlsxReader (v1.2, framework-free, ext-zip, read-only .xlsx reader);
                  Importers/ — 30 bundled official-source importers (framework-free) + shared
                  Importers/Concerns/ParsesSixBankMaster trait, see docs/importers.md
-  Config/       Config\Iban ($cacheTtl added v1.1), Config\Services (service('iban') factory,
-                 wraps CachedProvider when cacheTtl>0), Config\Registrar (CI4)
-  Commands/     spark commands: iban:validate, iban:parse, iban:resolve, iban:update (CI4;
-                 iban:update functional since v1.1, drives ImporterRegistry/ImportRunner)
-  Models/       BankModel (CI4)
-  Database/     Migrations/ (CreateBanksTable), Seeds/ (BanksSeeder, intentionally empty) (CI4)
-  Helpers/      iban_helper.php (CI4)
-  Iban.php      the public facade: Daycry\Iban\Iban, composes Validator -> Parser -> Resolver
+  Config/       Config\Iban (+$isoCountrySource/$isoCountryTable v2.1), Config\Services
+                 (service('iban') passes IsoCountryRegistry; +service('isoCountries') v2.1), Config\Registrar
+  Commands/     spark: iban:validate (+--bic v2.1), iban:parse, iban:resolve, iban:update,
+                 iban:publish, iban:bic (v2.1) (CI4)
+  Models/       BankModel (+findByBic v2.1), IsoCountryModel (v2.1) (CI4)
+  Database/     Migrations/ (CreateBanksTable, CreateIsoCountriesTable v2.1), Seeds/ (BanksSeeder
+                 empty, IsoCountriesSeeder v2.1) (CI4)
+  Helpers/      iban_helper.php — 16 fns (+7 BIC/combined v2.1) (CI4)
+  Iban.php      public facade Daycry\Iban\Iban: Validator->Parser->Resolver + BicValidator->BicParser
 tests/          mirrors src/ (PHPUnit, CIUnitTestCase where CI4 is involved)
 bin/            generate-registry.php — regenerates src/Registry/data/countries.php from an
                  independently authored fact source (annual refresh tooling)
@@ -167,7 +186,7 @@ docs/
   api-reference.md                        complete per-symbol API reference (facade/helper/config/
                                             DTOs/enums/exceptions/contracts/registry), code-verified
   usage.md                                facade/helper/command API, ViolationCode table, national
-                                            validators, resolve()/caching, Config\Iban reference
+                                            validators, BIC/SWIFT validation, resolve()/caching, Config\Iban
   importers.md                            importer framework, iban:update reference, the 30 bundled
                                             importers + coverage matrix, writing a custom importer
   formatting.md                           Electronic/Print/Anonymized format reference
@@ -179,7 +198,7 @@ docs/
   superpowers/specs/2026-07-10-daycry-iban-v1-design.md   source design spec
   roadmap/2026-07-10-daycry-iban-v1/     spec.md, evaluation.md, improvement-plan.md, tasks.md
                                            (controller's own task-tracking; do not edit as "docs")
-CHANGELOG.md    Keep a Changelog history, starting at [1.0.0], [1.1.0]/[1.2.0] added 2026-07-11
+CHANGELOG.md    Keep a Changelog history, [1.0.0] … [2.1.0] (2.1.0 = BIC/SWIFT + ISO 3166-1 registry)
 ```
 
 ## Coding standards
@@ -203,21 +222,31 @@ CHANGELOG.md    Keep a Changelog history, starting at [1.0.0], [1.1.0]/[1.2.0] a
 
 ## Public API surface (for quick reference)
 
-- Facade `Daycry\Iban\Iban` (also the default `service('iban')` return type): `validate(string|ParsedIban $iban, bool $checkNational = false): ValidationResult`,
-  `isValid(string|ParsedIban $iban): bool`, `normalize(string $iban): string`, `parse(string $iban): ParsedIban`
-  (throws `InvalidIbanException`), `tryParse(string $iban): ?ParsedIban`,
-  `format(string|ParsedIban $iban, IbanFormat $f = IbanFormat::Print): string`,
-  `resolve(string|ParsedIban $iban): BankResult`, plus sub-service accessors `validator()`, `parser()`,
-  `resolver()`.
-- Helper (`helper('iban')`): `iban_validate()`, `iban_is_valid()`, `iban_parse()`, `iban_format()`,
-  `iban_resolve()`, `bank_name()`, `bank_bic()`, `iban_country()`, `iban_valid()`.
-- Commands: `iban:validate`, `iban:parse`, `iban:resolve`, `iban:update` (functional since v1.1 —
-  lists/runs the 30 bundled importers via `ImporterRegistry`/`ImportRunner`, `--country`/`--source`/
-  `--dry-run`/`--file` flags).
+- Facade `Daycry\Iban\Iban` (also the default `service('iban')` return type). Constructor (v2.1) gained
+  a 3rd trailing, defaulted param: `__construct(Registry = new Registry(), ProviderInterface = new NullProvider(), IsoCountryRegistry = new IsoCountryRegistry())`.
+  IBAN: `validate(string|ParsedIban $iban, bool $checkNational = false): ValidationResult`,
+  `isValid(...): bool`, `normalize(string): string`, `parse(string): ParsedIban` (throws
+  `InvalidIbanException`), `tryParse(string): ?ParsedIban`,
+  `format(string|ParsedIban, IbanFormat = IbanFormat::Print): string`,
+  `resolve(string|ParsedIban): BankResult`. BIC (v2.1):
+  `validateBic(string|ParsedBic): ValidationResult`, `isValidBic(...): bool`, `normalizeBic(string): string`,
+  `parseBic(string): ParsedBic` (throws `InvalidBicException`), `tryParseBic(string): ?ParsedBic`,
+  `validateIbanAndBic(?string $iban, ?string $bic): ValidationResult`, `resolveBic(string|ParsedBic): ?BankInfo`.
+  Sub-service accessors: `validator()`, `parser()`, `resolver()`, `bicValidator()`, `bicParser()`.
+- Helper (`helper('iban')`), 16 fns: IBAN — `iban_validate()`, `iban_is_valid()`, `iban_parse()`,
+  `iban_format()`, `iban_resolve()`, `bank_name()`, `bank_bic()`, `iban_country()`, `iban_valid()`;
+  BIC (v2.1) — `bic_validate()`, `bic_is_valid()`, `bic_parse()`, `bic_format()`, `bic_resolve()`,
+  `bic_bank_name()`, `iban_bic_validate()`.
+- Commands (6): `iban:validate` (v2.1 `--bic=<bic>`, `<iban>` then optional), `iban:parse`,
+  `iban:resolve`, `iban:update` (lists/runs the 30 bundled importers via `ImporterRegistry`/`ImportRunner`,
+  `--all`/`--country`/`--source`/`--dry-run`/`--file`), `iban:publish`, `iban:bic <bic> [--json]` (v2.1).
 - `Config\Iban`: `$provider` (`'null'|'database'|FQCN`), `$defaultFormat`, `$checkNationalByDefault`,
-  `$dbGroup`, `$table`, `$cacheTtl` (v1.1, seconds; `0` disables `CachedProvider` wrapping).
+  `$dbGroup`, `$table`, `$cacheTtl` (`?int`; `null` disables caching, `0` = never-expires),
+  `$ibanComApiKey`/`$ibanComTimeout`, and (v2.1) `$isoCountrySource` (`'php'|'database'`) / `$isoCountryTable`.
 - `Contracts\ImporterInterface` (v1.1): `countryCode()`, `sourceId()`, `sourceName()`, `license()`,
   `sourceUrl()`, `rows(?string $localFile = null): iterable` — see `docs/importers.md`.
+- `Contracts\BicProviderInterface` (v2.1, optional/additive): `findByBic(string $bic): ?BankInfo`.
+- `Contracts\IsoCountryLoaderInterface` (v2.1): `load(): array` — see `docs/api-reference.md`.
 
 See `docs/api-reference.md` for the complete per-symbol reference, and `docs/usage.md` for the
 task-oriented guide with examples verified against the code.
