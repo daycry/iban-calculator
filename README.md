@@ -103,6 +103,8 @@ bank_bic('ES9121000418450200051332');                      // null, same reason
 
 ```bash
 php spark iban:validate "ES91 2100 0418 4502 0005 1332" --national
+php spark iban:validate GB29NWBK60161331926819 --bic=NWBKGB2L   # combined IBAN + BIC cross-check
+php spark iban:bic NWBKGB2L                     # validate/parse a BIC on its own
 php spark iban:parse ES9121000418450200051332 --json
 php spark iban:resolve ES9121000418450200051332
 php spark iban:update                          # lists the 30 bundled importers
@@ -123,7 +125,7 @@ the 8 `ViolationCode` cases, the national validators, caching, and the `Config\I
 - **BIC / SWIFT validation (ISO 9362)**: validate, parse (`ParsedBic`), and — given both an IBAN and a BIC — cross-check them for country and (where structurally possible) bank coherence, plus optional BIC-first bank resolution (`resolveBic()`). Country codes are checked against a bundled 249-code ISO 3166-1 registry, so BICs from non-IBAN countries (US, JP, …) validate too. A BIC has no checksum, so "valid" means *well-formed + recognised country*, never "this BIC exists". Works standalone, no database. See [`docs/usage.md`](docs/usage.md#validating-a-bicswift).
 - **30 bundled bank-data importers**, none of them bundling any actual data: `iban:update` lists/runs official-source importers for 25 countries (AT, DE, CH, NL, ES, CZ, GR, SI, SK, BG, MD, PL, AZ, BE, HR, LU, MT, HU, NO, GE, IL, UA, KZ, LI, BR) plus the EPC SEPA Register, which covers GB, GI, IE, LV and RO and also reports SEPA reachability (SCT/SCT Inst/SDD Core/SDD B2B) — live or from a local `--file`. 24 of 42 SEPA countries now resolve. See [`docs/importers.md`](docs/importers.md) for the full list and coverage matrix.
 - **Zero-dependency core**: `Daycry\Iban\Iban` and everything under `Core/`, `Contracts/`, `DTO/`, `Enums/`, `Exceptions/`, `Registry/`, `National/`, `Resolver/` never import CodeIgniter — usable in a plain `php -r` script, a CLI tool, or any other framework. (The package as a whole additionally requires `ext-mbstring`, `ext-iconv` and `ext-zip`, used by the bundled importers to normalize source encodings and read `.xlsx` sources.)
-- **First-class CI4 integration**: `service('iban')`, `helper('iban')`, `Config\Iban`, and 4 spark commands (`iban:validate`, `iban:parse`, `iban:resolve`, `iban:update`) — auto-discovered, no manual wiring required.
+- **First-class CI4 integration**: `service('iban')`, `helper('iban')`, `Config\Iban`, and 6 spark commands (`iban:validate`, `iban:parse`, `iban:resolve`, `iban:update`, `iban:publish`, `iban:bic`) — auto-discovered, no manual wiring required.
 
 ## Standalone usage (outside CodeIgniter 4)
 

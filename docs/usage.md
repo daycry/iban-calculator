@@ -743,6 +743,7 @@ VALID
 
 $ php spark iban:validate GB29NWBK60161331926819 --bic=DEUTDEFF   # both + cross-check
 INVALID: bic_iban_country_mismatch - The BIC country code does not match the IBAN country code.
+INVALID: bic_iban_bank_mismatch - The BIC institution code does not match the IBAN bank code.
 
 $ php spark iban:validate --bic=NWBKGB2L --json
 {
