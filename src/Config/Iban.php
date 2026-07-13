@@ -113,4 +113,31 @@ class Iban extends BaseConfig
      * {@see self::$ibanComApiKey} is non-empty.
      */
     public int $ibanComTimeout = 5;
+
+    /**
+     * Source for the ISO 3166-1 country registry
+     * ({@see \Daycry\Iban\Registry\IsoCountryRegistry}), used by BIC
+     * validation to recognise a BIC's country code.
+     *
+     * - `'php'` (the default) — the bundled compiled list
+     *   ({@see \Daycry\Iban\Registry\PhpIsoCountryLoader}). Zero dependencies:
+     *   no database, no configuration, works standalone.
+     * - `'database'` — read the `iso_countries` table via
+     *   {@see \Daycry\Iban\Providers\DatabaseIsoCountryLoader}. This requires
+     *   the `CreateIsoCountriesTable` migration to have run AND the table to
+     *   be populated (e.g. `php spark db:seed
+     *   "Daycry\Iban\Database\Seeds\IsoCountriesSeeder"`); an empty/missing
+     *   table yields an empty registry. Only useful if you want to curate the
+     *   country set in the database instead of using the compiled list.
+     *
+     * Any value other than `'database'` is treated as `'php'`.
+     */
+    public string $isoCountrySource = 'php';
+
+    /**
+     * The table name queried when {@see self::$isoCountrySource} is
+     * `'database'`, via {@see \Daycry\Iban\Providers\DatabaseIsoCountryLoader}
+     * / {@see \Daycry\Iban\Models\IsoCountryModel}.
+     */
+    public string $isoCountryTable = 'iso_countries';
 }
