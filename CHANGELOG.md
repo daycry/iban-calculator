@@ -5,6 +5,83 @@ All notable changes to `daycry/iban` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-07-13
+
+Additive release: **BIC / SWIFT (ISO 9362) validation, parsing, IBAN↔BIC cross-checking and BIC-first
+bank resolution**, backed by a new, framework-free ISO 3166-1 country registry. Like the IBAN core, all
+of it works standalone with zero config and no database. **A BIC carries no checksum** (unlike an IBAN's
+MOD-97 digits), so a "valid" BIC only means *well-formed with a recognised country code* — never "this
+BIC exists on the SWIFT network".
+
+### Added
+
+- **BIC validation & parsing (framework-free core)**: `Core\BicValidator` (fixed, short-circuiting
+  pipeline: blank → bad length → illegal characters → malformed structure → unknown country; never
+  throws), `Core\BicParser` (validates then slices; `parse()` throws, `tryParse()` returns `null`), and
+  the `DTO\ParsedBic` value object (`bic`, `institutionCode`, `countryCode`, `locationCode`,
+  `?branchCode`; `isPrimaryOffice()`, `bic8()`, `__toString()`). A BIC's country code (positions 5-6) is
+  checked against the full ISO 3166-1 set (see below), **not** the ~78-country IBAN registry, so BICs
+  from non-IBAN countries (US, JP, CN, …) validate; the user-assigned code `XK` (Kosovo) is accepted too.
+- **IBAN↔BIC cross-check**: `Core\IbanBicCrossChecker::check()` returns coherence `Violation`s for a
+  parsed IBAN + parsed BIC. The country codes are always compared; the *bank* is compared only for the
+  19 countries whose IBAN bank-code segment is exactly the BIC's 4-letter institution prefix (`AZ`, `BG`,
+  `BH`, `GB`, `GI`, `IE`, `IQ`, `JO`, `KW`, `LC`, `LV`, `MT`, `NL`, `PK`, `PS`, `QA`, `RO`, `SV`, `VG` —
+  derived at runtime from the registry, not hardcoded). For numeric-bank-code countries (ES/DE/FR/…) only
+  the country can be cross-checked structurally.
+- **Facade BIC API** on `Daycry\Iban\Iban`: `validateBic()`, `isValidBic()`, `normalizeBic()`,
+  `parseBic()`, `tryParseBic()`, `validateIbanAndBic(?string $iban, ?string $bic)` (the "one, the other,
+  or both" entry point, incl. the cross-check), `resolveBic()`, plus the `bicValidator()` / `bicParser()`
+  sub-service accessors.
+- **`Exceptions\InvalidBicException`** (`final`, extends `IbanException`): the BIC analogue of
+  `InvalidIbanException`, carrying the failing `ValidationResult` via `result()`; thrown only by
+  `BicParser::parse()` / `Iban::parseBic()`.
+- **BIC-first resolution**: `Resolver::resolveBic()` / `Iban::resolveBic()` resolve a bank straight from a
+  BIC (BIC8 prefix match), returning `null` (never throwing) on a malformed BIC or an unresolved lookup.
+  New **optional, additive** `Contracts\BicProviderInterface` (`findByBic()`) — deliberately a separate
+  interface, not a method on `ProviderInterface`, so no existing provider breaks. Implemented by
+  `DatabaseProvider` (indexed `banks.bic` lookup, via new `BankModel::findByBic()`), `ChainProvider`,
+  `CachedProvider` (distinct `iban_bic_` cache-key namespace), and `IbanComProvider` (iban.com's separate
+  BIC/SWIFT Validation API, opt-in with an API key). The default `NullProvider` doesn't implement it, so
+  BIC resolution degrades gracefully to `null`.
+- **ISO 3166-1 country registry (framework-free)**: `Registry\IsoCountryRegistry` (`has()`/`get()`/
+  `all()`/`count()`/`VERSION`), the default `Registry\PhpIsoCountryLoader` (bundled compiled list of the
+  **249 officially assigned** alpha-2 codes, independently authored from public facts — see
+  [`docs/licensing.md`](docs/licensing.md)), the `DTO\IsoCountry` value object, and the
+  `Contracts\IsoCountryLoaderInterface` seam. An optional database source is provided too:
+  `Providers\DatabaseIsoCountryLoader` (+ `Models\IsoCountryModel`, the `CreateIsoCountriesTable`
+  migration, and `Database\Seeds\IsoCountriesSeeder`), selected via `Config\Iban::$isoCountrySource`. The
+  DB loader lives under `src/Providers/` (not `src/Registry/`) precisely because `src/Registry/` is a
+  framework-free guarded directory.
+- **CI4 wiring**: new `Config\Iban::$isoCountrySource` (`'php'` default, or `'database'`) and
+  `$isoCountryTable` (`'iso_countries'`); new `Config\Services::isoCountries()` service (`service('isoCountries')`),
+  which `Services::iban()` passes to the facade as its third argument.
+- **Helper functions** (`helper('iban')`): `bic_validate()`, `bic_is_valid()`, `bic_parse()`,
+  `bic_format()` (normalize only), `bic_resolve()`, `bic_bank_name()`, and `iban_bic_validate()` — all
+  degradation-safe (none throw).
+- **Spark commands**: new `iban:bic <bic> [--json]` (validate + parse + resolve; exit 0/1 on validity),
+  and `iban:validate` gained `--bic=<bic>` (with `<iban>` now optional) for the three modes IBAN-only /
+  BIC-only / both-with-cross-check. Without `--bic`, `iban:validate` is byte-identical to before (same
+  singular-`violation` JSON shape).
+- **Docs**: a "Validating a BIC/SWIFT" section in [`docs/usage.md`](docs/usage.md), full per-symbol
+  coverage in [`docs/api-reference.md`](docs/api-reference.md), and the BIC/ISO layer in
+  [`docs/architecture.md`](docs/architecture.md).
+
+### Changed
+
+- **`ViolationCode` gained 8 cases** (BACKWARD-COMPATIBLE, but note): `BicBlank`, `BicBadLength`,
+  `BicIllegalCharacters`, `BicMalformedStructure`, `BicUnknownCountry` (BIC validation),
+  `BicIbanCountryMismatch`, `BicIbanBankMismatch` (cross-check), and `NothingToValidate` (combined entry
+  point). These are additive, but a consumer doing an **exhaustive `match` on `ViolationCode`** (no
+  `default` arm) must add arms for the new cases or it will hit an `\UnhandledMatchError`. Backing values
+  are unchanged for the original 8.
+- **`Daycry\Iban\Iban` constructor gained a third parameter** `IsoCountryRegistry $isoCountries = new IsoCountryRegistry()`.
+  It is **last and defaulted**, so existing `new Iban(...)` / `new Iban($registry, $provider)` calls are
+  unaffected.
+- **`Resolver` constructor gained a third parameter** `BicValidator $bicValidator = new BicValidator()`
+  (last, defaulted — BC-safe); `ResolverInterface` is unchanged.
+
+[2.1.0]: https://github.com/daycry/iban-calculator/compare/2.0.0...2.1.0
+
 ## [2.0.0] - 2026-07-12
 
 ### Changed

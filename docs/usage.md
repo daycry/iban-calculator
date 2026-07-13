@@ -1,6 +1,6 @@
 # Usage
 
-Task-oriented guide for `daycry/iban`, current through v1.2. Every example on this page has been run
+Task-oriented guide for `daycry/iban`, current through v2.1. Every example on this page has been run
 against the real code (see `tests/` for the source of truth these examples are drawn from). For the
 exhaustive per-symbol reference — every facade method, helper function, config property, DTO field,
 enum case, exception, and contract — see [`docs/api-reference.md`](api-reference.md).
@@ -10,6 +10,7 @@ enum case, exception, and contract — see [`docs/api-reference.md`](api-referen
 - [National check-digit validators](#national-check-digit-validators)
 - [Parsing](#parsing)
 - [Formatting](#formatting)
+- [Validating a BIC/SWIFT](#validating-a-bicswift)
 - [Resolving bank data: `NullProvider` vs `DatabaseProvider`](#resolving-bank-data-nullprovider-vs-databaseprovider)
 - [Caching resolved lookups: `CachedProvider`](#caching-resolved-lookups-cachedprovider)
 - [iban.com fallback: `IbanComProvider` + `ChainProvider`](#ibancom-fallback-ibancomprovider--chainprovider)
@@ -203,6 +204,190 @@ $parsed->format(\Daycry\Iban\Enums\IbanFormat::Print); // 'ES91 2100 0418 4502 0
 See [`docs/formatting.md`](formatting.md) for the full reference, including the exact `Anonymized`
 mask scheme.
 
+## Validating a BIC/SWIFT
+
+Added in v2.1. A **BIC** (ISO 9362, a.k.a. SWIFT code) is the 8- or 11-character bank identifier
+(`AAAABBCC` or `AAAABBCCDDD`: 4-letter institution + 2-letter country + 2-char location + optional
+3-char branch). The library validates, parses, and — given both an IBAN and a BIC — cross-checks them.
+Like the IBAN core, **BIC validation works standalone with zero config and no database.**
+
+Two honest limits, up front:
+
+1. **A BIC has no checksum.** Unlike an IBAN's MOD-97 check digits, a BIC carries nothing you can
+   arithmetically verify. So "valid" here means only *well-formed + its country code is a recognised
+   ISO 3166-1 code* — it can **never** mean "this BIC exists / is live on the SWIFT network". Confirming
+   a BIC is real needs a directory lookup (see [BIC resolution](#bic-resolution-needs-a-populated-banks-table)),
+   not validation.
+2. **The structural bank cross-check is only possible for some countries.** When you validate an IBAN
+   *and* a BIC together, the country codes are always compared. But comparing the *bank* is only
+   structurally sound for countries whose IBAN bank-code segment is exactly the BIC's 4-letter
+   institution prefix. Against the current registry that's these **19** countries:
+   `AZ, BG, BH, GB, GI, IE, IQ, JO, KW, LC, LV, MT, NL, PK, PS, QA, RO, SV, VG`. For every other
+   country (ES, DE, FR, … — whose IBAN bank code is *numeric*) there is no structural relationship
+   between the IBAN digits and the BIC letters, so only the country is cross-checked, never the bank.
+
+### Mode 1 — validate a BIC on its own
+
+```php
+use Daycry\Iban\Iban;
+
+$iban = new Iban(); // zero-config, no database
+
+$iban->isValidBic('CAIXESBBXXX');   // true  (11-char, branch 'XXX')
+$iban->isValidBic('DEUTDEFF');       // true  (8-char)
+$iban->isValidBic('CHASUS33');       // true  (US — has no IBAN, but a perfectly valid BIC)
+$iban->isValidBic('DEUTDEFF5');      // false (length is 9 — must be 8 or 11)
+
+$result = $iban->validateBic('DEUTDEFF5'); // never throws
+$result->isValid();                          // false
+$result->firstViolation()->code;             // ViolationCode::BicBadLength
+$result->firstViolation()->code->value;      // 'bic_bad_length'
+$result->firstViolation()->messageKey;       // 'bic.violation.bad_length'
+```
+
+Parse a well-formed BIC into its structural parts:
+
+```php
+$bic = $iban->parseBic('NWBKGB2L');   // throws InvalidBicException if malformed
+$bic->institutionCode;                 // 'NWBK'
+$bic->countryCode;                     // 'GB'
+$bic->locationCode;                    // '2L'
+$bic->branchCode;                      // null (8-char BIC)
+$bic->isPrimaryOffice();               // true
+$bic->bic8();                          // 'NWBKGB2L'
+
+$maybe = $iban->tryParseBic('nope');   // null instead of throwing
+$iban->normalizeBic(' deutde ff ');    // 'DEUTDEFF'  (strip whitespace + uppercase; does not validate)
+```
+
+The BIC validation pipeline short-circuits on the first failure and reports one violation via a
+`ViolationCode` case whose `->value` carries a `bic_` prefix so you can tell which field failed:
+
+| `ViolationCode` | `->value` | Triggered when |
+|---|---|---|
+| `BicBlank` | `bic_blank` | Empty after normalization. |
+| `BicBadLength` | `bic_bad_length` | Length is not exactly 8 or 11. |
+| `BicIllegalCharacters` | `bic_illegal_characters` | A character outside `[A-Z0-9]` remains. |
+| `BicMalformedStructure` | `bic_malformed_structure` | Right length/charset, wrong char class per position. |
+| `BicUnknownCountry` | `bic_unknown_country` | Positions 5-6 aren't a recognised ISO 3166-1 code (the full ~249-code set, plus `XK`). |
+
+> **Country codes:** a BIC's country (positions 5-6) is checked against the full ISO 3166-1 set (249
+> officially assigned codes) — **not** the ~78 IBAN countries — so BICs from non-IBAN countries (US, JP,
+> CN, …) validate. Kosovo's user-assigned `XK` is accepted too (real XK BICs exist); no other non-ISO
+> code (`UK`/`EU`/`EL`/…) is.
+
+### Mode 2 — validate an IBAN on its own
+
+Nothing new here — this is just [`validate()` / `isValid()`](#validation-and-the-8-violationcode-cases)
+from earlier in this guide.
+
+### Mode 3 — validate both, with the cross-check
+
+`validateIbanAndBic(?string $iban, ?string $bic)` is the "one, the other, or both" entry point. When
+both are supplied **and each is individually valid**, it also cross-checks them for mutual coherence
+(country always; bank only for the 19 countries above). It never throws.
+
+```php
+// Both valid AND coherent → valid, no violations
+$iban->validateIbanAndBic('GB29NWBK60161331926819', 'NWBKGB2L')->isValid();   // true
+
+// Country mismatch: a GB IBAN with a DE BIC
+$r = $iban->validateIbanAndBic('GB29NWBK60161331926819', 'DEUTDEFF');
+$r->isValid();                                   // false
+$r->firstViolation()->code;                      // ViolationCode::BicIbanCountryMismatch
+
+// Bank mismatch (GB is one of the 19 alpha-bank-code countries): same country, wrong institution
+$r = $iban->validateIbanAndBic('GB29NWBK60161331926819', 'BARCGB22');
+$r->firstViolation()->code;                      // ViolationCode::BicIbanBankMismatch
+
+// ES uses a NUMERIC bank code → the bank is NOT cross-checked, only the country:
+$iban->validateIbanAndBic('ES9121000418450200051332', 'CAIXESBBXXX')->isValid(); // true (country ES == ES; bank not compared)
+
+// Neither supplied → a single NothingToValidate violation
+$iban->validateIbanAndBic(null, '  ')->firstViolation()->code;  // ViolationCode::NothingToValidate
+```
+
+Two things to note. First, when both are supplied but one is structurally invalid, the cross-check is
+**skipped** — you get that value's own violations only, never a manufactured mismatch. Second, unlike the
+single-IBAN pipeline, this can return **more than one** violation at once (e.g. an invalid IBAN *and* an
+invalid BIC, or both cross-check failures).
+
+### With the helper
+
+```php
+helper('iban');
+
+bic_is_valid('CAIXESBBXXX');            // true
+bic_validate('DEUTDEFF5');               // ValidationResult (never throws)
+bic_parse('NWBKGB2L');                   // ?ParsedBic (null if malformed — uses tryParseBic())
+bic_format('  deutde ff ');              // 'DEUTDEFF'  (normalize only; does not validate)
+iban_bic_validate('GB29NWBK60161331926819', 'NWBKGB2L'); // ValidationResult, incl. cross-check
+iban_bic_validate(null, null);           // ValidationResult with a single NothingToValidate
+
+// Resolution (needs a BIC-aware provider + populated banks table — see below):
+bic_resolve('DEUTDEFF');                 // ?BankInfo  (null with the default NullProvider)
+bic_bank_name('DEUTDEFF');               // ?string
+```
+
+Every BIC helper is degradation-safe — none of them throw (there is no BIC equivalent of the throwing
+`iban_resolve()`).
+
+### With the CLI
+
+Two entry points. `iban:bic` is BIC-only (validate + parse + resolve); `iban:validate --bic` covers all
+three modes.
+
+```bash
+# Dedicated BIC command — validates, parses, and (if a provider can) resolves.
+$ php spark iban:bic NWBKGB2L
+# → a Field/Value table; exit 0 for a valid BIC, 1 otherwise.
+
+$ php spark iban:bic DEUTDEFF5 --json
+{
+    "valid": false,
+    "violation": { "code": "bic_bad_length", "message": "The BIC must be 8 or 11 characters long." }
+}
+
+# iban:validate with --bic switches to the combined entry point. The <iban> arg is now OPTIONAL.
+$ php spark iban:validate --bic=NWBKGB2L                         # BIC only (no IBAN)
+$ php spark iban:validate GB29NWBK60161331926819 --bic=NWBKGB2L   # both + cross-check
+$ php spark iban:validate GB29NWBK60161331926819                  # IBAN only (no --bic; byte-identical to before)
+```
+
+Without `--bic`, `iban:validate` behaves exactly as it always has (single-violation output, singular
+`"violation"` JSON key). With `--bic`, the combined mode can print multiple violations and uses a plural
+`"violations"` JSON array. Both `iban:bic` and `iban:validate` exit `0` when valid, `1` otherwise — safe
+to use directly in shell scripts/CI. See [spark commands](#spark-commands) for the full flag reference.
+
+### Choosing the ISO 3166 source
+
+BIC country-code validation reads from an `IsoCountryRegistry`. By default this is the **bundled compiled
+list** — zero setup, no database — and that's what you want in almost every case:
+
+```php
+// Config\Iban (default)
+public string $isoCountrySource = 'php';        // the compiled list; nothing to install
+```
+
+You can instead read the country set from a database table, `iso_countries`:
+
+```php
+// app/Config/Iban.php
+public string $isoCountrySource = 'database';
+public string $isoCountryTable  = 'iso_countries';
+```
+
+```bash
+php spark migrate -n "Daycry\Iban"                                          # creates iso_countries
+php spark db:seed "Daycry\Iban\Database\Seeds\IsoCountriesSeeder"           # populates it from the compiled list
+```
+
+The seeder upserts on the unique `alpha2` column, so it's safe to re-run. An empty/missing table yields
+an **empty** registry (every BIC would then fail with `BicUnknownCountry`), so only switch to `'database'`
+after seeding. **When would you want this at all?** Rarely — only if you need to *curate* the accepted
+country set in the database (add or remove codes) rather than accept the bundled 249. Any
+`$isoCountrySource` value other than `'database'` is treated as `'php'`.
+
 ## Resolving bank data: `NullProvider` vs `DatabaseProvider`
 
 `resolve()` always returns a `BankResult` — a `ParsedIban` plus 12 nullable bank-data fields
@@ -290,6 +475,50 @@ $bank->bic;          // e.g. 'CAIXESBBXXX'
 `DatabaseProvider::supports()` always returns `true` (it queries any country and simply returns `null`
 when nothing is seeded), so the resolver never skips the lookup outright the way it would for a
 provider scoped to specific countries.
+
+### BIC resolution needs a populated `banks` table
+
+`resolveBic(string|ParsedBic $bic): ?BankInfo` (on both the facade and the `Resolver`) resolves a bank
+straight from a BIC. It's the resolution counterpart to BIC *validation* — and it comes with the same
+honest caveat: a BIC has no checksum, so this can only ever return data the configured provider actually
+holds; it is not a proof of existence.
+
+Two conditions must both hold for `resolveBic()` to return a non-null `BankInfo`:
+
+1. **A BIC-aware provider.** `resolveBic()` consults the provider only if it implements
+   [`BicProviderInterface`](../src/Contracts/BicProviderInterface.php). The default `NullProvider`
+   does **not**, so out of the box `resolveBic()` always returns `null`. The providers that DO support
+   it are `DatabaseProvider` (local `banks` table), `ChainProvider`, `CachedProvider` (both delegate to
+   their inner provider iff it's BIC-aware), and `IbanComProvider` (via the iban.com BIC/SWIFT API,
+   opt-in with an API key). A malformed BIC short-circuits to `null` without ever touching the provider.
+
+2. **BIC data in the `banks` table** (for the `DatabaseProvider` path). The `banks` table ships empty;
+   you populate it with `iban:update` (see [Bank-data importers](#bank-data-importers-ibanupdate)), and
+   only importers whose source *publishes a BIC column* fill `banks.bic`. Matching is by **BIC8** (the
+   first 8 characters — the institution's primary office), so an 8-char query resolves an 11-char stored
+   row and vice-versa; input is normalized (uppercased, whitespace-stripped) first.
+
+**Which bundled importers actually supply BICs.** Of the 30 bundled importers, these populate `banks.bic`
+(so `resolveBic()` can find a bank from their data): **CH & LI** (`six`), **DE** (`bundesbank`), **NL**
+(`betaalvereniging`), **BE** (`nbb`), **CZ** (`cnb`), **SK** (`nbs`), **SI** (`bsi`), **HR** (`hnb`),
+**HU** (`mnb`), **MT** (`cbm`), **BG** (`bnb`), **AZ** (`cbar`), **MD** (`bnm`), **NO** (`bits`),
+**GE** (`nbg`), **KZ** (`nbk`), **LU** (`abbl`), and the **EPC SEPA Register** (`epc`, for GB/GI/IE/LV/RO —
+whose IBAN bank code IS the BIC prefix). The remaining importers publish only a bank code with **no** BIC
+column, so their rows can't answer a `resolveBic()` lookup: **AT** (`oenb`), **ES** (`bde`), **GR** (`hba`),
+**PL** (`nbp`), **IL** (`boi`), **UA** (`nbu`), and **BR** (`bcb`). (These datasets still resolve fine by
+*IBAN* via `resolve()` — they just don't carry the BIC needed for the reverse, BIC-first lookup.) See the
+[bundled-importer table in `docs/importers.md`](importers.md#the-30-bundled-importers) for each source's
+full column layout.
+
+```php
+// Default NullProvider — resolveBic() always null, no matter the BIC:
+(new Iban())->resolveBic('DEUTDEFF');   // null
+
+// With Config\Iban::$provider = 'database' and a DE row seeded (e.g. via `iban:update --source=bundesbank`):
+$info = service('iban')->resolveBic('DEUTDEFF');   // ?BankInfo
+$info?->bankName;                                    // e.g. 'Deutsche Bank'
+$info?->resolvedBy;                                  // 'database'
+```
 
 ## Caching resolved lookups: `CachedProvider`
 
@@ -436,6 +665,8 @@ property is overridable via `.env` using the `iban.<property>` prefix, e.g. `iba
 | `$cacheTtl` | `null` | Cache TTL, in seconds, for resolved bank lookups (see [`CachedProvider`](#caching-resolved-lookups-cachedprovider)). `null` disables caching: the resolver's provider is left unwrapped. `0` wraps the provider (except `NullProvider`) in a `CachedProvider` backed by `service('cache')` with a TTL of `0`, which CI4 treats as **never expires**. Any value `> 0` wraps it with that TTL in seconds. **BREAKING as of v2.0**: `0` used to mean "disabled"; `null` does now — see the migration note above. |
 | `$ibanComApiKey` | `''` | Opt-in API key for the [iban.com fallback](#ibancom-fallback-ibancomprovider--chainprovider). Empty (the default) disables it entirely; non-empty chains an `IbanComProvider` after the primary provider via `ChainProvider`. |
 | `$ibanComTimeout` | `5` | Request timeout, in seconds, for `IbanComProvider`'s HTTP call to the iban.com Validation API. Only relevant when `$ibanComApiKey` is non-empty. |
+| `$isoCountrySource` | `'php'` | Source for the ISO 3166-1 country registry used by BIC validation. `'php'` (default) = the bundled compiled list, no setup; `'database'` = the `iso_countries` table (run the migration + seed it first). See [Choosing the ISO 3166 source](#choosing-the-iso-3166-source). Any value other than `'database'` is treated as `'php'`. |
+| `$isoCountryTable` | `'iso_countries'` | Table queried when `$isoCountrySource` is `'database'`. |
 
 To override, publish your own `App\Config\Iban extends \Daycry\Iban\Config\Iban` (CI4's `Factories`
 resolution picks up the app's version automatically), or set the matching `.env` variables.
@@ -457,6 +688,13 @@ Procedural convenience wrappers around `service('iban')`. Load it with `helper('
 | `bank_bic()` | `(string $iban): ?string` | Same safety guarantee as `bank_name()`. |
 | `iban_country()` | `(string $iban): ?string` | `null` for an invalid IBAN. Never throws. |
 | `iban_valid()` | `(string $iban, ?bool $checkNational = null): bool` | Alias of `iban_is_valid()`, same `$checkNational`/config-default behavior. |
+| `bic_validate()` | `(string $bic): ValidationResult` | Delegates to `validateBic()`. Never throws. |
+| `bic_is_valid()` | `(string $bic): bool` | Delegates to `isValidBic()`. Never throws. |
+| `bic_parse()` | `(string $bic): ?ParsedBic` | Uses `tryParseBic()` — `null` for a malformed BIC instead of throwing. |
+| `bic_format()` | `(string $bic): string` | Normalizes (uppercase, whitespace-stripped) via `normalizeBic()`. A BIC has one canonical form, so no `$format` arg. Does **not** validate. |
+| `bic_resolve()` | `(string $bic): ?BankInfo` | Delegates to `resolveBic()`. Degradation-safe: `null` on a malformed BIC or an unresolved/BIC-unaware provider. Never throws. |
+| `bic_bank_name()` | `(string $bic): ?string` | Safe: `null` for a malformed BIC or unresolved entity. Never throws. |
+| `iban_bic_validate()` | `(?string $iban, ?string $bic): ValidationResult` | Delegates to `validateIbanAndBic()` (IBAN only / BIC only / both + cross-check). Both `null`/blank → a single `ViolationCode::NothingToValidate`. Never throws. |
 
 ```php
 helper('iban');
@@ -474,21 +712,45 @@ bank_bic('ES9121000418450200051332');                  // null, same reason
 
 ## spark commands
 
-All 5 commands are grouped under `IBAN` in `php spark list` and are auto-discovered — no manual
-registration needed. Every command's `<iban>` argument is optional on the command line: if omitted,
-the command falls back to an interactive `CLI::prompt('IBAN')` instead of failing outright.
+All 6 commands are grouped under `IBAN` in `php spark list` and are auto-discovered — no manual
+registration needed. Where a command takes an `<iban>`/`<bic>` argument it's optional on the command
+line: if omitted, the command falls back to an interactive `CLI::prompt(...)` instead of failing
+outright (except `iban:validate --bic` with no `<iban>`, which is the deliberate BIC-only mode and does
+not prompt).
 
-### `iban:validate <iban> [--national] [--json]`
+### `iban:validate [<iban>] [--national] [--json] [--bic=<bic>]`
 
-Thin wrapper over `service('iban')->validate()`.
+Thin wrapper over `service('iban')->validate()` — or, with `--bic`, over
+`service('iban')->validateIbanAndBic()` (the combined IBAN+BIC entry point).
 
 | Field | Description |
 |---|---|
-| Argument | `iban` — the IBAN to validate. |
-| `--national` | Also run the country-specific national check-digit validator, if one is registered. When omitted, the effective value comes from `Config\Iban::$checkNationalByDefault` (default `false`); passing `--national` explicitly always forces it `true` regardless of the config. |
+| Argument | `iban` — the IBAN to validate. **Optional when `--bic` is given** (BIC-only mode). |
+| `--national` | Also run the country-specific national check-digit validator, if one is registered. When omitted, the effective value comes from `Config\Iban::$checkNationalByDefault` (default `false`); passing `--national` explicitly always forces it `true` regardless of the config. Ignored in combined `--bic` mode. |
 | `--json` | Emit the result as JSON instead of colored CLI text. |
-| Output | `VALID` (green) / `INVALID: <code> - <message>` (red) as plain text, or a `{"valid": ..., "violation": ...}` object for `--json`. |
-| Exit code | `0` (`EXIT_SUCCESS`) for a valid IBAN, `1` (`EXIT_ERROR`) otherwise — safe to use directly in shell scripts/CI. |
+| `--bic=<bic>` | Switches to the combined entry point: also validate this BIC and, together with a valid IBAN, cross-check the two. Given alone (no `<iban>`), validates just the BIC. |
+| Output | Without `--bic`: `VALID` / `INVALID: <code> - <message>`, or a `{"valid": ..., "violation": ...}` object (singular `violation`) for `--json`. With `--bic`: the same, except the combined result can carry **multiple** violations — every one is printed, and `--json` emits a plural `"violations"` array. |
+| Exit code | `0` (`EXIT_SUCCESS`) when valid, `1` (`EXIT_ERROR`) otherwise — safe to use directly in shell scripts/CI. |
+
+The three combined modes:
+
+```bash
+$ php spark iban:validate GB29NWBK60161331926819                  # IBAN only (no --bic; identical to before)
+VALID
+
+$ php spark iban:validate --bic=NWBKGB2L                          # BIC only (no IBAN)
+VALID
+
+$ php spark iban:validate GB29NWBK60161331926819 --bic=DEUTDEFF   # both + cross-check
+INVALID: bic_iban_country_mismatch - The BIC country code does not match the IBAN country code.
+INVALID: bic_iban_bank_mismatch - The BIC institution code does not match the IBAN bank code.
+
+$ php spark iban:validate --bic=NWBKGB2L --json
+{
+    "valid": true,
+    "violations": []
+}
+```
 
 ```bash
 $ php spark iban:validate "ES91 2100 0418 4502 0005 1332"
@@ -637,6 +899,47 @@ $ php spark iban:resolve ES9121000418450200051332 --json
 (With `Config\Iban::$provider = 'database'` and a matching row seeded in `banks` — e.g. via
 `iban:update` — the bank-data fields and `isResolved` populate instead; see
 [Resolving bank data](#resolving-bank-data-nullprovider-vs-databaseprovider) above.)
+
+### `iban:bic <bic> [--json]`
+
+Validates and parses a BIC (ISO 9362 / SWIFT), then — when the configured provider can — resolves the
+bank behind it (`resolveBic()`). A BIC has no checksum, so "valid" means well-formed with a recognised
+country code, never that it exists on the live SWIFT network; bank fields populate only when a
+BIC-aware provider (e.g. `database`) resolves it — with the default empty DB they stay blank and a
+yellow note is printed. See [Validating a BIC/SWIFT](#validating-a-bicswift) and
+[BIC resolution](#bic-resolution-needs-a-populated-banks-table).
+
+| Field | Description |
+|---|---|
+| Argument | `bic` — the BIC to validate, parse, and resolve. If omitted, prompts via `CLI::prompt('BIC')`. |
+| `--json` | Emit the result as JSON instead of a CLI table. |
+| Output | For an invalid BIC: `INVALID: <code> - <message>` (or `{"valid": false, "violation": {...}}` for `--json`). For a valid BIC: a `Field`/`Value` table of the parsed fields (`bic`, `institutionCode`, `countryCode`, `locationCode`, `branchCode`, `primaryOffice`) plus any resolved bank fields and `resolved`, or the same as a JSON object. |
+| Exit code | `0` for a valid BIC, `1` otherwise. |
+
+```bash
+$ php spark iban:bic NWBKGB2L --json
+{
+    "valid": true,
+    "bic": "NWBKGB2L",
+    "institutionCode": "NWBK",
+    "countryCode": "GB",
+    "locationCode": "2L",
+    "branchCode": null,
+    "primaryOffice": true,
+    "bankName": null,
+    "shortName": null,
+    "city": null,
+    "address": null,
+    "sourceId": null,
+    "sourceVersion": null,
+    "sourceLicense": null,
+    "resolvedBy": null,
+    "resolved": false
+}
+
+$ php spark iban:bic DEUTDEFF5
+INVALID: bic_bad_length - The BIC must be 8 or 11 characters long.
+```
 
 ### `iban:update [--all] [--country=<cc>] [--source=<id>] [--dry-run] [--file=<path>]`
 

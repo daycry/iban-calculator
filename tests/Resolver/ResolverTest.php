@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Resolver;
 
+use Daycry\Iban\Contracts\BicProviderInterface;
 use Daycry\Iban\Contracts\ProviderInterface;
 use Daycry\Iban\Core\Normalizer;
 use Daycry\Iban\Core\Parser;
@@ -12,6 +13,7 @@ use Daycry\Iban\DTO\BankInfo;
 use Daycry\Iban\DTO\BankResult;
 use Daycry\Iban\DTO\ParsedIban;
 use Daycry\Iban\Exceptions\InvalidIbanException;
+use Daycry\Iban\Providers\NullProvider;
 use Daycry\Iban\Registry\Registry;
 use Daycry\Iban\Resolver\Resolver;
 use PHPUnit\Framework\TestCase;
@@ -309,5 +311,139 @@ final class ResolverTest extends TestCase
         $this->expectException(InvalidIbanException::class);
 
         $resolver->resolve('basura');
+    }
+
+    // -- resolveBic --------------------------------------------------------
+
+    public function testResolveBicReturnsNullForAnInvalidBicWithoutEverTouchingTheProvider(): void
+    {
+        // A BIC-capable provider whose findByBic() MUST NOT be reached: the
+        // resolver validates the BIC first and short-circuits on invalid input.
+        $provider = new class () implements BicProviderInterface, ProviderInterface {
+            public function supports(string $countryCode): bool
+            {
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBic(string $bic): ?BankInfo
+            {
+                \PHPUnit\Framework\Assert::fail('findByBic() must not be called for an invalid BIC.');
+            }
+        };
+
+        $resolver = new Resolver($this->parser, $provider);
+
+        self::assertNull($resolver->resolveBic('ZZ'));
+    }
+
+    public function testResolveBicResolvesAValidBicViaABicCapableProvider(): void
+    {
+        $bankInfo = new BankInfo(
+            bankName: 'CaixaBank',
+            shortName: null,
+            bic: 'CAIXESBBXXX',
+            city: null,
+            address: null,
+            sepaSct: null,
+            sepaSctInst: null,
+            sepaSddCore: null,
+            sepaSddB2b: null,
+            sourceId: null,
+            sourceVersion: null,
+            sourceLicense: null,
+            resolvedBy: 'database',
+        );
+
+        $provider = new class ($bankInfo) implements BicProviderInterface, ProviderInterface {
+            public function __construct(private readonly BankInfo $bankInfo)
+            {
+            }
+
+            public function supports(string $countryCode): bool
+            {
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBic(string $bic): BankInfo
+            {
+                return $this->bankInfo;
+            }
+        };
+
+        $resolver = new Resolver($this->parser, $provider);
+
+        $info = $resolver->resolveBic('CAIXESBBXXX');
+
+        self::assertSame($bankInfo, $info);
+    }
+
+    public function testResolveBicNormalizesTheInputBeforeQueryingTheProvider(): void
+    {
+        $provider = new class () implements BicProviderInterface, ProviderInterface {
+            public ?string $received = null;
+
+            public function supports(string $countryCode): bool
+            {
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBic(string $bic): ?BankInfo
+            {
+                $this->received = $bic;
+
+                return null;
+            }
+        };
+
+        $resolver = new Resolver($this->parser, $provider);
+        $resolver->resolveBic(' caix es bb xxx ');
+
+        self::assertSame('CAIXESBBXXX', $provider->received);
+    }
+
+    public function testResolveBicReturnsNullWhenTheProviderIsNotBicCapable(): void
+    {
+        // The default NullProvider does NOT implement BicProviderInterface, so
+        // even a perfectly valid BIC must resolve to null without a crash.
+        $resolver = new Resolver($this->parser, new NullProvider());
+
+        self::assertNull($resolver->resolveBic('CAIXESBBXXX'));
+    }
+
+    public function testResolveBicWithTheDefaultNullProviderReturnsNull(): void
+    {
+        $resolver = new Resolver($this->parser);
+
+        self::assertNull($resolver->resolveBic('CAIXESBBXXX'));
     }
 }

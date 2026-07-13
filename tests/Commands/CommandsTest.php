@@ -8,6 +8,7 @@ use CodeIgniter\CLI\CLI;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\StreamFilterTrait;
+use Daycry\Iban\Commands\BicCommand;
 use Daycry\Iban\Commands\ParseCommand;
 use Daycry\Iban\Commands\PublishCommand;
 use Daycry\Iban\Commands\ResolveCommand;
@@ -741,9 +742,140 @@ final class CommandsTest extends CIUnitTestCase
         self::assertStringContainsString('No bundled importer matches that selection.', $output);
     }
 
+    // -- iban:bic ----------------------------------------------------------
+
+    public function testBicCommandValidBicPrintsFieldsAndExitsSuccess(): void
+    {
+        [$exit, $output] = $this->runSpark(['iban:bic', 'CAIXESBBXXX']);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('CAIXESBBXXX', $output);
+        self::assertStringContainsString('ES', $output);
+        // Empty DB / NullProvider => structural fields only.
+        self::assertStringContainsString('no provider data', $output);
+    }
+
+    public function testBicCommandJsonOutputForAValidBic(): void
+    {
+        [$exit, $output] = $this->runSpark(['iban:bic', 'CAIXESBBXXX', '--json']);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+
+        $decoded = json_decode($output, true);
+
+        self::assertIsArray($decoded);
+        self::assertTrue($decoded['valid']);
+        self::assertSame('CAIX', $decoded['institutionCode']);
+        self::assertSame('ES', $decoded['countryCode']);
+        self::assertSame('XXX', $decoded['branchCode']);
+        self::assertFalse($decoded['resolved']);
+        self::assertNull($decoded['bankName']);
+    }
+
+    public function testBicCommandInvalidBicPrintsViolationAndExitsError(): void
+    {
+        [$exit, $output] = $this->runSpark(['iban:bic', 'nonsense']);
+
+        self::assertSame(EXIT_ERROR, $exit);
+        self::assertStringContainsString('INVALID', $output);
+        self::assertStringContainsString(ViolationCode::BicUnknownCountry->value, $output);
+    }
+
+    public function testBicCommandInvalidBicJsonReportsValidFalseAndExitsError(): void
+    {
+        [$exit, $output] = $this->runSpark(['iban:bic', 'ZZ', '--json']);
+
+        self::assertSame(EXIT_ERROR, $exit);
+
+        $decoded = json_decode($output, true);
+
+        self::assertIsArray($decoded);
+        self::assertFalse($decoded['valid']);
+        self::assertSame(ViolationCode::BicBadLength->value, $decoded['violation']['code']);
+    }
+
+    // -- iban:validate --bic (combined modes) ------------------------------
+
+    public function testValidateWithBicOnlyValidatesJustTheBic(): void
+    {
+        [$exit, $output] = $this->runSpark(['iban:validate', '--bic', 'CAIXESBBXXX']);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('VALID', $output);
+    }
+
+    public function testValidateWithInvalidBicOnlyExitsError(): void
+    {
+        [$exit, $output] = $this->runSpark(['iban:validate', '--bic', 'ZZ']);
+
+        self::assertSame(EXIT_ERROR, $exit);
+        self::assertStringContainsString(ViolationCode::BicBadLength->value, $output);
+    }
+
+    public function testValidateWithIbanAndBothCoherentExitsSuccess(): void
+    {
+        [$exit, $output] = $this->runSpark(['iban:validate', self::VALID_ES_IBAN, '--bic', 'CAIXESBB']);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('VALID', $output);
+    }
+
+    public function testValidateWithIbanAndBicCountryMismatchExitsError(): void
+    {
+        [$exit, $output] = $this->runSpark(['iban:validate', self::VALID_ES_IBAN, '--bic', 'DEUTDEFF']);
+
+        self::assertSame(EXIT_ERROR, $exit);
+        self::assertStringContainsString(ViolationCode::BicIbanCountryMismatch->value, $output);
+    }
+
+    public function testValidateCombinedJsonOutputHasValidBoolAndViolationsArray(): void
+    {
+        [$exit, $output] = $this->runSpark(['iban:validate', self::VALID_ES_IBAN, '--bic', 'DEUTDEFF', '--json']);
+
+        self::assertSame(EXIT_ERROR, $exit);
+
+        $decoded = json_decode($output, true);
+
+        self::assertIsArray($decoded);
+        self::assertFalse($decoded['valid']);
+        self::assertIsArray($decoded['violations']);
+        self::assertSame(ViolationCode::BicIbanCountryMismatch->value, $decoded['violations'][0]['code']);
+    }
+
+    public function testValidateCombinedJsonForBothValidHasEmptyViolations(): void
+    {
+        [$exit, $output] = $this->runSpark(['iban:validate', self::VALID_ES_IBAN, '--bic', 'CAIXESBB', '--json']);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+
+        $decoded = json_decode($output, true);
+
+        self::assertIsArray($decoded);
+        self::assertTrue($decoded['valid']);
+        self::assertSame([], $decoded['violations']);
+    }
+
+    /**
+     * Guard against a regression in the byte-identical IBAN-only path: without
+     * `--bic`, the single-IBAN JSON shape (`violation`, singular, nullable)
+     * must be exactly as before — NOT the combined `violations` array shape.
+     */
+    public function testValidateWithoutBicKeepsTheSingularViolationJsonShape(): void
+    {
+        [$exit, $output] = $this->runSpark(['iban:validate', self::VALID_ES_IBAN, '--json']);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+
+        $decoded = json_decode($output, true);
+
+        self::assertIsArray($decoded);
+        self::assertArrayHasKey('violation', $decoded);
+        self::assertArrayNotHasKey('violations', $decoded);
+    }
+
     // -- Discovery -----------------------------------------------------------
 
-    public function testAllFiveCommandsAreDiscoveredUnderTheIbanGroup(): void
+    public function testAllCommandsAreDiscoveredUnderTheIbanGroup(): void
     {
         $commands = service('commands')->getCommands();
 
@@ -753,6 +885,7 @@ final class CommandsTest extends CIUnitTestCase
             'iban:resolve'  => ResolveCommand::class,
             'iban:update'   => UpdateCommand::class,
             'iban:publish'  => PublishCommand::class,
+            'iban:bic'      => BicCommand::class,
         ] as $name => $class) {
             self::assertArrayHasKey($name, $commands);
             self::assertSame($class, $commands[$name]['class']);

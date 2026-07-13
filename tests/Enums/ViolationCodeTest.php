@@ -14,9 +14,22 @@ use PHPUnit\Framework\TestCase;
  */
 final class ViolationCodeTest extends TestCase
 {
-    public function testHasExactlyEightCases(): void
+    public function testHasExactlySixteenCases(): void
     {
-        self::assertCount(8, ViolationCode::cases());
+        self::assertCount(16, ViolationCode::cases());
+    }
+
+    public function testTheOriginalEightIbanCasesAreUnchanged(): void
+    {
+        // The BIC additions must not disturb the original IBAN codes' values.
+        self::assertSame('blank', ViolationCode::Blank->value);
+        self::assertSame('too_short', ViolationCode::TooShort->value);
+        self::assertSame('unknown_country', ViolationCode::UnknownCountry->value);
+        self::assertSame('illegal_characters', ViolationCode::IllegalCharacters->value);
+        self::assertSame('bad_length', ViolationCode::BadLength->value);
+        self::assertSame('malformed_structure', ViolationCode::MalformedStructure->value);
+        self::assertSame('checksum_failed', ViolationCode::ChecksumFailed->value);
+        self::assertSame('national_check_failed', ViolationCode::NationalCheckFailed->value);
     }
 
     /**
@@ -32,6 +45,14 @@ final class ViolationCodeTest extends TestCase
         yield 'MalformedStructure' => [ViolationCode::MalformedStructure, 'malformed_structure'];
         yield 'ChecksumFailed' => [ViolationCode::ChecksumFailed, 'checksum_failed'];
         yield 'NationalCheckFailed' => [ViolationCode::NationalCheckFailed, 'national_check_failed'];
+        yield 'BicBlank' => [ViolationCode::BicBlank, 'bic_blank'];
+        yield 'BicBadLength' => [ViolationCode::BicBadLength, 'bic_bad_length'];
+        yield 'BicIllegalCharacters' => [ViolationCode::BicIllegalCharacters, 'bic_illegal_characters'];
+        yield 'BicMalformedStructure' => [ViolationCode::BicMalformedStructure, 'bic_malformed_structure'];
+        yield 'BicUnknownCountry' => [ViolationCode::BicUnknownCountry, 'bic_unknown_country'];
+        yield 'BicIbanCountryMismatch' => [ViolationCode::BicIbanCountryMismatch, 'bic_iban_country_mismatch'];
+        yield 'BicIbanBankMismatch' => [ViolationCode::BicIbanBankMismatch, 'bic_iban_bank_mismatch'];
+        yield 'NothingToValidate' => [ViolationCode::NothingToValidate, 'nothing_to_validate'];
     }
 
     #[DataProvider('violationCodeProvider')]

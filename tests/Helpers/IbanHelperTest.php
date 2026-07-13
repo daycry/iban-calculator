@@ -7,8 +7,10 @@ namespace Tests\Helpers;
 use CodeIgniter\Test\CIUnitTestCase;
 use Daycry\Iban\Config\Iban as IbanConfig;
 use Daycry\Iban\Core\Mod97;
+use Daycry\Iban\DTO\ParsedBic;
 use Daycry\Iban\DTO\ParsedIban;
 use Daycry\Iban\DTO\ValidationResult;
+use Daycry\Iban\Enums\ViolationCode;
 
 /**
  * Exercises `src/Helpers/iban_helper.php` through CI4's real helper
@@ -284,6 +286,103 @@ final class IbanHelperTest extends CIUnitTestCase
 
         self::assertTrue(function_exists('iban_is_valid'));
         self::assertTrue(iban_is_valid(self::VALID_IBAN));
+    }
+
+    // -- BIC helpers -------------------------------------------------------
+
+    public function testBicIsValidTrueForARealBic(): void
+    {
+        self::assertTrue(bic_is_valid('CAIXESBBXXX'));
+        self::assertTrue(bic_is_valid('CHASUS33'));
+    }
+
+    public function testBicIsValidFalseForGarbage(): void
+    {
+        self::assertFalse(bic_is_valid('nonsense'));
+    }
+
+    public function testBicValidateReturnsAValidationResult(): void
+    {
+        $result = bic_validate('CAIXESBBXXX');
+
+        self::assertInstanceOf(ValidationResult::class, $result);
+        self::assertTrue($result->isValid());
+    }
+
+    public function testBicValidateReturnsAnInvalidResultForGarbage(): void
+    {
+        self::assertFalse(bic_validate('ZZ')->isValid());
+    }
+
+    public function testBicParseReturnsAParsedBicForAValidBic(): void
+    {
+        $parsed = bic_parse('DEUTDEFF500');
+
+        self::assertInstanceOf(ParsedBic::class, $parsed);
+        self::assertSame('DEUT', $parsed->institutionCode);
+        self::assertSame('DE', $parsed->countryCode);
+        self::assertSame('500', $parsed->branchCode);
+    }
+
+    public function testBicParseReturnsNullForGarbageInsteadOfThrowing(): void
+    {
+        self::assertNull(bic_parse('nope'));
+    }
+
+    public function testBicFormatNormalizesToUppercaseWithoutWhitespace(): void
+    {
+        self::assertSame('CAIXESBBXXX', bic_format(' caix es bb xxx '));
+    }
+
+    public function testBicResolveReturnsNullWithTheDefaultNullProvider(): void
+    {
+        self::assertNull(bic_resolve('CAIXESBBXXX'));
+    }
+
+    public function testBicResolveReturnsNullForAMalformedBicInsteadOfThrowing(): void
+    {
+        self::assertNull(bic_resolve('nonsense'));
+    }
+
+    public function testBicBankNameReturnsNullWithTheDefaultNullProvider(): void
+    {
+        self::assertNull(bic_bank_name('CAIXESBBXXX'));
+    }
+
+    public function testBicBankNameReturnsNullForAMalformedBicInsteadOfThrowing(): void
+    {
+        self::assertNull(bic_bank_name('nonsense'));
+    }
+
+    public function testIbanBicValidateWithNeitherYieldsNothingToValidate(): void
+    {
+        $result = iban_bic_validate(null, null);
+
+        self::assertFalse($result->isValid());
+        self::assertSame(ViolationCode::NothingToValidate, $result->firstViolation()?->code);
+    }
+
+    public function testIbanBicValidateWithIbanOnlyValidates(): void
+    {
+        self::assertTrue(iban_bic_validate(self::VALID_IBAN, null)->isValid());
+    }
+
+    public function testIbanBicValidateWithBicOnlyValidates(): void
+    {
+        self::assertTrue(iban_bic_validate(null, 'CAIXESBBXXX')->isValid());
+    }
+
+    public function testIbanBicValidateWithBothCoherentIsValid(): void
+    {
+        self::assertTrue(iban_bic_validate(self::VALID_IBAN, 'CAIXESBB')->isValid());
+    }
+
+    public function testIbanBicValidateWithCountryMismatchIsInvalid(): void
+    {
+        $result = iban_bic_validate(self::VALID_IBAN, 'DEUTDEFF');
+
+        self::assertFalse($result->isValid());
+        self::assertSame(ViolationCode::BicIbanCountryMismatch, $result->firstViolation()?->code);
     }
 
     /**

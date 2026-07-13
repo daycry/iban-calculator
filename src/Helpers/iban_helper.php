@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use Daycry\Iban\Config\Services;
+use Daycry\Iban\DTO\BankInfo;
 use Daycry\Iban\DTO\BankResult;
+use Daycry\Iban\DTO\ParsedBic;
 use Daycry\Iban\DTO\ParsedIban;
 use Daycry\Iban\DTO\ValidationResult;
 use Daycry\Iban\Enums\IbanFormat;
@@ -195,5 +197,118 @@ if (! function_exists('iban_valid')) {
     function iban_valid(string $iban, ?bool $checkNational = null): bool
     {
         return iban_is_valid($iban, $checkNational);
+    }
+}
+
+if (! function_exists('bic_validate')) {
+    /**
+     * Validates a BIC (ISO 9362 / SWIFT code) and returns the full result
+     * (including violations). Never throws.
+     *
+     * A BIC has no checksum, so a valid result only means "well-formed AND its
+     * country code is recognised", never "this BIC exists on the SWIFT network".
+     */
+    function bic_validate(string $bic): ValidationResult
+    {
+        /** @var IbanService $svc */
+        $svc = service('iban');
+
+        return $svc->validateBic($bic);
+    }
+}
+
+if (! function_exists('bic_is_valid')) {
+    /**
+     * Quick boolean BIC validity check. Never throws.
+     */
+    function bic_is_valid(string $bic): bool
+    {
+        /** @var IbanService $svc */
+        $svc = service('iban');
+
+        return $svc->isValidBic($bic);
+    }
+}
+
+if (! function_exists('bic_parse')) {
+    /**
+     * Parses a BIC into its structural parts (institution/country/location/
+     * branch). Never throws: returns `null` for a malformed BIC instead of
+     * raising `InvalidBicException` (uses `tryParseBic()` under the hood).
+     */
+    function bic_parse(string $bic): ?ParsedBic
+    {
+        /** @var IbanService $svc */
+        $svc = service('iban');
+
+        return $svc->tryParseBic($bic);
+    }
+}
+
+if (! function_exists('bic_format')) {
+    /**
+     * Normalizes a BIC to its canonical form: uppercase, whitespace stripped.
+     *
+     * Unlike an IBAN (Electronic/Print/Anonymized), a BIC has a single
+     * canonical representation, so this takes no format argument. It does NOT
+     * validate — a malformed input is still normalized (and can then be fed to
+     * {@see bic_is_valid()}).
+     */
+    function bic_format(string $bic): string
+    {
+        /** @var IbanService $svc */
+        $svc = service('iban');
+
+        return $svc->normalizeBic($bic);
+    }
+}
+
+if (! function_exists('bic_resolve')) {
+    /**
+     * Resolves a BIC to bank/entity data via the configured provider.
+     *
+     * Degradation-safe: returns `null` for a malformed BIC or when the
+     * provider has no matching entry (e.g. the default `NullProvider`, an empty
+     * `banks` table, or a provider without BIC support). Never throws.
+     */
+    function bic_resolve(string $bic): ?BankInfo
+    {
+        /** @var IbanService $svc */
+        $svc = service('iban');
+
+        return $svc->resolveBic($bic);
+    }
+}
+
+if (! function_exists('bic_bank_name')) {
+    /**
+     * Safe bank-name lookup from a BIC: `null` for a malformed BIC or an
+     * unresolved entity. Never throws.
+     */
+    function bic_bank_name(string $bic): ?string
+    {
+        /** @var IbanService $svc */
+        $svc = service('iban');
+
+        return $svc->resolveBic($bic)?->bankName;
+    }
+}
+
+if (! function_exists('iban_bic_validate')) {
+    /**
+     * Combined IBAN + BIC validation: validate an IBAN, a BIC, or both, and —
+     * when both are supplied AND each is individually valid — also cross-check
+     * them for mutual coherence (country and, where structurally possible, bank
+     * code). Delegates to the facade's `validateIbanAndBic()`. Never throws.
+     *
+     * Passing neither (both `null`/blank) yields a single
+     * `ViolationCode::NothingToValidate`.
+     */
+    function iban_bic_validate(?string $iban, ?string $bic): ValidationResult
+    {
+        /** @var IbanService $svc */
+        $svc = service('iban');
+
+        return $svc->validateIbanAndBic($iban, $bic);
     }
 }

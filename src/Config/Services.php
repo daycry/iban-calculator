@@ -10,11 +10,15 @@ use Daycry\Iban\Config\Iban as IbanConfig;
 use Daycry\Iban\Contracts\ProviderInterface;
 use Daycry\Iban\Iban as IbanService;
 use Daycry\Iban\Models\BankModel;
+use Daycry\Iban\Models\IsoCountryModel;
 use Daycry\Iban\Providers\CachedProvider;
 use Daycry\Iban\Providers\ChainProvider;
+use Daycry\Iban\Providers\DatabaseIsoCountryLoader;
 use Daycry\Iban\Providers\DatabaseProvider;
 use Daycry\Iban\Providers\IbanComProvider;
 use Daycry\Iban\Providers\NullProvider;
+use Daycry\Iban\Registry\IsoCountryRegistry;
+use Daycry\Iban\Registry\PhpIsoCountryLoader;
 use Daycry\Iban\Registry\Registry;
 use InvalidArgumentException;
 
@@ -90,7 +94,43 @@ class Services extends BaseService
             $provider = new CachedProvider($provider, service('cache'), $cacheTtl);
         }
 
-        return new IbanService(new Registry(), $provider);
+        // Pass the configured ISO 3166-1 registry (php or database source) so
+        // the facade's BIC validation recognises every country's code, not
+        // just the IBAN-issuing subset.
+        return new IbanService(new Registry(), $provider, self::isoCountries());
+    }
+
+    /**
+     * Builds the {@see IsoCountryRegistry} (the full ISO 3166-1 country set
+     * used by BIC validation), selecting its loader from
+     * {@see IbanConfig::$isoCountrySource}:
+     *
+     * - `'database'` — read the `iso_countries` table via
+     *   {@see DatabaseIsoCountryLoader}, wiring its {@see IsoCountryModel}
+     *   from {@see IbanConfig::$isoCountryTable} / {@see IbanConfig::$dbGroup}.
+     * - anything else — the bundled compiled list
+     *   ({@see PhpIsoCountryLoader}), which needs no database at all.
+     *
+     * With an empty/unconfigured `Config\Iban` (the package's default), this
+     * resolves a registry backed by the compiled list — no database setup
+     * required.
+     */
+    public static function isoCountries(bool $getShared = true): IsoCountryRegistry
+    {
+        if ($getShared) {
+            /** @var IsoCountryRegistry $instance */
+            $instance = static::getSharedInstance('isoCountries');
+
+            return $instance;
+        }
+
+        $config = self::config();
+
+        $loader = $config->isoCountrySource === 'database'
+            ? new DatabaseIsoCountryLoader(new IsoCountryModel($config->isoCountryTable, $config->dbGroup))
+            : new PhpIsoCountryLoader();
+
+        return new IsoCountryRegistry($loader);
     }
 
     /**

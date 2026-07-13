@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Tests\Providers;
 
+use Daycry\Iban\Contracts\BicProviderInterface;
 use Daycry\Iban\Contracts\ProviderInterface;
 use Daycry\Iban\DTO\BankInfo;
 use Daycry\Iban\DTO\ParsedIban;
 use Daycry\Iban\Providers\ChainProvider;
+use Daycry\Iban\Providers\NullProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -443,6 +445,166 @@ final class ChainProviderTest extends TestCase
         self::assertSame($primaryInfo, $result);
         self::assertSame(1, $first->findByBankCodeCalls);
         self::assertSame(0, $second->findByBankCodeCalls);
+    }
+
+    // -- findByBic ---------------------------------------------------------
+
+    public function testFindByBicSkipsProvidersThatDoNotImplementBicProviderInterface(): void
+    {
+        // A bare ProviderInterface (NO BicProviderInterface): its findByBic
+        // does not even exist, so ChainProvider must skip it, not call it.
+        $plain = new NullProvider();
+
+        $bankInfo = $this->fixedBankInfo('BIC Bank');
+
+        $bicCapable = new class ($bankInfo) implements BicProviderInterface, ProviderInterface {
+            public int $findByBicCalls = 0;
+
+            public function __construct(private readonly BankInfo $bankInfo)
+            {
+            }
+
+            public function supports(string $countryCode): bool
+            {
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBic(string $bic): BankInfo
+            {
+                $this->findByBicCalls++;
+
+                return $this->bankInfo;
+            }
+        };
+
+        $chain = new ChainProvider([$plain, $bicCapable]);
+
+        $result = $chain->findByBic('CAIXESBBXXX');
+
+        self::assertSame($bankInfo, $result);
+        self::assertSame(1, $bicCapable->findByBicCalls);
+    }
+
+    public function testFindByBicReturnsTheFirstNonNullResultAndSkipsLaterProviders(): void
+    {
+        $primaryInfo  = $this->fixedBankInfo('Primary Bank');
+        $fallbackInfo = $this->fixedBankInfo('Fallback Bank');
+
+        $second = new class ($fallbackInfo) implements BicProviderInterface, ProviderInterface {
+            public int $findByBicCalls = 0;
+
+            public function __construct(private readonly BankInfo $bankInfo)
+            {
+            }
+
+            public function supports(string $countryCode): bool
+            {
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBic(string $bic): BankInfo
+            {
+                $this->findByBicCalls++;
+
+                return $this->bankInfo;
+            }
+        };
+
+        $first = new class ($primaryInfo) implements BicProviderInterface, ProviderInterface {
+            public int $findByBicCalls = 0;
+
+            public function __construct(private readonly BankInfo $bankInfo)
+            {
+            }
+
+            public function supports(string $countryCode): bool
+            {
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBic(string $bic): BankInfo
+            {
+                $this->findByBicCalls++;
+
+                return $this->bankInfo;
+            }
+        };
+
+        $chain = new ChainProvider([$first, $second]);
+
+        $result = $chain->findByBic('CAIXESBBXXX');
+
+        self::assertSame($primaryInfo, $result);
+        self::assertSame(1, $first->findByBicCalls);
+        self::assertSame(0, $second->findByBicCalls, 'The second provider must not be consulted once the first already resolved.');
+    }
+
+    public function testFindByBicReturnsNullWhenNoBicCapableProviderResolves(): void
+    {
+        $plain = new NullProvider();
+
+        $bicNull = new class () implements BicProviderInterface, ProviderInterface {
+            public function supports(string $countryCode): bool
+            {
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBic(string $bic): ?BankInfo
+            {
+                return null;
+            }
+        };
+
+        $chain = new ChainProvider([$plain, $bicNull]);
+
+        self::assertNull($chain->findByBic('CAIXESBBXXX'));
+    }
+
+    public function testFindByBicReturnsNullWhenNoProviderIsBicCapable(): void
+    {
+        $chain = new ChainProvider([new NullProvider(), new NullProvider()]);
+
+        self::assertNull($chain->findByBic('CAIXESBBXXX'));
     }
 
     private function fixedBankInfo(string $name): BankInfo

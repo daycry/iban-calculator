@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Daycry\Iban\Providers;
 
 use CodeIgniter\HTTP\CURLRequest;
+use Daycry\Iban\Contracts\BicProviderInterface;
 use Daycry\Iban\Contracts\ProviderInterface;
 use Daycry\Iban\DTO\BankInfo;
 use Daycry\Iban\DTO\ParsedIban;
@@ -50,11 +51,23 @@ use Throwable;
  * equivalent lookup to perform; the useful path is exclusively
  * {@see self::findByIban()}.
  *
+ * **BIC resolution** ({@see BicProviderInterface}): iban.com publishes a
+ * SEPARATE BIC/SWIFT Validation API (`.../swiftv2/bic/`, distinct from the
+ * IBAN endpoint above) with its OWN response shape — `bic_valid`, `bic_active`,
+ * and a `directory_results` object (`name`, `bic`, `city`, `address`,
+ * `iso_country_code`, …) rather than the IBAN endpoint's `bank_data`/
+ * `sepa_data`. {@see self::findByBic()} calls that endpoint and maps
+ * `directory_results` to a {@see BankInfo}; the BIC API returns no SEPA scheme
+ * flags, so those fields are left `null`. Same key-gating, timeout, and
+ * never-throws discipline as {@see self::findByIban()}.
+ *
  * @see docs/superpowers/specs/2026-07-10-daycry-iban-v1-design.md
  */
-final class IbanComProvider implements ProviderInterface
+final class IbanComProvider implements BicProviderInterface, ProviderInterface
 {
     private const ENDPOINT = 'https://api.iban.com/clients/api/v4/iban/';
+
+    private const BIC_ENDPOINT = 'https://api.iban.com/clients/api/swiftv2/bic/';
 
     private readonly CURLRequest $client;
 
@@ -145,6 +158,77 @@ final class IbanComProvider implements ProviderInterface
     public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
     {
         return null;
+    }
+
+    /**
+     * Resolves a bank from a BIC via iban.com's dedicated BIC/SWIFT
+     * Validation API ({@see self::BIC_ENDPOINT}). Never throws: any transport,
+     * status, JSON, `error`, or missing-`directory_results` problem folds to
+     * `null`, exactly like {@see self::findByIban()}.
+     */
+    public function findByBic(string $bic): ?BankInfo
+    {
+        if ($this->apiKey === '') {
+            return null;
+        }
+
+        try {
+            $response = $this->client->post(self::BIC_ENDPOINT, [
+                'form_params' => [
+                    'format'  => 'json',
+                    'api_key' => $this->apiKey,
+                    'bic'     => strtoupper((string) preg_replace('/\s+/', '', $bic)),
+                ],
+                'timeout'     => $this->timeout,
+                'http_errors' => false,
+            ]);
+
+            if ($response->getStatusCode() !== 200) {
+                return null;
+            }
+
+            $decoded = json_decode((string) $response->getBody(), true);
+
+            if (! is_array($decoded)) {
+                return null;
+            }
+
+            $error = $decoded['error'] ?? null;
+
+            if (! empty($error)) {
+                return null;
+            }
+
+            $directory = $decoded['directory_results'] ?? null;
+
+            if (! is_array($directory) || $directory === []) {
+                return null;
+            }
+
+            // The endpoint may return a single result object or a list of
+            // them; normalize to the first associative row either way.
+            if (array_is_list($directory) && is_array($directory[0])) {
+                $directory = $directory[0];
+            }
+
+            return new BankInfo(
+                bankName: self::toNullableString($directory['name'] ?? $directory['institution'] ?? null),
+                shortName: null,
+                bic: self::toNullableString($directory['bic'] ?? null),
+                city: self::toNullableString($directory['city'] ?? null),
+                address: self::toNullableString($directory['address'] ?? null),
+                sepaSct: null,
+                sepaSctInst: null,
+                sepaSddCore: null,
+                sepaSddB2b: null,
+                sourceId: 'iban.com',
+                sourceVersion: date('Y-m-d'),
+                sourceLicense: 'iban.com API',
+                resolvedBy: 'iban.com',
+            );
+        } catch (Throwable) {
+            return null;
+        }
     }
 
     /**
