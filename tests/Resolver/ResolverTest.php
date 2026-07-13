@@ -50,6 +50,7 @@ final class ResolverTest extends TestCase
         self::assertNull($result->sourceId);
         self::assertNull($result->sourceVersion);
         self::assertNull($result->sourceLicense);
+        self::assertNull($result->resolvedBy);
 
         self::assertFalse($result->isResolved());
     }
@@ -99,6 +100,52 @@ final class ResolverTest extends TestCase
         self::assertSame('CaixaBank', $result->bankName);
         self::assertSame('CAIXESBBXXX', $result->bic);
         self::assertTrue($result->isResolved());
+    }
+
+    public function testResolveCopiesResolvedByFromTheProvidersBankInfo(): void
+    {
+        $bankInfo = new BankInfo(
+            bankName: 'CaixaBank',
+            shortName: 'CX',
+            bic: 'CAIXESBBXXX',
+            city: 'Barcelona',
+            address: null,
+            sepaSct: true,
+            sepaSctInst: null,
+            sepaSddCore: true,
+            sepaSddB2b: null,
+            sourceId: null,
+            sourceVersion: null,
+            sourceLicense: null,
+            resolvedBy: 'database',
+        );
+
+        $provider = new class ($bankInfo) implements ProviderInterface {
+            public function __construct(private BankInfo $bankInfo)
+            {
+            }
+
+            public function supports(string $countryCode): bool
+            {
+                return $countryCode === 'ES';
+            }
+
+            public function findByIban(ParsedIban $iban): BankInfo
+            {
+                return $this->bankInfo;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
+            {
+                \PHPUnit\Framework\Assert::fail('findByBankCode should not be called when findByIban already resolved a result.');
+            }
+        };
+
+        $resolver = new Resolver($this->parser, $provider);
+
+        $result = $resolver->resolve('ES9121000418450200051332');
+
+        self::assertSame('database', $result->resolvedBy);
     }
 
     public function testResolveFallsBackToFindByBankCodeWhenFindByIbanReturnsNull(): void

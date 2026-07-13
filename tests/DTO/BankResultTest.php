@@ -134,6 +134,78 @@ final class BankResultTest extends TestCase
         self::assertSame('ES9121000418450200051332', $result->iban->electronic);
     }
 
+    public function testBankResultResolvedByDefaultsToNull(): void
+    {
+        $result = new BankResult(
+            iban: $this->testIban,
+            bankName: null,
+            shortName: null,
+            bic: null,
+            city: null,
+            address: null,
+            sepaSct: null,
+            sepaSctInst: null,
+            sepaSddCore: null,
+            sepaSddB2b: null,
+            sourceId: null,
+            sourceVersion: null,
+            sourceLicense: null,
+        );
+
+        self::assertNull($result->resolvedBy);
+    }
+
+    public function testBankResultResolvedByIsSetViaNamedArg(): void
+    {
+        $result = new BankResult(
+            iban: $this->testIban,
+            bankName: 'CaixaBank',
+            shortName: null,
+            bic: null,
+            city: null,
+            address: null,
+            sepaSct: null,
+            sepaSctInst: null,
+            sepaSddCore: null,
+            sepaSddB2b: null,
+            sourceId: null,
+            sourceVersion: null,
+            sourceLicense: null,
+            resolvedBy: 'database',
+        );
+
+        self::assertSame('database', $result->resolvedBy);
+    }
+
+    /**
+     * Pin: `resolvedBy` is provenance METADATA, not bank data. A BankResult
+     * with ONLY `resolvedBy` set — every one of the 12 bank fields still
+     * null — must NOT report itself resolved, otherwise a caller could get
+     * `isResolved() === true` with no actual bank data at all.
+     */
+    public function testBankResultWithOnlyResolvedBySetIsStillNotResolved(): void
+    {
+        $result = new BankResult(
+            iban: $this->testIban,
+            bankName: null,
+            shortName: null,
+            bic: null,
+            city: null,
+            address: null,
+            sepaSct: null,
+            sepaSctInst: null,
+            sepaSddCore: null,
+            sepaSddB2b: null,
+            sourceId: null,
+            sourceVersion: null,
+            sourceLicense: null,
+            resolvedBy: 'iban.com',
+        );
+
+        self::assertSame('iban.com', $result->resolvedBy);
+        self::assertFalse($result->isResolved());
+    }
+
     public function testBankInfoConstructsWithAllNullFields(): void
     {
         $info = new BankInfo(
@@ -194,5 +266,46 @@ final class BankResultTest extends TestCase
         self::assertSame('NWABAXXX', $info->sourceId);
         self::assertSame('1.0', $info->sourceVersion);
         self::assertSame('CC-BY-4.0', $info->sourceLicense);
+    }
+
+    public function testBankInfoResolvedByDefaultsToNull(): void
+    {
+        $info = new BankInfo(
+            bankName: null,
+            shortName: null,
+            bic: null,
+            city: null,
+            address: null,
+            sepaSct: null,
+            sepaSctInst: null,
+            sepaSddCore: null,
+            sepaSddB2b: null,
+            sourceId: null,
+            sourceVersion: null,
+            sourceLicense: null,
+        );
+
+        self::assertNull($info->resolvedBy);
+    }
+
+    public function testBankInfoResolvedByIsSetViaNamedArg(): void
+    {
+        $info = new BankInfo(
+            bankName: 'CaixaBank',
+            shortName: null,
+            bic: null,
+            city: null,
+            address: null,
+            sepaSct: null,
+            sepaSctInst: null,
+            sepaSddCore: null,
+            sepaSddB2b: null,
+            sourceId: null,
+            sourceVersion: null,
+            sourceLicense: null,
+            resolvedBy: 'database',
+        );
+
+        self::assertSame('database', $info->resolvedBy);
     }
 }

@@ -61,17 +61,30 @@ class Iban extends BaseConfig
     public string $table = 'banks';
 
     /**
-     * Cache TTL, in seconds, for resolved bank lookups.
+     * Cache TTL, in seconds, for resolved bank lookups. Nullable since v2.0
+     * -- BREAKING: this used to be an `int` defaulting to `0` meaning
+     * "caching disabled". That collided with CI4's own cache-handler
+     * convention, where a TTL of `0` means "never expires" (see
+     * `FileHandler::getMetaData()` / `RedisHandler::save()`), and left no
+     * way to actually configure a never-expiring cache. The semantics are
+     * now:
      *
-     * `0` (the default) disables caching entirely: {@see \Daycry\Iban\Config\Services::iban()}
-     * leaves the resolver's provider unwrapped, so behavior is identical to
-     * pre-cache versions of this package. Any value `> 0` wraps the
-     * provider in a {@see \Daycry\Iban\Providers\CachedProvider} (backed by
-     * CI4's `service('cache')`) with this TTL, so repeated identical
-     * `findByBankCode()`/`findByIban()` lookups -- including misses -- are
-     * served from cache instead of re-querying the underlying provider.
+     * - `null` (the default) -- caching is disabled: {@see \Daycry\Iban\Config\Services::iban()}
+     *   leaves the resolver's provider unwrapped, so behavior is identical
+     *   to pre-cache versions of this package (and to the old `0` default).
+     * - `0` -- the provider IS wrapped in a
+     *   {@see \Daycry\Iban\Providers\CachedProvider}, and `0` is passed
+     *   straight through to CI4's `service('cache')`, which treats it as
+     *   "never expires" (CI4 semantics, not this package's).
+     * - Any value `> 0` -- wraps the provider with this TTL in seconds.
+     *
+     * **Migration from < v2.0**: if you previously set `$cacheTtl = 0` to
+     * DISABLE caching, change it to `null` -- `0` now means the opposite
+     * (never expires). See {@see \Daycry\Iban\Providers\CachedProvider}'s
+     * class docblock for the cached-miss warning that applies whenever
+     * caching is enabled (`null` excluded), especially with `0`.
      */
-    public int $cacheTtl = 0;
+    public ?int $cacheTtl = null;
 
     /**
      * Opt-in API key for the iban.com Validation API

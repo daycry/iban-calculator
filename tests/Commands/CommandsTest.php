@@ -293,6 +293,8 @@ final class CommandsTest extends CIUnitTestCase
         self::assertIsArray($decoded);
         self::assertFalse($decoded['isResolved']);
         self::assertNull($decoded['bankName']);
+        self::assertArrayHasKey('resolvedBy', $decoded);
+        self::assertNull($decoded['resolvedBy']);
     }
 
     public function testResolveInvalidIbanErrorsAndExitsError(): void

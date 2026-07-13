@@ -130,6 +130,7 @@ final class IbanComProvider implements ProviderInterface
                 sourceId: 'iban.com',
                 sourceVersion: date('Y-m-d'),
                 sourceLicense: 'iban.com API',
+                resolvedBy: 'iban.com',
             );
         } catch (Throwable) {
             return null;

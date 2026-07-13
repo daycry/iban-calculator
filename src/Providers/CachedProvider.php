@@ -18,9 +18,28 @@ use Daycry\Iban\DTO\ParsedIban;
  *
  * Opt-in: {@see \Daycry\Iban\Config\Services::iban()} only wraps the
  * resolved provider in this decorator when
- * {@see \Daycry\Iban\Config\Iban::$cacheTtl} is `> 0`. The default `0`
- * leaves the resolver's provider unwrapped, so existing behavior is
+ * {@see \Daycry\Iban\Config\Iban::$cacheTtl} is non-`null`. The default
+ * `null` leaves the resolver's provider unwrapped, so existing behavior is
  * unchanged unless a consuming app opts in.
+ *
+ * **`$ttl` of `0` means "never expires" (CI4 semantics), not "disabled"**:
+ * once this decorator is constructed at all, its `$ttl` is forwarded
+ * verbatim to `CacheInterface::save()`. CI4's bundled cache handlers treat a
+ * `save()` TTL of `0` as "never expires" (e.g. `FileHandler::getMetaData()`:
+ * `'expire' => $data['ttl'] > 0 ? ... : null`; `RedisHandler::save()` skips
+ * `expireAt()` entirely when `$ttl === 0`). The "caching disabled" case is
+ * handled one layer up, by {@see \Daycry\Iban\Config\Services::iban()} never
+ * constructing this decorator when {@see \Daycry\Iban\Config\Iban::$cacheTtl}
+ * is `null` -- by the time a `CachedProvider` exists, `0` always means
+ * "cache forever", never "don't cache".
+ *
+ * **Warning -- misses are cached forever too when `$ttl === 0`**: see the
+ * "Miss sentinel" note below. A never-expiring cache means a "not found"
+ * result never expires either. Concretely: after running `php spark
+ * iban:update` to import bank data, any IBAN/bank code that was a cached
+ * miss BEFORE the import stays a permanent miss afterward unless the cache
+ * is cleared -- run `php spark cache:clear` after every `iban:update` when
+ * `$cacheTtl` is `0` (or any TTL long enough to outlive your update cadence).
  *
  * **Miss sentinel**: misses (`$inner->findByBankCode()` returning `null`)
  * are cached too, via {@see self::MISS}, so repeated lookups of a bank code

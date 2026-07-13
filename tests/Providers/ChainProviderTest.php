@@ -310,6 +310,77 @@ final class ChainProviderTest extends TestCase
         self::assertNull($chain->findByIban($this->parsedIban()));
     }
 
+    /**
+     * `resolvedBy` is set by the individual provider (not by `ChainProvider`
+     * itself); when the SECOND provider is the one that actually answers,
+     * the returned `BankInfo`'s `resolvedBy` must be that provider's own
+     * value, flowing through `ChainProvider` unchanged.
+     */
+    public function testFindByIbanPreservesTheAnsweringProvidersResolvedByWhenTheFirstReturnsNull(): void
+    {
+        $fallbackInfo = new BankInfo(
+            bankName: 'Fallback Bank',
+            shortName: null,
+            bic: null,
+            city: null,
+            address: null,
+            sepaSct: null,
+            sepaSctInst: null,
+            sepaSddCore: null,
+            sepaSddB2b: null,
+            sourceId: 'iban.com',
+            sourceVersion: null,
+            sourceLicense: null,
+            resolvedBy: 'iban.com',
+        );
+
+        $first = new class () implements ProviderInterface {
+            public function supports(string $countryCode): bool
+            {
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
+            {
+                return null;
+            }
+        };
+
+        $second = new class ($fallbackInfo) implements ProviderInterface {
+            public function __construct(private readonly BankInfo $bankInfo)
+            {
+            }
+
+            public function supports(string $countryCode): bool
+            {
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): BankInfo
+            {
+                return $this->bankInfo;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
+            {
+                return null;
+            }
+        };
+
+        $chain = new ChainProvider([$first, $second]);
+
+        $result = $chain->findByIban($this->parsedIban());
+
+        self::assertSame($fallbackInfo, $result);
+        self::assertInstanceOf(BankInfo::class, $result);
+        self::assertSame('iban.com', $result->resolvedBy);
+    }
+
     public function testFindByBankCodeReturnsTheFirstNonNullResultInOrderAndSkipsTheSecondProvider(): void
     {
         $primaryInfo  = $this->fixedBankInfo('Primary Bank');

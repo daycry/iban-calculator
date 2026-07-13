@@ -74,6 +74,7 @@ final class IbanComProviderTest extends CIUnitTestCase
         self::assertSame('iban.com', $info->sourceId);
         self::assertSame('iban.com API', $info->sourceLicense);
         self::assertNotNull($info->sourceVersion);
+        self::assertSame('iban.com', $info->resolvedBy);
     }
 
     public function testFindByIbanReturnsNullOnNonTwoHundredStatus(): void

@@ -59,9 +59,9 @@ $iban = service('iban'); // shared instance, provider wired from Config\Iban
 The [`Services::iban()`](src/Config/Services.php#L47) factory returns the same `Iban` facade, but
 selects the provider from [`Config\Iban::$provider`](src/Config/Iban.php)
 (`'null'` → `NullProvider`, `'database'` → `DatabaseProvider` over a `BankModel`, or a custom
-`ProviderInterface` FQCN). When `Config\Iban::$cacheTtl > 0` and the provider is not `NullProvider`,
-it is wrapped in a [`CachedProvider`](src/Providers/CachedProvider.php)
-([src/Config/Services.php:77](src/Config/Services.php#L77)). A bad FQCN throws
+`ProviderInterface` FQCN). When `Config\Iban::$cacheTtl` is non-`null` and the provider is not
+`NullProvider`, it is wrapped in a [`CachedProvider`](src/Providers/CachedProvider.php)
+([src/Config/Services.php:89](src/Config/Services.php#L89)). A bad FQCN throws
 `InvalidArgumentException`.
 
 ### Methods
@@ -246,7 +246,7 @@ without publishing an `App\Config\Iban`.
 | `$checkNationalByDefault` | `bool` | `false` | `iban.checkNationalByDefault` | Whether [Validator](src/Core/Validator.php) runs national check-digit validation by default. |
 | `$dbGroup` | `?string` | `null` | `iban.dbGroup` | `Config\Database` connection group for [DatabaseProvider](src/Providers/DatabaseProvider.php) / [BankModel](src/Models/BankModel.php). `null` = no override, so CI4's environment-aware fallback (`Config\Database::$defaultGroup`, or `'tests'` under `ENVIRONMENT === 'testing'`) applies. |
 | `$table` | `string` | `'banks'` | `iban.table` | Table queried by [DatabaseProvider](src/Providers/DatabaseProvider.php) / [BankModel](src/Models/BankModel.php). |
-| `$cacheTtl` | `int` | `0` | `iban.cacheTtl` | Cache TTL in seconds for resolved bank lookups. `0` disables caching (provider left unwrapped); any value `> 0` wraps the provider in a [CachedProvider](src/Providers/CachedProvider.php). |
+| `$cacheTtl` | `?int` | `null` | `iban.cacheTtl` | Cache TTL in seconds for resolved bank lookups. `null` disables caching (provider left unwrapped). `0` wraps the provider in a [CachedProvider](src/Providers/CachedProvider.php) with a TTL of `0`, which CI4's cache handlers treat as **never expires** (not "disabled"). Any value `> 0` wraps it with that TTL. **BREAKING as of v2.0**: previously an `int` defaulting to `0`, and `0` meant "disabled" — if you relied on that, set `null` explicitly now. |
 | `$ibanComApiKey` | `string` | `''` | `iban.ibanComApiKey` | Opt-in API key for the [iban.com Validation API](https://www.iban.com/validation-api). Empty (default) disables the fallback entirely; non-empty chains an [IbanComProvider](src/Providers/IbanComProvider.php) after the primary provider via [ChainProvider](src/Providers/ChainProvider.php). |
 | `$ibanComTimeout` | `int` | `5` | `iban.ibanComTimeout` | Request timeout, in seconds, for [IbanComProvider](src/Providers/IbanComProvider.php)'s HTTP call. Only relevant when `$ibanComApiKey` is non-empty. |
 
@@ -290,19 +290,24 @@ always tried first, and [IbanComProvider](src/Providers/IbanComProvider.php) is 
 it returns nothing. With the default `$ibanComApiKey = ''`, this step is a no-op and `$provider` is
 left exactly as the `match` above produced it.
 
-Caching is then applied only when opted in ([src/Config/Services.php:77](src/Config/Services.php#L77)):
+Caching is then applied only when opted in ([src/Config/Services.php:89](src/Config/Services.php#L89)):
 
 ```php
-if ($config->cacheTtl > 0 && ! $provider instanceof NullProvider) {
-    $provider = new CachedProvider($provider, service('cache'), $config->cacheTtl);
+$cacheTtl = $config->cacheTtl;
+
+if ($cacheTtl !== null && ! $provider instanceof NullProvider) {
+    $provider = new CachedProvider($provider, service('cache'), $cacheTtl);
 }
 ```
 
-Note the [NullProvider](src/Providers/NullProvider.php) skip: it never resolves anything, so
-wrapping it would only add a pointless cache round-trip per `resolve()`. A
-[ChainProvider](src/Providers/ChainProvider.php) is never a `NullProvider`, so when the iban.com
-fallback is chained in, the combined local+iban.com chain is still cached correctly whenever
-`$cacheTtl > 0`. The facade is finally built as `new IbanService(new Registry(), $provider)`.
+Note the check is `!== null`, not `> 0`: since v2.0, `null` is the "caching disabled" value and `0`
+means "wrap with a TTL of `0`", which CI4's cache handlers treat as **never expires** — see
+`Config\Iban::$cacheTtl`'s row above for the full BREAKING semantics. Note also the
+[NullProvider](src/Providers/NullProvider.php) skip: it never resolves anything, so wrapping it would
+only add a pointless cache round-trip per `resolve()`. A [ChainProvider](src/Providers/ChainProvider.php)
+is never a `NullProvider`, so when the iban.com fallback is chained in, the combined local+iban.com
+chain is still cached correctly whenever `$cacheTtl` is non-`null`. The facade is finally built as
+`new IbanService(new Registry(), $provider)`.
 
 > [src/Config/Registrar.php](src/Config/Registrar.php) intentionally declares no `Autoload()`
 > method — it would be dead code, since `Config\Autoload` does not extend `BaseConfig` and so is
@@ -317,10 +322,18 @@ All implement [ProviderInterface](src/Contracts/ProviderInterface.php):
 | Provider | CI4-coupled | `supports()` | Behavior |
 | --- | --- | --- | --- |
 | [NullProvider](src/Providers/NullProvider.php) | No (framework-free default) | always `false` | Null-object: every lookup returns `null` (always unresolved). |
-| [DatabaseProvider](src/Providers/DatabaseProvider.php) | Yes | always `true` | Queries the `banks` table via [BankModel::findByNaturalKey()](src/Models/BankModel.php#L86) on `(country_code, bank_code, branch_code)`, mapping the row into a [BankInfo](src/DTO/BankInfo.php); `null` when unseeded. `findByIban()` delegates to `findByBankCode()`. |
-| [CachedProvider](src/Providers/CachedProvider.php) | Yes | delegates to inner | Decorator over any inner provider, backed by CI4 `service('cache')`. |
-| [IbanComProvider](src/Providers/IbanComProvider.php) | Yes | `true` iff an API key was configured | Opt-in, paid fallback over the iban.com Validation API. `findByBankCode()` always `null` (see below). |
-| [ChainProvider](src/Providers/ChainProvider.php) | No (pure composition) | `true` if ANY chained provider supports the country | Tries an ordered `list<ProviderInterface>` and returns the first non-null result. |
+| [DatabaseProvider](src/Providers/DatabaseProvider.php) | Yes | always `true` | Queries the `banks` table via [BankModel::findByNaturalKey()](src/Models/BankModel.php#L86) on `(country_code, bank_code, branch_code)`, mapping the row into a [BankInfo](src/DTO/BankInfo.php) with `resolvedBy: 'database'`; `null` when unseeded. `findByIban()` delegates to `findByBankCode()`. |
+| [CachedProvider](src/Providers/CachedProvider.php) | Yes | delegates to inner | Decorator over any inner provider, backed by CI4 `service('cache')`. Stores/returns the inner `BankInfo` as-is, so a cached hit preserves its `resolvedBy` unchanged. |
+| [IbanComProvider](src/Providers/IbanComProvider.php) | Yes | `true` iff an API key was configured | Opt-in, paid fallback over the iban.com Validation API; sets `resolvedBy: 'iban.com'` on a successful response. `findByBankCode()` always `null` (see below). |
+| [ChainProvider](src/Providers/ChainProvider.php) | No (pure composition) | `true` if ANY chained provider supports the country | Tries an ordered `list<ProviderInterface>` and returns the first non-null result, `resolvedBy` included, exactly as the winning provider set it. |
+
+**`resolvedBy` vs `sourceId`**: `resolvedBy` identifies WHICH provider answered (`'database'`,
+`'iban.com'`, or a custom provider's own id) — set by the provider itself. `sourceId` identifies the
+DATASET a `DatabaseProvider` row came from (e.g. `'epc'`, `'bde'`, or `'iban.com'` when that row was
+originally imported via the iban.com API), set at import/write time. The two answer different
+questions and are independent: a `DatabaseProvider` row can carry `sourceId: 'iban.com'` (an
+iban.com-sourced dataset previously written to the `banks` table) while `resolvedBy` still reads
+`'database'` (a local DB lookup answered this particular `resolve()` call).
 
 `DatabaseProvider::__construct(private BankModel $model = new BankModel())` defaults its model,
 but `service('iban')` passes an explicitly configured one. It returns `true` from `supports()`
@@ -347,10 +360,21 @@ Misses are cached too, via the `private const MISS = '__iban_miss__'` sentinel: 
 `CacheInterface::get()` returns `null` both for an unstored key and for a stored literal `null`,
 storing a non-null sentinel lets a genuine `null` `get()` result unambiguously mean "not cached".
 A cached `BankInfo` is returned as-is; any other non-null cached value is the sentinel and maps
-back to `null` before returning (the sentinel never leaks to callers).
+back to `null` before returning (the sentinel never leaks to callers). Because `BankInfo` is a
+`final readonly` class of plain scalars/bools, storing and re-reading it (whether from the in-process
+array used in tests or a real serializing cache handler) round-trips every field — including
+`resolvedBy` — unchanged: a cached hit reports the same `resolvedBy` the original lookup did.
+
+**Warning — a `$ttl` of `0` caches misses forever too**: `$ttl` is forwarded to `CacheInterface::save()`
+verbatim, and CI4's cache handlers treat `0` as "never expires" (e.g. `FileHandler::getMetaData()`:
+`'expire' => $data['ttl'] > 0 ? ... : null`). Combined with the miss-caching above, a "not found" result
+looked up while `$cacheTtl === 0` never expires either — after running `php spark iban:update`, run
+`php spark cache:clear` or previously-missed IBANs/bank codes stay unresolved forever.
 
 Note the constructor's own `$ttl` default of `3600` is inert in the service path — `Config\Iban::$cacheTtl`
-(default `0`) always supplies the TTL, and the wrap only happens when that value is `> 0`.
+(default `null`, meaning "disabled") always supplies the TTL when non-`null`, and the wrap only
+happens in that case; once wrapped, `0` is passed through as-is (never expires), not treated as the
+constructor's default.
 
 ### IbanComProvider (opt-in iban.com fallback)
 
@@ -369,7 +393,9 @@ and (always sent by this provider) `sci=1` to also request the SEPA Instant Cred
 Response JSON has `bank_data` (mapped fields: `bank` → `bankName`, `bic`, `city`, `address`),
 `sepa_data` (`'YES'`/`'NO'` flags: `SCT` → `sepaSct`, `SDD` → `sepaSddCore`, `B2B` → `sepaSddB2b`,
 `SCI` → `sepaSctInst`), `validations` (not consumed), and `errors` (non-empty ⇒ failure). `sourceId` is
-hardcoded `'iban.com'`, `sourceVersion` is today's date (`Y-m-d`), `sourceLicense` is `'iban.com API'`.
+hardcoded `'iban.com'`, `sourceVersion` is today's date (`Y-m-d`), `sourceLicense` is `'iban.com API'`,
+and `resolvedBy` is likewise hardcoded `'iban.com'` (identifying the *provider*, alongside `sourceId`
+identifying the *dataset* — the same value here since the dataset IS the live API response).
 
 `findByIban()` **never throws**: the whole request + parse is wrapped in one `try`/`catch (Throwable)`,
 so a DNS failure, timeout, non-200 status, malformed JSON, a non-empty `errors` array, or an empty/
@@ -493,7 +519,7 @@ public function __construct(
 
 Bank data *without* IBAN composition — the return shape of
 [`ProviderInterface`](src/Contracts/ProviderInterface.php) implementations. See
-[src/DTO/BankInfo.php](src/DTO/BankInfo.php). All 12 fields are nullable; a field is `null` when the
+[src/DTO/BankInfo.php](src/DTO/BankInfo.php). All 13 fields are nullable; a field is `null` when the
 provider has no value for it.
 
 ```php
@@ -510,6 +536,7 @@ public function __construct(
     public ?string $sourceId,
     public ?string $sourceVersion,
     public ?string $sourceLicense,
+    public ?string $resolvedBy = null,
 )
 ```
 
@@ -524,16 +551,17 @@ public function __construct(
 | `sepaSctInst`   | `?bool`    | Supports SEPA Instant Credit Transfer.                        |
 | `sepaSddCore`   | `?bool`    | Supports SEPA Direct Debit Core.                              |
 | `sepaSddB2b`    | `?bool`    | Supports SEPA Direct Debit B2B.                               |
-| `sourceId`      | `?string`  | Identifier of the data source the record came from.          |
+| `sourceId`      | `?string`  | Identifier of the DATASET the record came from (e.g. `'epc'`, `'bde'`, `'iban.com'`), `null` for a hand-seeded row. |
 | `sourceVersion` | `?string`  | Version/snapshot of the source data.                         |
 | `sourceLicense` | `?string`  | License under which the source data is distributed.          |
+| `resolvedBy`    | `?string`  | Identifies WHICH provider produced this data (`'database'`, `'iban.com'`, or a custom provider's own id) — distinct from `sourceId` above, which identifies the *dataset*. `null` when unknown. Defaults to `null`. |
 
 No methods.
 
 ### BankResult
 
 The output of [`Resolver::resolve()`](src/Resolver/Resolver.php) (surfaced via
-[`Iban::resolve()`](src/Iban.php)): a [`ParsedIban`](src/DTO/ParsedIban.php) composed with the same 12
+[`Iban::resolve()`](src/Iban.php)): a [`ParsedIban`](src/DTO/ParsedIban.php) composed with the same 13
 nullable bank fields as [`BankInfo`](src/DTO/BankInfo.php). See
 [src/DTO/BankResult.php](src/DTO/BankResult.php).
 
@@ -552,17 +580,18 @@ public function __construct(
     public ?string $sourceId,
     public ?string $sourceVersion,
     public ?string $sourceLicense,
+    public ?string $resolvedBy = null,
 )
 ```
 
 | Property                          | Type          | Meaning                                                                     |
 | --------------------------------- | ------------- | --------------------------------------------------------------------------- |
 | `iban`                            | `ParsedIban`  | The parsed IBAN this result was resolved from (never `null`).               |
-| `bankName` … `sourceLicense` (12) | see `BankInfo` | Identical to the 12 nullable fields of [`BankInfo`](src/DTO/BankInfo.php) above; `null` when unresolved. |
+| `bankName` … `resolvedBy` (13)    | see `BankInfo` | Identical to the 13 nullable fields of [`BankInfo`](src/DTO/BankInfo.php) above; `null` when unresolved/unknown. |
 
 | Method          | Returns  | Meaning                                                                                          |
 | --------------- | -------- | ------------------------------------------------------------------------------------------------ |
-| `isResolved()`  | `bool`   | `true` when *any* of the 12 bank fields is non-null; `false` when the provider supplied no data. |
+| `isResolved()`  | `bool`   | `true` when *any* of the 12 bank-data fields is non-null; `false` when the provider supplied no data. Deliberately excludes `resolvedBy` (provenance metadata, not bank data) — a result with only `resolvedBy` set still reports `false`. |
 
 With the default [`NullProvider`](src/Providers/NullProvider.php), `resolve()` always returns a
 `BankResult` whose 12 bank fields are `null` and whose `isResolved()` is therefore `false`.
@@ -913,7 +942,7 @@ public string $provider = \App\Iban\ApiBankProvider::class;
 the class must exist and implement `ProviderInterface` (otherwise an `InvalidArgumentException` is
 thrown), and it is instantiated with **no constructor arguments** (`new $fqcn()`) — give your
 provider a zero-arg constructor, or resolve its dependencies internally. If
-`Config\Iban::$cacheTtl > 0`, the service transparently wraps your provider in
+`Config\Iban::$cacheTtl` is non-`null`, the service transparently wraps your provider in
 [CachedProvider](src/Providers/CachedProvider.php). Standalone (no CI4) you can instead hand your
 provider straight to `new Resolver($parser, $provider)`. Return `null` from the finders for a miss;
 the resolver still produces a `BankResult` carrying the parsed IBAN with empty bank fields.

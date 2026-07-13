@@ -26,11 +26,27 @@ final readonly class BankResult
         public ?string $sourceId,
         public ?string $sourceVersion,
         public ?string $sourceLicense,
+        /**
+         * Identifies WHICH provider produced this data — e.g. `'database'`
+         * (local `banks` table), `'iban.com'` (remote API fallback), or a
+         * custom provider's own id. Distinct from `$sourceId`, which
+         * identifies the DATASET the data came from (`'epc'`, `'bde'`, …).
+         * `null` when unknown/unresolved.
+         *
+         * METADATA ONLY: deliberately excluded from {@see self::isResolved()},
+         * which must keep reflecting only the presence of actual bank data.
+         */
+        public ?string $resolvedBy = null,
     ) {
     }
 
     /**
      * Returns true if any of the 12 bank fields is non-null.
+     *
+     * `$resolvedBy` is provenance metadata, not bank data, and is
+     * deliberately excluded from this check — a `BankResult` with only
+     * `$resolvedBy` set (and every bank field null) must still report
+     * `isResolved() === false`.
      */
     public function isResolved(): bool
     {
