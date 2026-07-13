@@ -94,7 +94,10 @@ class Services extends BaseService
             $provider = new CachedProvider($provider, service('cache'), $cacheTtl);
         }
 
-        return new IbanService(new Registry(), $provider);
+        // Pass the configured ISO 3166-1 registry (php or database source) so
+        // the facade's BIC validation recognises every country's code, not
+        // just the IBAN-issuing subset.
+        return new IbanService(new Registry(), $provider, self::isoCountries());
     }
 
     /**
