@@ -39,6 +39,16 @@ final class BicValidatorTest extends TestCase
         yield 'BIC11 with XXX GB' => ['BARCGB22XXX'];
         yield 'digit 2 at location char 1' => ['DEUTDE2H'];
         yield 'digit at location char 2 (passive)' => ['DEUTDEF1'];
+        // ISO 9362:2014/2022 widened the business-party prefix (positions 1-4)
+        // to alphanumeric and places NO char-class restriction on the location
+        // code (positions 7-8) beyond [A-Z0-9]. All of the following are
+        // well-formed under the canonical ISO 20022 pattern and must validate.
+        yield 'alphanumeric business-party prefix (leading digit)' => ['3XYZUS33'];
+        yield 'all-digit business-party prefix'                    => ['1234US33'];
+        yield 'digit 0 at location char 1'                         => ['CHASUS03'];
+        yield 'digit 1 at location char 1'                         => ['CHASUS13'];
+        yield 'digit 0 at location char 1, letter at char 2'       => ['CHASUS0X'];
+        yield 'letter O at location char 2'                        => ['CHASUS3O'];
     }
 
     #[DataProvider('validBicProvider')]
@@ -116,11 +126,12 @@ final class BicValidatorTest extends TestCase
      */
     public static function malformedStructureProvider(): iterable
     {
-        yield 'digits in institution code'  => ['1234US33'];
-        yield 'digit in country code'        => ['CHASU133'];
-        yield 'digit 0 at location char 1'   => ['CHASUS03'];
-        yield 'digit 1 at location char 1'   => ['CHASUS13'];
-        yield 'letter O at location char 2'  => ['CHASUS3O'];
+        // The country code (positions 5-6) is the ONLY letters-only segment in
+        // the canonical ISO 20022 pattern, so a digit there is the genuine
+        // malformed case that survives ISO 9362:2014/2022's widened char
+        // classes for the prefix and location code.
+        yield 'digit in second country-code position' => ['CHASU133'];
+        yield 'digit in first country-code position'  => ['CHAS1S33'];
     }
 
     #[DataProvider('malformedStructureProvider')]

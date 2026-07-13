@@ -31,17 +31,24 @@ use Daycry\Iban\Registry\IsoCountryRegistry;
  * network". Confirming that a BIC is real requires a directory lookup (e.g.
  * SWIFTRef), which this offline validator deliberately does not attempt.
  *
- * Structure rule (the ISO 20022 / EPC / SEPA canonical pattern), applied after
- * normalization:
+ * Structure rule — the canonical ISO 20022 / ISO 9362:2014-2022 pattern (the
+ * AnyBICIdentifier / BICFIIdentifier char classes), applied after normalization:
  *
- *   ^[A-Z]{6}[A-Z2-9][A-NP-Z0-9]([A-Z0-9]{3})?$
+ *   ^[A-Z0-9]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$
  *
- *   - positions 1-6  institution code (4) + country code (2): letters only
- *   - position 7     location char 1: `[A-Z2-9]` (digits 0 and 1 are illegal here)
- *   - position 8     location char 2: `[A-NP-Z0-9]` (letter `O` excluded; digits
- *                    0/1/2 are allowed and semantically meaningful — 0 = test,
- *                    1 = passive participant, 2 = reverse billing — so they must
- *                    NOT be rejected)
+ *   - positions 1-4  business-party (institution) prefix: `[A-Z0-9]` —
+ *                    alphanumeric. ISO 9362:2014/2022 widened this from the
+ *                    pre-2014 letters-only rule, so a digit here is LEGAL and
+ *                    must NOT be rejected.
+ *   - positions 5-6  country code: `[A-Z]` letters only. This is the only
+ *                    letters-only segment — an ISO 3166-1 alpha-2 code is always
+ *                    alphabetic, and is additionally checked against
+ *                    {@see IsoCountryRegistry} below.
+ *   - positions 7-8  location code: `[A-Z0-9]` — any alphanumeric. The canonical
+ *                    pattern places NO further restriction here; older SWIFT
+ *                    conventions forbidding `0`/`1` at position 7 or the letter
+ *                    `O` at position 8 are NOT part of the standard and would
+ *                    wrongly reject legal BICs.
  *   - positions 9-11 optional branch code: `[A-Z0-9]{3}`
  *
  * Country-code policy (position 5-6): checked against the FULL ISO 3166-1
@@ -57,9 +64,10 @@ use Daycry\Iban\Registry\IsoCountryRegistry;
 final class BicValidator
 {
     /**
-     * Canonical ISO 20022 / EPC BIC structure pattern (see class docblock).
+     * Canonical ISO 20022 / ISO 9362:2014-2022 BIC structure pattern (the
+     * AnyBICIdentifier / BICFIIdentifier char classes; see class docblock).
      */
-    private const STRUCTURE_PATTERN = '/^[A-Z]{6}[A-Z2-9][A-NP-Z0-9]([A-Z0-9]{3})?$/';
+    private const STRUCTURE_PATTERN = '/^[A-Z0-9]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$/';
 
     /**
      * Country codes accepted for a BIC beyond the officially assigned ISO

@@ -611,7 +611,7 @@ public function __construct(
 | Property          | Type       | Meaning                                                                 |
 | ----------------- | ---------- | ----------------------------------------------------------------------- |
 | `bic`             | `string`   | The normalized BIC (uppercase, no spaces); 8 or 11 characters.          |
-| `institutionCode` | `string`   | Positions 1-4 — the bank / business-party code (letters only).          |
+| `institutionCode` | `string`   | Positions 1-4 — the bank / business-party code (alphanumeric).          |
 | `countryCode`     | `string`   | Positions 5-6 — ISO 3166-1 alpha-2 country code (letters only).         |
 | `locationCode`    | `string`   | Positions 7-8 — the location code.                                      |
 | `branchCode`      | `?string`  | Positions 9-11 — the branch code, or `null` when the BIC is 8 chars.    |
@@ -764,7 +764,7 @@ The [BicValidator](src/Core/BicValidator.php) runs its own fixed, short-circuiti
 | `BicBlank` | `bic_blank` | `bic.violation.blank` | The BIC is empty after normalization. |
 | `BicBadLength` | `bic_bad_length` | `bic.violation.bad_length` | Length is not exactly 8 or 11. |
 | `BicIllegalCharacters` | `bic_illegal_characters` | `bic.violation.illegal_characters` | A character outside `[A-Z0-9]` remains after normalization. |
-| `BicMalformedStructure` | `bic_malformed_structure` | `bic.violation.malformed_structure` | Right length/charset, but the wrong char class per position (pattern `^[A-Z]{6}[A-Z2-9][A-NP-Z0-9]([A-Z0-9]{3})?$`). |
+| `BicMalformedStructure` | `bic_malformed_structure` | `bic.violation.malformed_structure` | Right length/charset, but the wrong char class per position (pattern `^[A-Z0-9]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$` — in practice only a digit in the country-code positions 5-6). |
 | `BicUnknownCountry` | `bic_unknown_country` | `bic.violation.unknown_country` | Positions 5-6 are not a recognised ISO 3166-1 alpha-2 code (the full ~249-code set, plus `XK`). |
 | `BicIbanCountryMismatch` | `bic_iban_country_mismatch` | `bic.violation.iban_country_mismatch` | Cross-check: the BIC's country code (positions 5-6) differs from the IBAN's country code. |
 | `BicIbanBankMismatch` | `bic_iban_bank_mismatch` | `bic.violation.iban_bank_mismatch` | Cross-check: for a 4-letter-alpha-bank-code country only, the BIC's institution code (positions 1-4) differs from the IBAN's bank code. |
@@ -985,16 +985,19 @@ public function toParsedBic(string $normalized): ParsedBic;     // assumes input
 `validate()` runs a fixed, short-circuiting pipeline, returning on the **first** violation:
 `BicBlank` → `BicBadLength` → `BicIllegalCharacters` → `BicMalformedStructure` → `BicUnknownCountry`
 (see the [BIC / cross-check cases table](#bic--cross-check-cases-v21)). The structure pattern is the
-canonical ISO 20022 / EPC one:
+canonical ISO 20022 / ISO 9362:2014-2022 one (the AnyBICIdentifier / BICFIIdentifier char classes):
 
 ```
-^[A-Z]{6}[A-Z2-9][A-NP-Z0-9]([A-Z0-9]{3})?$
+^[A-Z0-9]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$
 ```
 
-- positions 1-6 (institution + country): letters only
-- position 7 (location char 1): `[A-Z2-9]` — digits `0`/`1` are illegal here
-- position 8 (location char 2): `[A-NP-Z0-9]` — letter `O` excluded; digits `0`/`1`/`2` are allowed and
-  semantically meaningful (`0` = test, `1` = passive participant, `2` = reverse billing)
+- positions 1-4 (business-party / institution prefix): `[A-Z0-9]` — alphanumeric. ISO 9362:2014/2022
+  widened this from the pre-2014 letters-only rule, so a digit here is legal and is **not** rejected.
+- positions 5-6 (country code): `[A-Z]` letters only — the only letters-only segment (an ISO 3166-1
+  alpha-2 code is always alphabetic, and is additionally checked against `IsoCountryRegistry`)
+- positions 7-8 (location code): `[A-Z0-9]` — any alphanumeric; the canonical pattern places no further
+  restriction here (older SWIFT conventions forbidding `0`/`1` at position 7 or the letter `O` at
+  position 8 are not part of the standard and would wrongly reject legal BICs)
 - positions 9-11 (optional branch): `[A-Z0-9]{3}`
 
 **Country-code policy (positions 5-6):** checked against the FULL ISO 3166-1 alpha-2 set via

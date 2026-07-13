@@ -19,7 +19,7 @@ namespace Daycry\Iban\DTO;
  * requires a directory lookup.
  *
  * Field layout (1-indexed positions within the 8- or 11-char BIC):
- *   - 1-4  institution / business-party code (letters only)
+ *   - 1-4  institution / business-party code (alphanumeric)
  *   - 5-6  ISO 3166-1 alpha-2 country code (letters only)
  *   - 7-8  location code
  *   - 9-11 branch code (present only in an 11-char BIC)
