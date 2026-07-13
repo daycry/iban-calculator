@@ -12,6 +12,7 @@ use Daycry\Iban\DTO\BankInfo;
 use Daycry\Iban\DTO\ParsedIban;
 use Daycry\Iban\Providers\IbanComProvider;
 use RuntimeException;
+use Tests\Support\RecordingCurlRequest;
 
 /**
  * Exercises {@see IbanComProvider} entirely offline: a hand-rolled anonymous
@@ -58,7 +59,8 @@ final class IbanComProviderTest extends CIUnitTestCase
             'errors'      => [],
         ]);
 
-        $provider = new IbanComProvider('secret', $this->clientReturning($this->cannedResponse(200, (string) $body)));
+        $client   = $this->recordingClient($this->cannedResponse(200, (string) $body));
+        $provider = new IbanComProvider('secret', $client);
 
         $info = $provider->findByIban($this->parsedIban());
 
@@ -75,6 +77,16 @@ final class IbanComProviderTest extends CIUnitTestCase
         self::assertSame('iban.com API', $info->sourceLicense);
         self::assertNotNull($info->sourceVersion);
         self::assertSame('iban.com', $info->resolvedBy);
+
+        // Pin the endpoint + request shape: the canned response is returned for
+        // ANY call, so without these a swapped endpoint (BIC vs IBAN) or a
+        // renamed form field ('iban' -> 'bic') would ship green.
+        self::assertSame('https://api.iban.com/clients/api/v4/iban/', $client->lastUrl);
+        $formParams = $client->lastOptions['form_params'] ?? null;
+        self::assertIsArray($formParams);
+        self::assertSame('json', $formParams['format']);
+        self::assertSame('secret', $formParams['api_key']);
+        self::assertSame('DE89370400440532013000', $formParams['iban']);
     }
 
     public function testFindByIbanReturnsNullOnNonTwoHundredStatus(): void
@@ -182,9 +194,11 @@ final class IbanComProviderTest extends CIUnitTestCase
             'error'    => [],
         ]);
 
-        $provider = new IbanComProvider('secret', $this->clientReturning($this->cannedResponse(200, (string) $body)));
+        $client   = $this->recordingClient($this->cannedResponse(200, (string) $body));
+        $provider = new IbanComProvider('secret', $client);
 
-        $info = $provider->findByBic('BARCGB22XXX');
+        // Spaced/lowercase input also proves the 'bic' field is normalized.
+        $info = $provider->findByBic(' barc gb 22 xxx ');
 
         self::assertInstanceOf(BankInfo::class, $info);
         self::assertSame('BARCLAYS BANK PLC', $info->bankName);
@@ -198,6 +212,40 @@ final class IbanComProviderTest extends CIUnitTestCase
         self::assertSame('iban.com API', $info->sourceLicense);
         self::assertNotNull($info->sourceVersion);
         self::assertSame('iban.com', $info->resolvedBy);
+
+        // Pin the SEPARATE BIC endpoint + request shape: the canned response is
+        // returned for ANY call, so without these a swapped endpoint (IBAN vs
+        // BIC) or a renamed form field ('bic' -> 'iban') would ship green. The
+        // 'bic' value also pins the strip-whitespace + uppercase normalization.
+        self::assertSame('https://api.iban.com/clients/api/swiftv2/bic/', $client->lastUrl);
+        $formParams = $client->lastOptions['form_params'] ?? null;
+        self::assertIsArray($formParams);
+        self::assertSame('json', $formParams['format']);
+        self::assertSame('secret', $formParams['api_key']);
+        self::assertSame('BARCGB22XXX', $formParams['bic']);
+    }
+
+    public function testFindByBicUsesInstitutionWhenNameIsAbsent(): void
+    {
+        // A directory_results row that carries 'institution' but NOT 'name'
+        // must fall back to the institution field (a real BIC-API field), not
+        // yield a null bankName.
+        $body = json_encode([
+            'bic_valid'         => true,
+            'directory_results' => [
+                'bic'         => 'BARCGB22XXX',
+                'institution' => 'BARCLAYS BANK PLC',
+                'city'        => 'LONDON',
+            ],
+            'error' => [],
+        ]);
+
+        $provider = new IbanComProvider('secret', $this->clientReturning($this->cannedResponse(200, (string) $body)));
+
+        $info = $provider->findByBic('BARCGB22XXX');
+
+        self::assertInstanceOf(BankInfo::class, $info);
+        self::assertSame('BARCLAYS BANK PLC', $info->bankName);
     }
 
     public function testFindByBicAcceptsADirectoryResultsListAndUsesTheFirstRow(): void
@@ -321,6 +369,16 @@ final class IbanComProviderTest extends CIUnitTestCase
                 return $this->canned;
             }
         };
+    }
+
+    /**
+     * Like {@see clientReturning()}, but returns a double that records the URL
+     * and options of the `post()` call so a test can pin the endpoint and the
+     * form fields the provider sends.
+     */
+    private function recordingClient(ResponseInterface $response): RecordingCurlRequest
+    {
+        return new RecordingCurlRequest($response);
     }
 
     private function parsedIban(): ParsedIban
