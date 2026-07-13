@@ -38,7 +38,7 @@ final class CachedProviderTest extends CIUnitTestCase
         // singleton; undo that so later tests keep seeing the documented
         // defaults, and drop any shared `service('iban')` built against it.
         config(IbanConfig::class)->provider = 'null';
-        config(IbanConfig::class)->cacheTtl = 0;
+        config(IbanConfig::class)->cacheTtl = null;
         $this->resetServices();
     }
 
@@ -339,22 +339,42 @@ final class CachedProviderTest extends CIUnitTestCase
     }
 
     /**
-     * Default `Config\Iban::$cacheTtl` (0) must leave `Services::iban()`'s
-     * behavior unchanged: the resolver's provider stays unwrapped.
+     * Default `Config\Iban::$cacheTtl` (`null`) must leave `Services::iban()`'s
+     * behavior unchanged: the resolver's provider stays unwrapped. See
+     * `Config\Iban::$cacheTtl`'s docblock for the full null/0/>0 matrix
+     * (BREAKING as of v1.6 -- `0` used to mean "disabled"; `null` does now).
      */
-    public function testConfigIbanDefaultsCacheTtlToZero(): void
+    public function testConfigIbanDefaultsCacheTtlToNull(): void
     {
-        self::assertSame(0, (new IbanConfig())->cacheTtl);
+        self::assertNull((new IbanConfig())->cacheTtl);
     }
 
-    public function testServicesIbanDoesNotWrapTheProviderWhenCacheTtlIsZero(): void
+    public function testServicesIbanDoesNotWrapTheProviderWhenCacheTtlIsNull(): void
+    {
+        config(IbanConfig::class)->provider = 'database';
+        config(IbanConfig::class)->cacheTtl = null;
+
+        $iban = IbanServices::iban(false);
+
+        self::assertInstanceOf(DatabaseProvider::class, self::resolverProviderOf($iban));
+    }
+
+    /**
+     * `cacheTtl = 0` is no longer "disabled" (that's `null` now) -- it wraps
+     * the provider with a TTL of `0`, which CI4's cache handlers treat as
+     * "never expires". {@see self::testATtlOfZeroIsForwardedToCacheSaveVerbatim()}
+     * proves the `0` reaches `CacheInterface::save()` unchanged.
+     */
+    public function testServicesIbanWrapsTheDatabaseProviderInCachedProviderWhenCacheTtlIsZero(): void
     {
         config(IbanConfig::class)->provider = 'database';
         config(IbanConfig::class)->cacheTtl = 0;
 
         $iban = IbanServices::iban(false);
 
-        self::assertInstanceOf(DatabaseProvider::class, self::resolverProviderOf($iban));
+        $provider = self::resolverProviderOf($iban);
+        self::assertInstanceOf(CachedProvider::class, $provider);
+        self::assertSame(0, self::ttlOf($provider));
     }
 
     public function testServicesIbanWrapsTheDatabaseProviderInCachedProviderWhenCacheTtlIsPositive(): void
@@ -364,7 +384,19 @@ final class CachedProviderTest extends CIUnitTestCase
 
         $iban = IbanServices::iban(false);
 
-        self::assertInstanceOf(CachedProvider::class, self::resolverProviderOf($iban));
+        $provider = self::resolverProviderOf($iban);
+        self::assertInstanceOf(CachedProvider::class, $provider);
+        self::assertSame(300, self::ttlOf($provider));
+    }
+
+    public function testServicesIbanSkipsWrappingTheNullProviderEvenWhenCacheTtlIsZero(): void
+    {
+        config(IbanConfig::class)->provider = 'null';
+        config(IbanConfig::class)->cacheTtl = 0;
+
+        $iban = IbanServices::iban(false);
+
+        self::assertInstanceOf(NullProvider::class, self::resolverProviderOf($iban));
     }
 
     public function testServicesIbanSkipsWrappingTheNullProviderEvenWhenCacheTtlIsPositive(): void
@@ -375,6 +407,80 @@ final class CachedProviderTest extends CIUnitTestCase
         $iban = IbanServices::iban(false);
 
         self::assertInstanceOf(NullProvider::class, self::resolverProviderOf($iban));
+    }
+
+    /**
+     * CI4 cache-TTL semantics (see `CachedProvider`'s class docblock): a
+     * `$ttl` of `0` passed to `CacheInterface::save()` means "never
+     * expires", not "already expired"/"disabled". `CachedProvider` must
+     * forward it to `save()` completely unchanged -- this is the crux of
+     * the v1.6 breaking change, verified directly against a TTL-recording
+     * cache double rather than the real filesystem/Redis handlers.
+     */
+    public function testATtlOfZeroIsForwardedToCacheSaveVerbatim(): void
+    {
+        $bankInfo = $this->fixedBankInfo();
+
+        $spy = new class ($bankInfo) implements ProviderInterface {
+            public function __construct(private readonly BankInfo $bankInfo)
+            {
+            }
+
+            public function supports(string $countryCode): bool
+            {
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): BankInfo
+            {
+                return $this->bankInfo;
+            }
+        };
+
+        $ttlSpyCache = $this->makeTtlRecordingCache();
+
+        $cached = new CachedProvider($spy, $ttlSpyCache, 0);
+        $cached->findByBankCode('ES', '2100', '0418');
+
+        self::assertSame([0], $ttlSpyCache->savedTtls);
+    }
+
+    public function testAPositiveTtlIsForwardedToCacheSaveVerbatim(): void
+    {
+        $bankInfo = $this->fixedBankInfo();
+
+        $spy = new class ($bankInfo) implements ProviderInterface {
+            public function __construct(private readonly BankInfo $bankInfo)
+            {
+            }
+
+            public function supports(string $countryCode): bool
+            {
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): BankInfo
+            {
+                return $this->bankInfo;
+            }
+        };
+
+        $ttlSpyCache = $this->makeTtlRecordingCache();
+
+        $cached = new CachedProvider($spy, $ttlSpyCache, 3600);
+        $cached->findByBankCode('ES', '2100', '0418');
+
+        self::assertSame([3600], $ttlSpyCache->savedTtls);
     }
 
     private function fixedBankInfo(): BankInfo
@@ -494,6 +600,96 @@ final class CachedProviderTest extends CIUnitTestCase
     }
 
     /**
+     * Same in-memory `CacheInterface` test double as {@see self::makeInMemoryCache()},
+     * plus a public `$savedTtls` log of every `$ttl` argument `save()` was
+     * called with -- used to prove the exact TTL `Config\Iban::$cacheTtl`
+     * configures (including `0`, meaning "never expires" in CI4) reaches the
+     * cache handler unchanged (see {@see \Daycry\Iban\Providers\CachedProvider}).
+     *
+     * @return CacheInterface&object{savedTtls: list<int>}
+     */
+    private function makeTtlRecordingCache(): CacheInterface
+    {
+        return new class () implements CacheInterface {
+            /** @var list<int> */
+            public array $savedTtls = [];
+
+            /** @var array<string, mixed> */
+            private array $store = [];
+
+            public function initialize(): void
+            {
+            }
+
+            public function get(string $key): mixed
+            {
+                return $this->store[$key] ?? null;
+            }
+
+            public function save(string $key, mixed $value, int $ttl = 60): bool
+            {
+                $this->savedTtls[] = $ttl;
+                $this->store[$key] = $value;
+
+                return true;
+            }
+
+            public function remember(string $key, int $ttl, Closure $callback): mixed
+            {
+                if (! array_key_exists($key, $this->store)) {
+                    $this->store[$key] = $callback();
+                }
+
+                return $this->store[$key];
+            }
+
+            public function delete(string $key): bool
+            {
+                unset($this->store[$key]);
+
+                return true;
+            }
+
+            public function deleteMatching(string $pattern): int
+            {
+                return 0;
+            }
+
+            public function increment(string $key, int $offset = 1): bool|int
+            {
+                return false;
+            }
+
+            public function decrement(string $key, int $offset = 1): bool|int
+            {
+                return false;
+            }
+
+            public function clean(): bool
+            {
+                $this->store = [];
+
+                return true;
+            }
+
+            public function getCacheInfo(): array|false|object|null
+            {
+                return null;
+            }
+
+            public function getMetaData(string $key): ?array
+            {
+                return null;
+            }
+
+            public function isSupported(): bool
+            {
+                return true;
+            }
+        };
+    }
+
+    /**
      * Reaches into the facade's private `Resolver::$provider` to assert
      * which provider class `Config\Services::iban()` actually wired up
      * (same helper pattern as `tests/Config/ServicesTest.php`).
@@ -504,5 +700,21 @@ final class CachedProviderTest extends CIUnitTestCase
         $property->setAccessible(true);
 
         return $property->getValue($iban->resolver());
+    }
+
+    /**
+     * Reaches into `CachedProvider`'s private `$ttl` to assert which TTL
+     * `Config\Services::iban()` actually configured it with, without
+     * triggering a real cache/DB round-trip.
+     */
+    private static function ttlOf(CachedProvider $provider): int
+    {
+        $property = new ReflectionProperty(CachedProvider::class, 'ttl');
+        $property->setAccessible(true);
+
+        /** @var int $value */
+        $value = $property->getValue($provider);
+
+        return $value;
     }
 }

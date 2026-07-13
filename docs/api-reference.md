@@ -59,9 +59,9 @@ $iban = service('iban'); // shared instance, provider wired from Config\Iban
 The [`Services::iban()`](src/Config/Services.php#L47) factory returns the same `Iban` facade, but
 selects the provider from [`Config\Iban::$provider`](src/Config/Iban.php)
 (`'null'` → `NullProvider`, `'database'` → `DatabaseProvider` over a `BankModel`, or a custom
-`ProviderInterface` FQCN). When `Config\Iban::$cacheTtl > 0` and the provider is not `NullProvider`,
-it is wrapped in a [`CachedProvider`](src/Providers/CachedProvider.php)
-([src/Config/Services.php:77](src/Config/Services.php#L77)). A bad FQCN throws
+`ProviderInterface` FQCN). When `Config\Iban::$cacheTtl` is non-`null` and the provider is not
+`NullProvider`, it is wrapped in a [`CachedProvider`](src/Providers/CachedProvider.php)
+([src/Config/Services.php:89](src/Config/Services.php#L89)). A bad FQCN throws
 `InvalidArgumentException`.
 
 ### Methods
@@ -246,7 +246,7 @@ without publishing an `App\Config\Iban`.
 | `$checkNationalByDefault` | `bool` | `false` | `iban.checkNationalByDefault` | Whether [Validator](src/Core/Validator.php) runs national check-digit validation by default. |
 | `$dbGroup` | `?string` | `null` | `iban.dbGroup` | `Config\Database` connection group for [DatabaseProvider](src/Providers/DatabaseProvider.php) / [BankModel](src/Models/BankModel.php). `null` = no override, so CI4's environment-aware fallback (`Config\Database::$defaultGroup`, or `'tests'` under `ENVIRONMENT === 'testing'`) applies. |
 | `$table` | `string` | `'banks'` | `iban.table` | Table queried by [DatabaseProvider](src/Providers/DatabaseProvider.php) / [BankModel](src/Models/BankModel.php). |
-| `$cacheTtl` | `int` | `0` | `iban.cacheTtl` | Cache TTL in seconds for resolved bank lookups. `0` disables caching (provider left unwrapped); any value `> 0` wraps the provider in a [CachedProvider](src/Providers/CachedProvider.php). |
+| `$cacheTtl` | `?int` | `null` | `iban.cacheTtl` | Cache TTL in seconds for resolved bank lookups. `null` disables caching (provider left unwrapped). `0` wraps the provider in a [CachedProvider](src/Providers/CachedProvider.php) with a TTL of `0`, which CI4's cache handlers treat as **never expires** (not "disabled"). Any value `> 0` wraps it with that TTL. **BREAKING as of v1.6**: previously an `int` defaulting to `0`, and `0` meant "disabled" — if you relied on that, set `null` explicitly now. |
 | `$ibanComApiKey` | `string` | `''` | `iban.ibanComApiKey` | Opt-in API key for the [iban.com Validation API](https://www.iban.com/validation-api). Empty (default) disables the fallback entirely; non-empty chains an [IbanComProvider](src/Providers/IbanComProvider.php) after the primary provider via [ChainProvider](src/Providers/ChainProvider.php). |
 | `$ibanComTimeout` | `int` | `5` | `iban.ibanComTimeout` | Request timeout, in seconds, for [IbanComProvider](src/Providers/IbanComProvider.php)'s HTTP call. Only relevant when `$ibanComApiKey` is non-empty. |
 
@@ -290,19 +290,24 @@ always tried first, and [IbanComProvider](src/Providers/IbanComProvider.php) is 
 it returns nothing. With the default `$ibanComApiKey = ''`, this step is a no-op and `$provider` is
 left exactly as the `match` above produced it.
 
-Caching is then applied only when opted in ([src/Config/Services.php:77](src/Config/Services.php#L77)):
+Caching is then applied only when opted in ([src/Config/Services.php:89](src/Config/Services.php#L89)):
 
 ```php
-if ($config->cacheTtl > 0 && ! $provider instanceof NullProvider) {
-    $provider = new CachedProvider($provider, service('cache'), $config->cacheTtl);
+$cacheTtl = $config->cacheTtl;
+
+if ($cacheTtl !== null && ! $provider instanceof NullProvider) {
+    $provider = new CachedProvider($provider, service('cache'), $cacheTtl);
 }
 ```
 
-Note the [NullProvider](src/Providers/NullProvider.php) skip: it never resolves anything, so
-wrapping it would only add a pointless cache round-trip per `resolve()`. A
-[ChainProvider](src/Providers/ChainProvider.php) is never a `NullProvider`, so when the iban.com
-fallback is chained in, the combined local+iban.com chain is still cached correctly whenever
-`$cacheTtl > 0`. The facade is finally built as `new IbanService(new Registry(), $provider)`.
+Note the check is `!== null`, not `> 0`: since v1.6, `null` is the "caching disabled" value and `0`
+means "wrap with a TTL of `0`", which CI4's cache handlers treat as **never expires** — see
+`Config\Iban::$cacheTtl`'s row above for the full BREAKING semantics. Note also the
+[NullProvider](src/Providers/NullProvider.php) skip: it never resolves anything, so wrapping it would
+only add a pointless cache round-trip per `resolve()`. A [ChainProvider](src/Providers/ChainProvider.php)
+is never a `NullProvider`, so when the iban.com fallback is chained in, the combined local+iban.com
+chain is still cached correctly whenever `$cacheTtl` is non-`null`. The facade is finally built as
+`new IbanService(new Registry(), $provider)`.
 
 > [src/Config/Registrar.php](src/Config/Registrar.php) intentionally declares no `Autoload()`
 > method — it would be dead code, since `Config\Autoload` does not extend `BaseConfig` and so is
@@ -360,8 +365,16 @@ back to `null` before returning (the sentinel never leaks to callers). Because `
 array used in tests or a real serializing cache handler) round-trips every field — including
 `resolvedBy` — unchanged: a cached hit reports the same `resolvedBy` the original lookup did.
 
+**Warning — a `$ttl` of `0` caches misses forever too**: `$ttl` is forwarded to `CacheInterface::save()`
+verbatim, and CI4's cache handlers treat `0` as "never expires" (e.g. `FileHandler::getMetaData()`:
+`'expire' => $data['ttl'] > 0 ? ... : null`). Combined with the miss-caching above, a "not found" result
+looked up while `$cacheTtl === 0` never expires either — after running `php spark iban:update`, run
+`php spark cache:clear` or previously-missed IBANs/bank codes stay unresolved forever.
+
 Note the constructor's own `$ttl` default of `3600` is inert in the service path — `Config\Iban::$cacheTtl`
-(default `0`) always supplies the TTL, and the wrap only happens when that value is `> 0`.
+(default `null`, meaning "disabled") always supplies the TTL when non-`null`, and the wrap only
+happens in that case; once wrapped, `0` is passed through as-is (never expires), not treated as the
+constructor's default.
 
 ### IbanComProvider (opt-in iban.com fallback)
 
@@ -929,7 +942,7 @@ public string $provider = \App\Iban\ApiBankProvider::class;
 the class must exist and implement `ProviderInterface` (otherwise an `InvalidArgumentException` is
 thrown), and it is instantiated with **no constructor arguments** (`new $fqcn()`) — give your
 provider a zero-arg constructor, or resolve its dependencies internally. If
-`Config\Iban::$cacheTtl > 0`, the service transparently wraps your provider in
+`Config\Iban::$cacheTtl` is non-`null`, the service transparently wraps your provider in
 [CachedProvider](src/Providers/CachedProvider.php). Standalone (no CI4) you can instead hand your
 provider straight to `new Resolver($parser, $provider)`. Return `null` from the finders for a miss;
 the resolver still produces a `BankResult` carrying the parsed IBAN with empty bank fields.

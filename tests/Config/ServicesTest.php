@@ -147,7 +147,7 @@ final class ServicesTest extends CIUnitTestCase
         self::assertFalse($config->checkNationalByDefault);
         self::assertNull($config->dbGroup);
         self::assertSame('banks', $config->table);
-        self::assertSame(0, $config->cacheTtl);
+        self::assertNull($config->cacheTtl);
         self::assertSame('', $config->ibanComApiKey);
         self::assertSame(5, $config->ibanComTimeout);
     }

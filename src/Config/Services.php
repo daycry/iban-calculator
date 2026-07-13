@@ -74,13 +74,20 @@ class Services extends BaseService
             ]);
         }
 
-        // Opt-in caching layer (Config\Iban::$cacheTtl > 0). Skipped for
-        // NullProvider: it never resolves anything, so wrapping it would
-        // only add a pointless cache round-trip per resolve() call. A
-        // ChainProvider (above) is never a NullProvider, so the combined
+        // Opt-in caching layer (Config\Iban::$cacheTtl !== null). Skipped
+        // for NullProvider: it never resolves anything, so wrapping it
+        // would only add a pointless cache round-trip per resolve() call.
+        // A ChainProvider (above) is never a NullProvider, so the combined
         // local+iban.com chain is cached correctly when caching is enabled.
-        if ($config->cacheTtl > 0 && ! $provider instanceof NullProvider) {
-            $provider = new CachedProvider($provider, service('cache'), $config->cacheTtl);
+        //
+        // NOTE the check is `!== null`, NOT `> 0`: since v1.6, `null` is the
+        // "caching disabled" value and `0` means "wrap with a TTL of 0",
+        // which CI4's cache handlers treat as "never expires" -- see
+        // Config\Iban::$cacheTtl's docblock for the full BREAKING semantics.
+        $cacheTtl = $config->cacheTtl;
+
+        if ($cacheTtl !== null && ! $provider instanceof NullProvider) {
+            $provider = new CachedProvider($provider, service('cache'), $cacheTtl);
         }
 
         return new IbanService(new Registry(), $provider);
