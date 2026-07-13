@@ -30,21 +30,6 @@ IBAN validation, parsing, formatting and bank-entity resolution for CodeIgniter 
 composer require daycry/iban
 ```
 
-## Status: v1.2 — feature-complete
-
-| | |
-|---|---|
-| Version | v1.2.0 |
-| Test suite | 1,036 tests / 2,699 assertions, green |
-| Static analysis | PHPStan level 8, clean (`src` + `tests`, with the CodeIgniter PHPStan extension) |
-| Code style | PSR-12 (PHP-CS-Fixer), clean |
-| Country coverage | 78 countries (structural registry) |
-| National check-digit validators | 9 countries: ES, BE, PT, SI, FI, FR (+MC), IT (+SM) |
-| Bundled bank-data importers | 30, incl. the EPC SEPA Register (GB/GI/IE/LV/RO) — none bundle data, `iban:update` runs them on demand; 24 of 42 SEPA countries resolve |
-| Design spec | [`docs/superpowers/specs/2026-07-10-daycry-iban-v1-design.md`](docs/superpowers/specs/2026-07-10-daycry-iban-v1-design.md) |
-| Changelog | [`CHANGELOG.md`](CHANGELOG.md) |
-| Roadmap | [`docs/roadmap.md`](docs/roadmap.md) |
-
 ## Quickstart
 
 ### Facade (framework-free, works standalone)
@@ -112,8 +97,46 @@ php spark iban:update --source=oenb --dry-run   # preview an import, write nothi
 ```
 
 Complete per-symbol API reference: [`docs/api-reference.md`](docs/api-reference.md). Task-oriented guide —
-the 8 `ViolationCode` cases, the national validators, caching, and the `Config\Iban` options: see
+the 16 `ViolationCode` cases, the national validators, caching, and the `Config\Iban` options: see
 [`docs/usage.md`](docs/usage.md). Importer/`iban:update` reference: see [`docs/importers.md`](docs/importers.md).
+
+## API overview
+
+The public surface is the facade `Daycry\Iban\Iban` (also what `service('iban')` returns). Every method
+accepts a raw string; the ones that already have a parsed value object accept that too.
+
+### IBAN
+
+| Method | What it does |
+|---|---|
+| `normalize(string $iban): string` | Uppercases and strips spaces/separators to the canonical electronic form. Pure string operation — no validation. |
+| `validate(string\|ParsedIban $iban, bool $checkNational = false): ValidationResult` | Full validation: country is in the registry, correct length, BBAN token grammar, and MOD-97 check digits — plus, with `checkNational: true`, the country's national check digit (ES/BE/PT/SI/FI/FR/IT…). **Never throws**; returns a `ValidationResult` exposing `isValid()` and the list of `Violation`s. |
+| `isValid(string\|ParsedIban $iban): bool` | Boolean shortcut over `validate()`. |
+| `parse(string $iban): ParsedIban` | Validates, then decomposes into a `ParsedIban` (country code, check digits, BBAN, bank identifier, branch identifier, account number, national check digit). **Throws `InvalidIbanException`** (which carries the failing `ValidationResult`) when the IBAN is invalid. |
+| `tryParse(string $iban): ?ParsedIban` | Same as `parse()` but returns `null` instead of throwing. |
+| `format(string\|ParsedIban $iban, IbanFormat $f = IbanFormat::Print): string` | Renders `Electronic` (no spaces), `Print` (groups of 4), or `Anonymized` (country code + last 4 digits, the rest masked). |
+| `resolve(string\|ParsedIban $iban): BankResult` | Looks up the owning bank through the configured provider. **Always returns a `BankResult`** (the `ParsedIban` plus nullable bank fields); `isResolved()` is `false` with the default `NullProvider`, or filled in by `DatabaseProvider` / the iban.com fallback. `resolvedBy` tells you which provider answered. |
+
+### BIC / SWIFT
+
+| Method | What it does |
+|---|---|
+| `normalizeBic(string $bic): string` | Uppercases and strips whitespace. |
+| `validateBic(string\|ParsedBic $bic): ValidationResult` | Structural ISO 9362 validation: length 8 or 11, character classes per position, and country code (positions 5-6) present in the bundled ISO 3166-1 registry. **Never throws.** A BIC has no checksum, so "valid" means *well-formed with a recognised country*, never "this BIC exists". |
+| `isValidBic(string\|ParsedBic $bic): bool` | Boolean shortcut over `validateBic()`. |
+| `parseBic(string $bic): ParsedBic` | Validates, then slices into a `ParsedBic` (institution, country, location, optional branch code). **Throws `InvalidBicException`** when invalid. |
+| `tryParseBic(string $bic): ?ParsedBic` | Same as `parseBic()` but returns `null`. |
+| `validateIbanAndBic(?string $iban, ?string $bic): ValidationResult` | The "one, the other, or both" entry point: validates whichever value is provided, and when both are valid also cross-checks them — country always, and bank for the 19 countries whose IBAN bank code is the BIC's 4-letter prefix. |
+| `resolveBic(string\|ParsedBic $bic): ?BankInfo` | Resolves a bank straight from a BIC (BIC8 match against the provider's `banks` data). Returns `null` (never throws) on a malformed BIC or an unresolved lookup. |
+
+### Sub-service accessors
+
+`validator()`, `parser()`, `resolver()`, `bicValidator()` and `bicParser()` return the underlying
+components, for when you want to reuse a single instance or call them directly.
+
+The helper (`helper('iban')`) mirrors these as plain functions (`iban_validate()`, `iban_parse()`,
+`iban_resolve()`, `bic_is_valid()`, `iban_bic_validate()`, …) and every helper is degradation-safe — none
+throw. See [`docs/api-reference.md`](docs/api-reference.md) for the exhaustive per-symbol reference.
 
 ## Features
 
@@ -176,7 +199,7 @@ CodeIgniter 4 is optional (`require-dev` only) — the core works on plain PHP 8
 ## Documentation
 
 - [`docs/api-reference.md`](docs/api-reference.md) — the complete public-API reference: every facade method, helper function, config property, DTO, enum, exception, contract, and registry member, verified against the source.
-- [`docs/usage.md`](docs/usage.md) — full facade/helper/command API, the 8 `ViolationCode` cases, national check-digit validators, `resolve()` with `NullProvider`/`DatabaseProvider`/`CachedProvider`, `Config\Iban` reference.
+- [`docs/usage.md`](docs/usage.md) — full facade/helper/command API, the 16 `ViolationCode` cases, national check-digit validators, BIC/SWIFT validation, `resolve()` with `NullProvider`/`DatabaseProvider`/`CachedProvider`, `Config\Iban` reference.
 - [`docs/importers.md`](docs/importers.md) — the bank-data importer framework, `iban:update` reference, the 30 bundled official-source importers with a coverage matrix, and how to write a custom one.
 - [`docs/formatting.md`](docs/formatting.md) — `Electronic` / `Print` / `Anonymized` formats, with the exact `Anonymized` mask scheme.
 - [`docs/i18n.md`](docs/i18n.md) — why validation messages are English-only in the core, and how to translate them at the CI4 layer.
@@ -190,7 +213,7 @@ CodeIgniter 4 is optional (`require-dev` only) — the core works on plain PHP 8
 
 ```bash
 composer update        # this package intentionally ships without composer.lock — see below
-composer test           # PHPUnit — 1,036 tests
+composer test           # PHPUnit — 1,269 tests
 composer analyze         # PHPStan, level 8 (src + tests, with the CI4 PHPStan extension)
 composer cs              # PHP-CS-Fixer, PSR-12, dry-run
 ```
