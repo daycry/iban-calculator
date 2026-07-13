@@ -1,6 +1,6 @@
 <!-- Tests & coverage -->
 [![Tests](https://github.com/daycry/iban-calculator/actions/workflows/phpunit.yml/badge.svg)](https://github.com/daycry/iban-calculator/actions/workflows/phpunit.yml)
-[![Coverage Status](https://coveralls.io/repos/github/daycry/iban-calculator/badge.svg?branch=main)](https://coveralls.io/github/daycry/iban-calculator?branch=main)
+[![Coverage Status](https://coveralls.io/repos/github/daycry/iban-calculator/badge.svg?branch=master)](https://coveralls.io/github/daycry/iban-calculator?branch=master)
 
 <!-- Static analysis & quality gates -->
 [![PHPStan](https://github.com/daycry/iban-calculator/actions/workflows/phpstan.yml/badge.svg)](https://github.com/daycry/iban-calculator/actions/workflows/phpstan.yml)
