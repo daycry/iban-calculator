@@ -138,6 +138,57 @@ The helper (`helper('iban')`) mirrors these as plain functions (`iban_validate()
 `iban_resolve()`, `bic_is_valid()`, `iban_bic_validate()`, …) and every helper is degradation-safe — none
 throw. See [`docs/api-reference.md`](docs/api-reference.md) for the exhaustive per-symbol reference.
 
+## Database setup (optional)
+
+Validation, parsing, formatting and BIC checks need **no database** — the core ships a compiled registry
+and works out of the box. The database is only for **bank-entity resolution** (`resolve()` / `resolveBic()`
+returning real bank names and BICs) and, optionally, for serving the ISO 3166-1 country list from a table
+instead of the bundled compiled list. These steps only apply under CodeIgniter 4.
+
+### 1. Run the migrations
+
+Both tables (`banks` and `iso_countries`) live in the package's module namespace, so migrate it:
+
+```bash
+php spark migrate -n "Daycry\Iban"    # creates the `banks` and `iso_countries` tables
+# …or run every namespace's migrations together with your app's own:
+php spark migrate --all
+```
+
+### 2. Enable the database provider
+
+Publish the config (`php spark iban:publish`) and, in `app/Config/Iban.php`, switch the provider:
+
+```php
+public string $provider = 'database';   // resolve() now reads the `banks` table
+```
+
+### 3. Populate the `banks` table
+
+**No bank data ships with the package** (by licensing design — see [`docs/licensing.md`](docs/licensing.md)).
+You fill the table yourself from official sources with the bundled importers:
+
+```bash
+php spark iban:update                        # list the 30 bundled importers and their sources
+php spark iban:update --source=bundesbank     # import one source (Germany)
+php spark iban:update --source=epc            # EPC SEPA Register → GB, GI, IE, LV, RO (+ SEPA flags)
+php spark iban:update --all                   # run every importer
+php spark iban:update --source=oenb --dry-run  # preview an import, write nothing
+```
+
+The `BanksSeeder` is intentionally empty — it exists only as a seed hook; the importers are the real data
+path. See [`docs/importers.md`](docs/importers.md) for the full source list and coverage matrix.
+
+### 4. (Optional) Serve ISO 3166-1 from the database
+
+BIC validation uses the bundled compiled ISO 3166-1 list by default (`$isoCountrySource = 'php'` — nothing
+to install). To serve it from the `iso_countries` table instead (so you can edit it in the DB), set
+`$isoCountrySource = 'database'` in `app/Config/Iban.php` and seed the table from the compiled list:
+
+```bash
+php spark db:seed "Daycry\Iban\Database\Seeds\IsoCountriesSeeder"   # idempotent — upserts by alpha-2
+```
+
 ## Features
 
 - **ISO 13616 + MOD-97 validation** over a structural registry covering 78 countries — length, BBAN token grammar, and field offsets, all compiled into PHP (no runtime data files, no network).
