@@ -317,10 +317,18 @@ All implement [ProviderInterface](src/Contracts/ProviderInterface.php):
 | Provider | CI4-coupled | `supports()` | Behavior |
 | --- | --- | --- | --- |
 | [NullProvider](src/Providers/NullProvider.php) | No (framework-free default) | always `false` | Null-object: every lookup returns `null` (always unresolved). |
-| [DatabaseProvider](src/Providers/DatabaseProvider.php) | Yes | always `true` | Queries the `banks` table via [BankModel::findByNaturalKey()](src/Models/BankModel.php#L86) on `(country_code, bank_code, branch_code)`, mapping the row into a [BankInfo](src/DTO/BankInfo.php); `null` when unseeded. `findByIban()` delegates to `findByBankCode()`. |
-| [CachedProvider](src/Providers/CachedProvider.php) | Yes | delegates to inner | Decorator over any inner provider, backed by CI4 `service('cache')`. |
-| [IbanComProvider](src/Providers/IbanComProvider.php) | Yes | `true` iff an API key was configured | Opt-in, paid fallback over the iban.com Validation API. `findByBankCode()` always `null` (see below). |
-| [ChainProvider](src/Providers/ChainProvider.php) | No (pure composition) | `true` if ANY chained provider supports the country | Tries an ordered `list<ProviderInterface>` and returns the first non-null result. |
+| [DatabaseProvider](src/Providers/DatabaseProvider.php) | Yes | always `true` | Queries the `banks` table via [BankModel::findByNaturalKey()](src/Models/BankModel.php#L86) on `(country_code, bank_code, branch_code)`, mapping the row into a [BankInfo](src/DTO/BankInfo.php) with `resolvedBy: 'database'`; `null` when unseeded. `findByIban()` delegates to `findByBankCode()`. |
+| [CachedProvider](src/Providers/CachedProvider.php) | Yes | delegates to inner | Decorator over any inner provider, backed by CI4 `service('cache')`. Stores/returns the inner `BankInfo` as-is, so a cached hit preserves its `resolvedBy` unchanged. |
+| [IbanComProvider](src/Providers/IbanComProvider.php) | Yes | `true` iff an API key was configured | Opt-in, paid fallback over the iban.com Validation API; sets `resolvedBy: 'iban.com'` on a successful response. `findByBankCode()` always `null` (see below). |
+| [ChainProvider](src/Providers/ChainProvider.php) | No (pure composition) | `true` if ANY chained provider supports the country | Tries an ordered `list<ProviderInterface>` and returns the first non-null result, `resolvedBy` included, exactly as the winning provider set it. |
+
+**`resolvedBy` vs `sourceId`**: `resolvedBy` identifies WHICH provider answered (`'database'`,
+`'iban.com'`, or a custom provider's own id) — set by the provider itself. `sourceId` identifies the
+DATASET a `DatabaseProvider` row came from (e.g. `'epc'`, `'bde'`, or `'iban.com'` when that row was
+originally imported via the iban.com API), set at import/write time. The two answer different
+questions and are independent: a `DatabaseProvider` row can carry `sourceId: 'iban.com'` (an
+iban.com-sourced dataset previously written to the `banks` table) while `resolvedBy` still reads
+`'database'` (a local DB lookup answered this particular `resolve()` call).
 
 `DatabaseProvider::__construct(private BankModel $model = new BankModel())` defaults its model,
 but `service('iban')` passes an explicitly configured one. It returns `true` from `supports()`
@@ -347,7 +355,10 @@ Misses are cached too, via the `private const MISS = '__iban_miss__'` sentinel: 
 `CacheInterface::get()` returns `null` both for an unstored key and for a stored literal `null`,
 storing a non-null sentinel lets a genuine `null` `get()` result unambiguously mean "not cached".
 A cached `BankInfo` is returned as-is; any other non-null cached value is the sentinel and maps
-back to `null` before returning (the sentinel never leaks to callers).
+back to `null` before returning (the sentinel never leaks to callers). Because `BankInfo` is a
+`final readonly` class of plain scalars/bools, storing and re-reading it (whether from the in-process
+array used in tests or a real serializing cache handler) round-trips every field — including
+`resolvedBy` — unchanged: a cached hit reports the same `resolvedBy` the original lookup did.
 
 Note the constructor's own `$ttl` default of `3600` is inert in the service path — `Config\Iban::$cacheTtl`
 (default `0`) always supplies the TTL, and the wrap only happens when that value is `> 0`.
@@ -369,7 +380,9 @@ and (always sent by this provider) `sci=1` to also request the SEPA Instant Cred
 Response JSON has `bank_data` (mapped fields: `bank` → `bankName`, `bic`, `city`, `address`),
 `sepa_data` (`'YES'`/`'NO'` flags: `SCT` → `sepaSct`, `SDD` → `sepaSddCore`, `B2B` → `sepaSddB2b`,
 `SCI` → `sepaSctInst`), `validations` (not consumed), and `errors` (non-empty ⇒ failure). `sourceId` is
-hardcoded `'iban.com'`, `sourceVersion` is today's date (`Y-m-d`), `sourceLicense` is `'iban.com API'`.
+hardcoded `'iban.com'`, `sourceVersion` is today's date (`Y-m-d`), `sourceLicense` is `'iban.com API'`,
+and `resolvedBy` is likewise hardcoded `'iban.com'` (identifying the *provider*, alongside `sourceId`
+identifying the *dataset* — the same value here since the dataset IS the live API response).
 
 `findByIban()` **never throws**: the whole request + parse is wrapped in one `try`/`catch (Throwable)`,
 so a DNS failure, timeout, non-200 status, malformed JSON, a non-empty `errors` array, or an empty/
@@ -493,7 +506,7 @@ public function __construct(
 
 Bank data *without* IBAN composition — the return shape of
 [`ProviderInterface`](src/Contracts/ProviderInterface.php) implementations. See
-[src/DTO/BankInfo.php](src/DTO/BankInfo.php). All 12 fields are nullable; a field is `null` when the
+[src/DTO/BankInfo.php](src/DTO/BankInfo.php). All 13 fields are nullable; a field is `null` when the
 provider has no value for it.
 
 ```php
@@ -510,6 +523,7 @@ public function __construct(
     public ?string $sourceId,
     public ?string $sourceVersion,
     public ?string $sourceLicense,
+    public ?string $resolvedBy = null,
 )
 ```
 
@@ -524,16 +538,17 @@ public function __construct(
 | `sepaSctInst`   | `?bool`    | Supports SEPA Instant Credit Transfer.                        |
 | `sepaSddCore`   | `?bool`    | Supports SEPA Direct Debit Core.                              |
 | `sepaSddB2b`    | `?bool`    | Supports SEPA Direct Debit B2B.                               |
-| `sourceId`      | `?string`  | Identifier of the data source the record came from.          |
+| `sourceId`      | `?string`  | Identifier of the DATASET the record came from (e.g. `'epc'`, `'bde'`, `'iban.com'`), `null` for a hand-seeded row. |
 | `sourceVersion` | `?string`  | Version/snapshot of the source data.                         |
 | `sourceLicense` | `?string`  | License under which the source data is distributed.          |
+| `resolvedBy`    | `?string`  | Identifies WHICH provider produced this data (`'database'`, `'iban.com'`, or a custom provider's own id) — distinct from `sourceId` above, which identifies the *dataset*. `null` when unknown. Defaults to `null`. |
 
 No methods.
 
 ### BankResult
 
 The output of [`Resolver::resolve()`](src/Resolver/Resolver.php) (surfaced via
-[`Iban::resolve()`](src/Iban.php)): a [`ParsedIban`](src/DTO/ParsedIban.php) composed with the same 12
+[`Iban::resolve()`](src/Iban.php)): a [`ParsedIban`](src/DTO/ParsedIban.php) composed with the same 13
 nullable bank fields as [`BankInfo`](src/DTO/BankInfo.php). See
 [src/DTO/BankResult.php](src/DTO/BankResult.php).
 
@@ -552,17 +567,18 @@ public function __construct(
     public ?string $sourceId,
     public ?string $sourceVersion,
     public ?string $sourceLicense,
+    public ?string $resolvedBy = null,
 )
 ```
 
 | Property                          | Type          | Meaning                                                                     |
 | --------------------------------- | ------------- | --------------------------------------------------------------------------- |
 | `iban`                            | `ParsedIban`  | The parsed IBAN this result was resolved from (never `null`).               |
-| `bankName` … `sourceLicense` (12) | see `BankInfo` | Identical to the 12 nullable fields of [`BankInfo`](src/DTO/BankInfo.php) above; `null` when unresolved. |
+| `bankName` … `resolvedBy` (13)    | see `BankInfo` | Identical to the 13 nullable fields of [`BankInfo`](src/DTO/BankInfo.php) above; `null` when unresolved/unknown. |
 
 | Method          | Returns  | Meaning                                                                                          |
 | --------------- | -------- | ------------------------------------------------------------------------------------------------ |
-| `isResolved()`  | `bool`   | `true` when *any* of the 12 bank fields is non-null; `false` when the provider supplied no data. |
+| `isResolved()`  | `bool`   | `true` when *any* of the 12 bank-data fields is non-null; `false` when the provider supplied no data. Deliberately excludes `resolvedBy` (provenance metadata, not bank data) — a result with only `resolvedBy` set still reports `false`. |
 
 With the default [`NullProvider`](src/Providers/NullProvider.php), `resolve()` always returns a
 `BankResult` whose 12 bank fields are `null` and whose `isResolved()` is therefore `false`.

@@ -72,6 +72,7 @@ final class ResolveCommand extends BaseCommand
             'sourceId'         => $result->sourceId,
             'sourceVersion'    => $result->sourceVersion,
             'sourceLicense'    => $result->sourceLicense,
+            'resolvedBy'       => $result->resolvedBy,
             'isResolved'       => $result->isResolved(),
         ];
 

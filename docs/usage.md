@@ -13,6 +13,7 @@ enum case, exception, and contract — see [`docs/api-reference.md`](api-referen
 - [Resolving bank data: `NullProvider` vs `DatabaseProvider`](#resolving-bank-data-nullprovider-vs-databaseprovider)
 - [Caching resolved lookups: `CachedProvider`](#caching-resolved-lookups-cachedprovider)
 - [iban.com fallback: `IbanComProvider` + `ChainProvider`](#ibancom-fallback-ibancomprovider--chainprovider)
+- [Knowing whether a result came from your database or the iban.com fallback](#knowing-whether-a-result-came-from-your-database-or-the-ibancom-fallback)
 - [`Config\Iban`](#configiban)
 - [The `iban_helper`](#the-iban_helper)
 - [spark commands](#spark-commands)
@@ -206,8 +207,10 @@ mask scheme.
 
 `resolve()` always returns a `BankResult` — a `ParsedIban` plus 12 nullable bank-data fields
 (`bankName`, `shortName`, `bic`, `city`, `address`, `sepaSct`, `sepaSctInst`, `sepaSddCore`,
-`sepaSddB2b`, `sourceId`, `sourceVersion`, `sourceLicense`) and `isResolved(): bool` (`true` iff any of
-those 12 fields is non-null).
+`sepaSddB2b`, `sourceId`, `sourceVersion`, `sourceLicense`), a 13th nullable provenance field
+(`resolvedBy` — see [below](#knowing-whether-a-result-came-from-your-database-or-the-ibancom-fallback)),
+and `isResolved(): bool` (`true` iff any of the 12 bank-data fields is non-null; `resolvedBy` is
+deliberately excluded from that check since it's metadata, not bank data).
 
 ### `NullProvider` (default — no database required)
 
@@ -370,6 +373,34 @@ so `findByIban()` is the only useful entry point.
 the API is a paid, metered third-party service — only enable it if you've reviewed iban.com's terms and
 are comfortable with IBANs leaving your infrastructure for unresolved lookups.
 
+### Knowing whether a result came from your database or the iban.com fallback
+
+`BankResult::$resolvedBy` (and `BankInfo::$resolvedBy`) tells you WHICH provider actually answered a
+`resolve()` call — `'database'` for the local `banks` table, `'iban.com'` for the remote API fallback, or
+a custom provider's own id. It's `null` when nothing resolved (e.g. the default `NullProvider`, or a
+`ChainProvider` where every chained provider missed).
+
+```php
+$bank = $iban->resolve('DE89370400440532013000');
+
+if ($bank->resolvedBy === 'database') {
+    // Answered from your own banks table — free, no network call.
+} elseif ($bank->resolvedBy === 'iban.com') {
+    // Answered by the paid iban.com fallback — the local DB had nothing for this IBAN.
+}
+```
+
+This is distinct from `$bank->sourceId`, which identifies the *dataset* the row came from (e.g.
+`'epc'`, `'bde'`, or `'iban.com'`), not which provider served this particular lookup. A
+`DatabaseProvider` row imported from the iban.com API in the past carries `sourceId: 'iban.com'` but
+still reports `resolvedBy: 'database'`, because a local DB lookup — not a live API call — is what
+answered *this* `resolve()` call:
+
+```php
+$bank->sourceId;   // 'iban.com'  -- which DATASET this row's data came from
+$bank->resolvedBy; // 'database'  -- which PROVIDER answered THIS lookup (a local DB read)
+```
+
 ## `Config\Iban`
 
 Publishable, `.env`-overridable configuration (`Daycry\Iban\Config\Iban`, `BaseConfig` subclass). Every
@@ -519,13 +550,13 @@ Invalid IBAN
 ### `iban:resolve <iban> [--json]`
 
 Wraps `resolve()`. Prints the IBAN's structural fields (excluding `nationalCheckDigit` and
-`sepaCountry` — use `iban:parse` for those) plus the 12 bank-data fields and `isResolved`.
+`sepaCountry` — use `iban:parse` for those) plus the 12 bank-data fields, `resolvedBy`, and `isResolved`.
 
 | Field | Description |
 |---|---|
 | Argument | `iban` — the IBAN to resolve. |
 | `--json` | Emit the result as JSON instead of a CLI table. |
-| Output | A `Field`/`Value` CLI table (with a yellow `Note: no provider data (empty bank DB) — structural fields only.` line whenever `isResolved` is `false`), or the 19 fields as a JSON object. |
+| Output | A `Field`/`Value` CLI table (with a yellow `Note: no provider data (empty bank DB) — structural fields only.` line whenever `isResolved` is `false`), or the 20 fields as a JSON object. |
 | Exit code | `0` on success; on an invalid IBAN, prints `CLI::error('Invalid IBAN')` and exits `1`. |
 
 ```bash
@@ -552,6 +583,7 @@ $ php spark iban:resolve ES9121000418450200051332
 | sourceId          |                           |
 | sourceVersion     |                           |
 | sourceLicense     |                           |
+| resolvedBy        |                           |
 | isResolved        | false                     |
 +-------------------+---------------------------+
 Note: no provider data (empty bank DB) — structural fields only.
@@ -577,6 +609,7 @@ $ php spark iban:resolve ES9121000418450200051332 --json
     "sourceId": null,
     "sourceVersion": null,
     "sourceLicense": null,
+    "resolvedBy": null,
     "isResolved": false
 }
 ```

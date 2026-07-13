@@ -107,6 +107,68 @@ final class CachedProviderTest extends CIUnitTestCase
         self::assertSame(1, $spy->calls, 'The second identical lookup must be served from cache, not re-query the inner provider.');
     }
 
+    /**
+     * `resolvedBy` is metadata carried on the cached `BankInfo` itself; a
+     * cached hit (served from `CacheInterface::get()`, never re-querying the
+     * inner provider) must preserve it exactly like every other field.
+     */
+    public function testCachedHitPreservesResolvedBy(): void
+    {
+        $bankInfo = new BankInfo(
+            bankName: 'Commerzbank',
+            shortName: null,
+            bic: 'COBADEFFXXX',
+            city: 'Berlin',
+            address: null,
+            sepaSct: null,
+            sepaSctInst: null,
+            sepaSddCore: null,
+            sepaSddB2b: null,
+            sourceId: 'iban.com',
+            sourceVersion: null,
+            sourceLicense: null,
+            resolvedBy: 'iban.com',
+        );
+
+        $spy = new class ($bankInfo) implements ProviderInterface {
+            public int $calls = 0;
+
+            public function __construct(private readonly BankInfo $bankInfo)
+            {
+            }
+
+            public function supports(string $countryCode): bool
+            {
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): BankInfo
+            {
+                $this->calls++;
+
+                return $this->bankInfo;
+            }
+        };
+
+        $cached = new CachedProvider($spy, $this->makeInMemoryCache());
+
+        $first = $cached->findByBankCode('DE', '37040044');
+        self::assertInstanceOf(BankInfo::class, $first);
+        self::assertSame('iban.com', $first->resolvedBy);
+        self::assertSame(1, $spy->calls);
+
+        // Served from the cache, not the inner provider -- resolvedBy must survive.
+        $second = $cached->findByBankCode('DE', '37040044');
+        self::assertInstanceOf(BankInfo::class, $second);
+        self::assertSame('iban.com', $second->resolvedBy);
+        self::assertSame(1, $spy->calls, 'The second identical lookup must be served from cache.');
+    }
+
     public function testAMissIsCachedSoTheInnerProviderIsNotReQueried(): void
     {
         $spy = new class () implements ProviderInterface {

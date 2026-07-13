@@ -25,6 +25,14 @@ final readonly class BankInfo
         public ?string $sourceId,
         public ?string $sourceVersion,
         public ?string $sourceLicense,
+        /**
+         * Identifies WHICH provider produced this data — e.g. `'database'`
+         * (local `banks` table), `'iban.com'` (remote API fallback), or a
+         * custom provider's own id. Distinct from `$sourceId`, which
+         * identifies the DATASET the data came from (`'epc'`, `'bde'`, …).
+         * `null` when unknown/unresolved.
+         */
+        public ?string $resolvedBy = null,
     ) {
     }
 }

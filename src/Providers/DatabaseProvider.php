@@ -52,6 +52,7 @@ final class DatabaseProvider implements ProviderInterface
             sourceId: self::toNullableString($row['source_id'] ?? null),
             sourceVersion: self::toNullableString($row['source_version'] ?? null),
             sourceLicense: self::toNullableString($row['source_license'] ?? null),
+            resolvedBy: 'database',
         );
     }
 

@@ -67,6 +67,7 @@ final class Resolver implements ResolverInterface
             sourceId: $info?->sourceId,
             sourceVersion: $info?->sourceVersion,
             sourceLicense: $info?->sourceLicense,
+            resolvedBy: $info?->resolvedBy,
         );
     }
 }

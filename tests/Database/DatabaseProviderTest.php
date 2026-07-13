@@ -122,6 +122,7 @@ final class DatabaseProviderTest extends CIUnitTestCase
         self::assertSame('test-fixture', $info->sourceId);
         self::assertSame('2026-07-10', $info->sourceVersion);
         self::assertSame('ODbL', $info->sourceLicense);
+        self::assertSame('database', $info->resolvedBy);
     }
 
     public function testDatabaseProviderReturnsNullWhenRowDoesNotExist(): void
@@ -158,6 +159,7 @@ final class DatabaseProviderTest extends CIUnitTestCase
         self::assertTrue($result->isResolved());
         self::assertSame('CaixaBank', $result->bankName);
         self::assertSame('CAIXESBBXXX', $result->bic);
+        self::assertSame('database', $result->resolvedBy);
     }
 
     public function testResolverWithDatabaseProviderLeavesUnseededIbanUnresolved(): void
