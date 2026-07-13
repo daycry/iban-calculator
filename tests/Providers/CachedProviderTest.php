@@ -9,6 +9,7 @@ use CodeIgniter\Cache\CacheInterface;
 use CodeIgniter\Test\CIUnitTestCase;
 use Daycry\Iban\Config\Iban as IbanConfig;
 use Daycry\Iban\Config\Services as IbanServices;
+use Daycry\Iban\Contracts\BicProviderInterface;
 use Daycry\Iban\Contracts\ProviderInterface;
 use Daycry\Iban\DTO\BankInfo;
 use Daycry\Iban\DTO\ParsedIban;
@@ -483,6 +484,215 @@ final class CachedProviderTest extends CIUnitTestCase
         self::assertSame([3600], $ttlSpyCache->savedTtls);
     }
 
+    // -- findByBic ---------------------------------------------------------
+
+    public function testFindByBicDelegatesToTheInnerProviderAndCachesTheHit(): void
+    {
+        $bankInfo = $this->fixedBankInfo();
+
+        $spy = new class ($bankInfo) implements BicProviderInterface, ProviderInterface {
+            public int $bicCalls = 0;
+
+            public function __construct(private readonly BankInfo $bankInfo)
+            {
+            }
+
+            public function supports(string $countryCode): bool
+            {
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBic(string $bic): BankInfo
+            {
+                $this->bicCalls++;
+
+                return $this->bankInfo;
+            }
+        };
+
+        $cached = new CachedProvider($spy, $this->makeInMemoryCache());
+
+        self::assertSame($bankInfo, $cached->findByBic('CAIXESBBXXX'));
+        self::assertSame(1, $spy->bicCalls);
+
+        self::assertSame($bankInfo, $cached->findByBic('CAIXESBBXXX'));
+        self::assertSame(1, $spy->bicCalls, 'The second identical BIC lookup must be served from cache, not re-query the inner provider.');
+    }
+
+    public function testFindByBicCachesAMissSoTheInnerProviderIsNotReQueried(): void
+    {
+        $spy = new class () implements BicProviderInterface, ProviderInterface {
+            public int $bicCalls = 0;
+
+            public function supports(string $countryCode): bool
+            {
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBic(string $bic): ?BankInfo
+            {
+                $this->bicCalls++;
+
+                return null;
+            }
+        };
+
+        $cached = new CachedProvider($spy, $this->makeInMemoryCache());
+
+        self::assertNull($cached->findByBic('CAIXESBBXXX'));
+        self::assertSame(1, $spy->bicCalls);
+
+        self::assertNull($cached->findByBic('CAIXESBBXXX'), 'A cached BIC miss must still resolve to null, not the sentinel.');
+        self::assertSame(1, $spy->bicCalls, 'A cached BIC miss must not re-query the inner provider.');
+    }
+
+    public function testFindByBicReturnsNullWhenInnerProviderIsNotBicCapable(): void
+    {
+        // A bare ProviderInterface spy (NO BicProviderInterface): the decorator
+        // must return null WITHOUT consulting it at all.
+        $spy = new class () implements ProviderInterface {
+            public int $calls = 0;
+
+            public function supports(string $countryCode): bool
+            {
+                $this->calls++;
+
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): ?BankInfo
+            {
+                $this->calls++;
+
+                return null;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
+            {
+                $this->calls++;
+
+                return null;
+            }
+        };
+
+        $cached = new CachedProvider($spy, $this->makeInMemoryCache());
+
+        self::assertNull($cached->findByBic('CAIXESBBXXX'));
+        self::assertSame(0, $spy->calls, 'A non-BIC inner provider must not be consulted for a BIC lookup.');
+    }
+
+    /**
+     * The BIC cache key lives in its OWN namespace (`iban_bic_…`), distinct
+     * from the bank-code keys (`iban_bank_…`), so the two lookup families can
+     * never collide in the cache. Proven directly against a key-recording
+     * cache double.
+     */
+    public function testBicCacheKeyUsesADistinctNamespaceFromBankCodeKeys(): void
+    {
+        $bankInfo = $this->fixedBankInfo();
+
+        $spy = new class ($bankInfo) implements BicProviderInterface, ProviderInterface {
+            public function __construct(private readonly BankInfo $bankInfo)
+            {
+            }
+
+            public function supports(string $countryCode): bool
+            {
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): BankInfo
+            {
+                return $this->bankInfo;
+            }
+
+            public function findByBic(string $bic): BankInfo
+            {
+                return $this->bankInfo;
+            }
+        };
+
+        $keyCache = $this->makeKeyRecordingCache();
+
+        $cached = new CachedProvider($spy, $keyCache);
+        $cached->findByBic('CAIXESBBXXX');
+        $cached->findByBankCode('ES', '2100', '0418');
+
+        self::assertCount(2, $keyCache->savedKeys);
+        [$bicKey, $bankKey] = $keyCache->savedKeys;
+
+        self::assertStringStartsWith('iban_bic_', $bicKey);
+        self::assertStringStartsWith('iban_bank_', $bankKey);
+        self::assertNotSame($bicKey, $bankKey);
+    }
+
+    public function testBicCacheKeyNormalizesCaseAndWhitespaceSoLookupsShareTheSameEntry(): void
+    {
+        $bankInfo = $this->fixedBankInfo();
+
+        $spy = new class ($bankInfo) implements BicProviderInterface, ProviderInterface {
+            public int $bicCalls = 0;
+
+            public function __construct(private readonly BankInfo $bankInfo)
+            {
+            }
+
+            public function supports(string $countryCode): bool
+            {
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBic(string $bic): BankInfo
+            {
+                $this->bicCalls++;
+
+                return $this->bankInfo;
+            }
+        };
+
+        $cached = new CachedProvider($spy, $this->makeInMemoryCache());
+
+        $cached->findByBic(' caix esbb xxx ');
+        $cached->findByBic('CAIXESBBXXX');
+
+        self::assertSame(1, $spy->bicCalls, 'Case/whitespace variants of the same BIC must share one cache entry.');
+    }
+
     private function fixedBankInfo(): BankInfo
     {
         return new BankInfo(
@@ -629,6 +839,94 @@ final class CachedProviderTest extends CIUnitTestCase
             public function save(string $key, mixed $value, int $ttl = 60): bool
             {
                 $this->savedTtls[] = $ttl;
+                $this->store[$key] = $value;
+
+                return true;
+            }
+
+            public function remember(string $key, int $ttl, Closure $callback): mixed
+            {
+                if (! array_key_exists($key, $this->store)) {
+                    $this->store[$key] = $callback();
+                }
+
+                return $this->store[$key];
+            }
+
+            public function delete(string $key): bool
+            {
+                unset($this->store[$key]);
+
+                return true;
+            }
+
+            public function deleteMatching(string $pattern): int
+            {
+                return 0;
+            }
+
+            public function increment(string $key, int $offset = 1): bool|int
+            {
+                return false;
+            }
+
+            public function decrement(string $key, int $offset = 1): bool|int
+            {
+                return false;
+            }
+
+            public function clean(): bool
+            {
+                $this->store = [];
+
+                return true;
+            }
+
+            public function getCacheInfo(): array|false|object|null
+            {
+                return null;
+            }
+
+            public function getMetaData(string $key): ?array
+            {
+                return null;
+            }
+
+            public function isSupported(): bool
+            {
+                return true;
+            }
+        };
+    }
+
+    /**
+     * In-memory `CacheInterface` test double that additionally logs, in order,
+     * every key `save()` was called with -- used to prove the BIC cache key
+     * lives in a distinct namespace from the bank-code keys (no collision).
+     *
+     * @return CacheInterface&object{savedKeys: list<string>}
+     */
+    private function makeKeyRecordingCache(): CacheInterface
+    {
+        return new class () implements CacheInterface {
+            /** @var list<string> */
+            public array $savedKeys = [];
+
+            /** @var array<string, mixed> */
+            private array $store = [];
+
+            public function initialize(): void
+            {
+            }
+
+            public function get(string $key): mixed
+            {
+                return $this->store[$key] ?? null;
+            }
+
+            public function save(string $key, mixed $value, int $ttl = 60): bool
+            {
+                $this->savedKeys[]  = $key;
                 $this->store[$key] = $value;
 
                 return true;

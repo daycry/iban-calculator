@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace Daycry\Iban\Resolver;
 
+use Daycry\Iban\Contracts\BicProviderInterface;
 use Daycry\Iban\Contracts\ProviderInterface;
 use Daycry\Iban\Contracts\ResolverInterface;
+use Daycry\Iban\Core\BicValidator;
 use Daycry\Iban\Core\Parser;
+use Daycry\Iban\DTO\BankInfo;
 use Daycry\Iban\DTO\BankResult;
+use Daycry\Iban\DTO\ParsedBic;
 use Daycry\Iban\DTO\ParsedIban;
 use Daycry\Iban\Providers\NullProvider;
 
@@ -36,6 +40,7 @@ final class Resolver implements ResolverInterface
     public function __construct(
         private Parser $parser,
         private ProviderInterface $provider = new NullProvider(),
+        private BicValidator $bicValidator = new BicValidator(),
     ) {
     }
 
@@ -69,5 +74,35 @@ final class Resolver implements ResolverInterface
             sourceLicense: $info?->sourceLicense,
             resolvedBy: $info?->resolvedBy,
         );
+    }
+
+    /**
+     * Resolves a bank straight from a BIC, returning `null` (never throwing)
+     * when the BIC is not well-formed OR the configured provider cannot answer.
+     *
+     * The BIC is validated/normalized FIRST — a malformed BIC short-circuits to
+     * `null` WITHOUT ever touching the provider. When the BIC is well-formed,
+     * the provider is consulted only if it implements {@see BicProviderInterface}
+     * (e.g. {@see \Daycry\Iban\Providers\DatabaseProvider}); a provider without
+     * that capability (e.g. the default {@see NullProvider}) yields `null`, so
+     * BIC resolution degrades gracefully to "no provider" just like IBAN
+     * resolution does. This method is intentionally NOT part of
+     * {@see ResolverInterface} (adding it would break existing implementers),
+     * and it depends only on framework-free collaborators so the resolver stays
+     * usable without CodeIgniter.
+     */
+    public function resolveBic(string|ParsedBic $bic): ?BankInfo
+    {
+        $normalized = $bic instanceof ParsedBic ? $bic->bic : $this->bicValidator->normalize($bic);
+
+        if (! $this->bicValidator->isValid($normalized)) {
+            return null;
+        }
+
+        if (! $this->provider instanceof BicProviderInterface) {
+            return null;
+        }
+
+        return $this->provider->findByBic($normalized);
     }
 }

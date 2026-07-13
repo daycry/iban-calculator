@@ -98,4 +98,36 @@ class BankModel extends Model
 
         return is_array($row) ? $row : null;
     }
+
+    /**
+     * Finds a single `banks` row by BIC, using the indexed `bic` column.
+     *
+     * Matching rule — **BIC8**: a stored BIC may be 8 chars (institution head
+     * office) or 11 chars (with a branch segment), and the caller may pass
+     * either. We match on the first 8 characters (the BIC8) so the lookup is
+     * symmetric: an 11-char query resolves an 8-char row and an 8-char query
+     * resolves an 11-char row — both denote the same institution office. This
+     * is a prefix match (`bic LIKE 'BIC8%'`), which the plain index on `bic`
+     * (see the `CreateBanksTable` migration's `addKey('bic')`) can serve.
+     *
+     * The input is normalized first (whitespace stripped, uppercased); stored
+     * BICs are uppercase by convention (produced that way by the bundled
+     * importers), so the comparison is effectively case-insensitive. When more
+     * than one row shares the BIC8 (e.g. several branch rows), the first is
+     * returned — any of them identifies the same bank.
+     *
+     * @return array<string, mixed>|null The raw row, or null if no match.
+     */
+    public function findByBic(string $bic): ?array
+    {
+        $bic8 = substr(strtoupper((string) preg_replace('/\s+/', '', $bic)), 0, 8);
+
+        if ($bic8 === '') {
+            return null;
+        }
+
+        $row = $this->like('bic', $bic8, 'after')->first();
+
+        return is_array($row) ? $row : null;
+    }
 }

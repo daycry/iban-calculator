@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Tests;
 
+use Daycry\Iban\Contracts\BicProviderInterface;
+use Daycry\Iban\Contracts\ProviderInterface;
 use Daycry\Iban\Core\BicParser;
 use Daycry\Iban\Core\BicValidator;
+use Daycry\Iban\DTO\BankInfo;
+use Daycry\Iban\DTO\ParsedIban;
 use Daycry\Iban\DTO\ValidationResult;
 use Daycry\Iban\Enums\ViolationCode;
 use Daycry\Iban\Exceptions\InvalidBicException;
@@ -87,6 +91,72 @@ final class IbanBicFacadeTest extends TestCase
         // The default facade uses the bundled ISO list — a US BIC (no IBAN
         // country) must validate with zero configuration.
         self::assertTrue($this->iban->isValidBic('CHASUS33'));
+    }
+
+    // -- resolveBic -----------------------------------------------------------
+
+    public function testResolveBicReturnsNullWithTheDefaultNullProvider(): void
+    {
+        // Default facade => NullProvider (no BIC support) => null, no crash.
+        self::assertNull($this->iban->resolveBic('CAIXESBBXXX'));
+    }
+
+    public function testResolveBicReturnsNullForAMalformedBic(): void
+    {
+        self::assertNull($this->iban->resolveBic('nonsense'));
+    }
+
+    public function testResolveBicResolvesViaACustomBicCapableProvider(): void
+    {
+        $bankInfo = new BankInfo(
+            bankName: 'CaixaBank',
+            shortName: null,
+            bic: 'CAIXESBBXXX',
+            city: 'Barcelona',
+            address: null,
+            sepaSct: null,
+            sepaSctInst: null,
+            sepaSddCore: null,
+            sepaSddB2b: null,
+            sourceId: null,
+            sourceVersion: null,
+            sourceLicense: null,
+            resolvedBy: 'custom',
+        );
+
+        $provider = new class ($bankInfo) implements BicProviderInterface, ProviderInterface {
+            public function __construct(private readonly BankInfo $bankInfo)
+            {
+            }
+
+            public function supports(string $countryCode): bool
+            {
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBic(string $bic): BankInfo
+            {
+                return $this->bankInfo;
+            }
+        };
+
+        $iban = new Iban(provider: $provider);
+
+        $info = $iban->resolveBic('CAIXESBBXXX');
+
+        self::assertInstanceOf(BankInfo::class, $info);
+        self::assertSame('CaixaBank', $info->bankName);
+        self::assertSame('custom', $info->resolvedBy);
     }
 
     // -- validateIbanAndBic: the full matrix ----------------------------------

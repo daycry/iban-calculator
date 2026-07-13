@@ -12,6 +12,7 @@ use Daycry\Iban\Core\Parser;
 use Daycry\Iban\Core\Validator;
 use Daycry\Iban\Database\Seeds\BanksSeeder;
 use Daycry\Iban\DTO\BankInfo;
+use Daycry\Iban\Iban;
 use Daycry\Iban\Models\BankModel;
 use Daycry\Iban\Providers\DatabaseProvider;
 use Daycry\Iban\Registry\Registry;
@@ -55,6 +56,29 @@ final class DatabaseProviderTest extends CIUnitTestCase
         'source_version'  => '2026-07-10',
         'source_license'  => 'ODbL',
         'updated_at'      => '2026-07-01 00:00:00',
+    ];
+
+    // A second row whose stored BIC is only 8 chars (no branch segment),
+    // under a distinct natural key so it never collides with SEEDED_ROW's
+    // unique (country_code, bank_code, branch_code). Used to prove the BIC8
+    // match resolves an 8-char row from an 11-char query.
+    private const SEEDED_BIC8_ROW = [
+        'country_code'   => 'DE',
+        'bank_code'      => '50070010',
+        'branch_code'    => null,
+        'bic'            => 'DEUTDEFF',
+        'name'           => 'Deutsche Bank',
+        'short_name'     => 'DB',
+        'city'           => 'Frankfurt',
+        'address'        => null,
+        'sepa_sct'       => 1,
+        'sepa_sct_inst'  => null,
+        'sepa_sdd_core'  => null,
+        'sepa_sdd_b2b'   => null,
+        'source_id'      => 'test-fixture',
+        'source_version' => '2026-07-10',
+        'source_license' => 'ODbL',
+        'updated_at'     => '2026-07-01 00:00:00',
     ];
 
     public function testMigrationCreatesBanksTableWithAllColumns(): void
@@ -172,6 +196,100 @@ final class DatabaseProviderTest extends CIUnitTestCase
 
         self::assertFalse($result->isResolved());
         self::assertNull($result->bankName);
+    }
+
+    // -- findByBic (BIC8 matching) -----------------------------------------
+
+    public function testDatabaseProviderFindsSeededRowByFullBicAndSetsResolvedByDatabase(): void
+    {
+        $this->hasInDatabase('banks', self::SEEDED_ROW);
+
+        $provider = new DatabaseProvider(new BankModel());
+
+        $info = $provider->findByBic('CAIXESBBXXX');
+
+        self::assertInstanceOf(BankInfo::class, $info);
+        self::assertSame('CaixaBank', $info->bankName);
+        self::assertSame('CAIXESBBXXX', $info->bic);
+        self::assertSame('Barcelona', $info->city);
+        self::assertSame('database', $info->resolvedBy);
+    }
+
+    public function testFindByBicMatchesAnElevenCharRowFromAnEightCharQuery(): void
+    {
+        // Query is the 8-char BIC8; the stored row is the 11-char BIC.
+        $this->hasInDatabase('banks', self::SEEDED_ROW);
+
+        $provider = new DatabaseProvider(new BankModel());
+
+        $info = $provider->findByBic('CAIXESBB');
+
+        self::assertInstanceOf(BankInfo::class, $info);
+        self::assertSame('CaixaBank', $info->bankName);
+    }
+
+    public function testFindByBicMatchesAnEightCharRowFromAnElevenCharQuery(): void
+    {
+        // Query is the 11-char BIC; the stored row is the 8-char BIC8.
+        $this->hasInDatabase('banks', self::SEEDED_BIC8_ROW);
+
+        $provider = new DatabaseProvider(new BankModel());
+
+        $info = $provider->findByBic('DEUTDEFF500');
+
+        self::assertInstanceOf(BankInfo::class, $info);
+        self::assertSame('Deutsche Bank', $info->bankName);
+        self::assertSame('DEUTDEFF', $info->bic);
+    }
+
+    public function testFindByBicIsCaseInsensitiveAndWhitespaceTolerant(): void
+    {
+        $this->hasInDatabase('banks', self::SEEDED_ROW);
+
+        $provider = new DatabaseProvider(new BankModel());
+
+        $info = $provider->findByBic(' caix esbb xxx ');
+
+        self::assertInstanceOf(BankInfo::class, $info);
+        self::assertSame('CaixaBank', $info->bankName);
+    }
+
+    public function testFindByBicReturnsNullWhenNoRowMatches(): void
+    {
+        $this->hasInDatabase('banks', self::SEEDED_ROW);
+
+        $provider = new DatabaseProvider(new BankModel());
+
+        self::assertNull($provider->findByBic('NWBKGB2L'));
+    }
+
+    /**
+     * End-to-end through the public facade with a real DB provider: a stored
+     * `banks` row resolves by BIC through the whole stack (facade →
+     * `Resolver::resolveBic()` → `DatabaseProvider::findByBic()` →
+     * `BankModel::findByBic()` → the indexed `bic` column).
+     */
+    public function testFacadeResolveBicResolvesARealRowThroughTheWholeStack(): void
+    {
+        $this->hasInDatabase('banks', self::SEEDED_ROW);
+
+        $iban = new Iban(provider: new DatabaseProvider(new BankModel()));
+
+        $info = $iban->resolveBic('CAIXESBBXXX');
+
+        self::assertInstanceOf(BankInfo::class, $info);
+        self::assertSame('CaixaBank', $info->bankName);
+        self::assertSame('CAIXESBBXXX', $info->bic);
+        self::assertSame('database', $info->resolvedBy);
+    }
+
+    public function testFacadeResolveBicReturnsNullForAMalformedBicWithoutHittingTheDb(): void
+    {
+        $this->hasInDatabase('banks', self::SEEDED_ROW);
+
+        $iban = new Iban(provider: new DatabaseProvider(new BankModel()));
+
+        self::assertNull($iban->resolveBic('not-a-bic'));
     }
 
     /**

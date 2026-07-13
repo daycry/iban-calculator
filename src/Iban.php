@@ -13,6 +13,7 @@ use Daycry\Iban\Core\BicValidator;
 use Daycry\Iban\Core\IbanBicCrossChecker;
 use Daycry\Iban\Core\Parser;
 use Daycry\Iban\Core\Validator;
+use Daycry\Iban\DTO\BankInfo;
 use Daycry\Iban\DTO\BankResult;
 use Daycry\Iban\DTO\ParsedBic;
 use Daycry\Iban\DTO\ParsedIban;
@@ -54,9 +55,9 @@ final class Iban implements ValidatorInterface, ParserInterface, ResolverInterfa
     ) {
         $this->validator    = new Validator($registry);
         $this->parser       = new Parser($this->validator);
-        $this->resolver     = new Resolver($this->parser, $provider);
         $this->bicValidator = new BicValidator($isoCountries);
         $this->bicParser    = new BicParser($this->bicValidator);
+        $this->resolver     = new Resolver($this->parser, $provider, $this->bicValidator);
         $this->crossChecker = new IbanBicCrossChecker($registry);
     }
 
@@ -130,6 +131,20 @@ final class Iban implements ValidatorInterface, ParserInterface, ResolverInterfa
     public function tryParseBic(string $bic): ?ParsedBic
     {
         return $this->bicParser->tryParse($bic);
+    }
+
+    /**
+     * Resolve a bank directly from a BIC via the configured provider.
+     *
+     * Returns `null` (never throws) when the BIC is malformed OR the provider
+     * cannot resolve it. With the default {@see NullProvider} — or any provider
+     * that does not implement {@see \Daycry\Iban\Contracts\BicProviderInterface}
+     * — this always returns `null`. A malformed BIC short-circuits to `null`
+     * without ever consulting the provider. Delegates to {@see Resolver::resolveBic()}.
+     */
+    public function resolveBic(string|ParsedBic $bic): ?BankInfo
+    {
+        return $this->resolver->resolveBic($bic);
     }
 
     /**

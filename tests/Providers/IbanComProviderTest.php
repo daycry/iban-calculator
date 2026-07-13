@@ -161,6 +161,131 @@ final class IbanComProviderTest extends CIUnitTestCase
         self::assertNull($provider->findByBankCode('DE', '50070010', '001'));
     }
 
+    // -- findByBic (dedicated iban.com BIC/SWIFT endpoint) -----------------
+
+    public function testFindByBicMapsACannedSuccessResponseToBankInfo(): void
+    {
+        $body = json_encode([
+            'query'             => ['bic' => 'BARCGB22XXX', 'success' => true],
+            'bic_valid'         => true,
+            'bic_active'        => true,
+            'directory_results' => [
+                'bic'              => 'BARCGB22XXX',
+                'bic8'             => 'BARCGB22',
+                'institution'      => 'BARCLAYS BANK PLC',
+                'name'             => 'BARCLAYS BANK PLC',
+                'city'             => 'LONDON',
+                'address'          => '1 CHURCHILL PLACE',
+                'iso_country_code' => 'GB',
+            ],
+            'services' => [['code' => 'FIN', 'description' => 'MANY-TO-MANY FIN PAYMENT SERVICE']],
+            'error'    => [],
+        ]);
+
+        $provider = new IbanComProvider('secret', $this->clientReturning($this->cannedResponse(200, (string) $body)));
+
+        $info = $provider->findByBic('BARCGB22XXX');
+
+        self::assertInstanceOf(BankInfo::class, $info);
+        self::assertSame('BARCLAYS BANK PLC', $info->bankName);
+        self::assertSame('BARCGB22XXX', $info->bic);
+        self::assertSame('LONDON', $info->city);
+        self::assertSame('1 CHURCHILL PLACE', $info->address);
+        // The BIC API carries no SEPA scheme flags.
+        self::assertNull($info->sepaSct);
+        self::assertNull($info->sepaSddCore);
+        self::assertSame('iban.com', $info->sourceId);
+        self::assertSame('iban.com API', $info->sourceLicense);
+        self::assertNotNull($info->sourceVersion);
+        self::assertSame('iban.com', $info->resolvedBy);
+    }
+
+    public function testFindByBicAcceptsADirectoryResultsListAndUsesTheFirstRow(): void
+    {
+        $body = json_encode([
+            'bic_valid'         => true,
+            'directory_results' => [
+                ['name' => 'BARCLAYS BANK PLC', 'bic' => 'BARCGB22XXX', 'city' => 'LONDON'],
+            ],
+            'error' => [],
+        ]);
+
+        $provider = new IbanComProvider('secret', $this->clientReturning($this->cannedResponse(200, (string) $body)));
+
+        $info = $provider->findByBic('BARCGB22XXX');
+
+        self::assertInstanceOf(BankInfo::class, $info);
+        self::assertSame('BARCLAYS BANK PLC', $info->bankName);
+    }
+
+    public function testFindByBicReturnsNullWhenApiKeyIsEmpty(): void
+    {
+        $provider = new IbanComProvider('', $this->clientReturning($this->cannedResponse(200, '{}')));
+
+        self::assertNull($provider->findByBic('BARCGB22XXX'));
+    }
+
+    public function testFindByBicReturnsNullOnNonTwoHundredStatus(): void
+    {
+        $provider = new IbanComProvider('secret', $this->clientReturning($this->cannedResponse(500, 'Internal Server Error')));
+
+        self::assertNull($provider->findByBic('BARCGB22XXX'));
+    }
+
+    public function testFindByBicReturnsNullWhenErrorIsNonEmpty(): void
+    {
+        $body = json_encode([
+            'bic_valid'         => false,
+            'directory_results' => [],
+            'error'             => ['code' => '301', 'message' => 'BIC does not exist'],
+        ]);
+
+        $provider = new IbanComProvider('secret', $this->clientReturning($this->cannedResponse(200, (string) $body)));
+
+        self::assertNull($provider->findByBic('BARCGB22XXX'));
+    }
+
+    public function testFindByBicReturnsNullWhenDirectoryResultsIsEmpty(): void
+    {
+        $body = json_encode([
+            'bic_valid'         => true,
+            'directory_results' => [],
+            'error'             => [],
+        ]);
+
+        $provider = new IbanComProvider('secret', $this->clientReturning($this->cannedResponse(200, (string) $body)));
+
+        self::assertNull($provider->findByBic('BARCGB22XXX'));
+    }
+
+    public function testFindByBicReturnsNullOnMalformedJson(): void
+    {
+        $provider = new IbanComProvider('secret', $this->clientReturning($this->cannedResponse(200, '{not valid json')));
+
+        self::assertNull($provider->findByBic('BARCGB22XXX'));
+    }
+
+    public function testFindByBicReturnsNullWhenTheClientThrows(): void
+    {
+        $client = new class () extends CURLRequest {
+            public function __construct()
+            {
+            }
+
+            /**
+             * @param array<string, mixed> $options
+             */
+            public function post(string $url, array $options = []): ResponseInterface
+            {
+                throw new RuntimeException('simulated network failure');
+            }
+        };
+
+        $provider = new IbanComProvider('secret', $client);
+
+        self::assertNull($provider->findByBic('BARCGB22XXX'));
+    }
+
     /**
      * Builds a real {@see Response} (not a mock) carrying the given status
      * code and body, so `getStatusCode()`/`getBody()` behave exactly like a
