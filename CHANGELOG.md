@@ -5,6 +5,47 @@ All notable changes to `daycry/iban` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-07-12
+
+### Changed
+
+- **BREAKING — `Config\Iban::$cacheTtl` is now `?int` (default `null`).** In CodeIgniter's cache a TTL
+  of `0` means **"never expires"** (`FileHandler` stores no expiry when `ttl <= 0`; `RedisHandler` only
+  calls `expireAt()` when `$ttl !== 0`). This package, however, used `0` to mean **"caching
+  disabled"** — a semantic collision that also left **no way to configure a never-expiring cache**.
+  The values now are:
+  - `null` (the new default) → **caching disabled** — the provider is left unwrapped (this is what the
+    old `0` did).
+  - `0` → **cache never expires** (forwarded verbatim to CI4's cache).
+  - `> 0` → TTL in **seconds**.
+
+  **Migration:** if you explicitly set `$cacheTtl = 0` to *disable* caching (including in a config
+  published by `iban:publish`, which copied the old `0` default), change it to **`null`** — otherwise
+  you will now cache **forever**. Leaving the property untouched at its new `null` default preserves
+  the previous behavior.
+
+  **Caveat when using `0`:** `CachedProvider` caches **misses** as well as hits, so a never-expiring
+  cache will remember a "not found" forever. After running `iban:update` (which seeds new bank rows),
+  run `php spark cache:clear`, or previously-missed IBANs will keep resolving to nothing.
+
+### Added
+
+- **`resolvedBy` provenance on `BankInfo` / `BankResult`**: identifies *which provider* answered a
+  `resolve()` — `'database'` (local `banks` table), `'iban.com'` (the remote API fallback), or a
+  custom provider's own id. This is distinct from `sourceId`, which identifies the *dataset* the data
+  came from (`'epc'`, `'bde'`, …). It flows unchanged through `ChainProvider` and `CachedProvider` (a
+  cached hit still reports its original origin), and is exposed by `iban:resolve` (table and `--json`).
+  `isResolved()` semantics are unchanged — `resolvedBy` is metadata and never makes a result count as
+  resolved on its own.
+
+  ```php
+  $r = service('iban')->resolve($iban);
+  $r->resolvedBy;   // 'database' | 'iban.com' | <custom>
+  $r->sourceId;     // 'epc' | 'bde' | 'iban.com' | ...
+  ```
+
+[2.0.0]: https://github.com/daycry/iban-calculator/compare/1.4.0...2.0.0
+
 ## [1.4.0] - 2026-07-11
 
 ### Added

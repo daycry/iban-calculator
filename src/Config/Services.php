@@ -80,7 +80,7 @@ class Services extends BaseService
         // A ChainProvider (above) is never a NullProvider, so the combined
         // local+iban.com chain is cached correctly when caching is enabled.
         //
-        // NOTE the check is `!== null`, NOT `> 0`: since v1.6, `null` is the
+        // NOTE the check is `!== null`, NOT `> 0`: since v2.0, `null` is the
         // "caching disabled" value and `0` means "wrap with a TTL of 0",
         // which CI4's cache handlers treat as "never expires" -- see
         // Config\Iban::$cacheTtl's docblock for the full BREAKING semantics.

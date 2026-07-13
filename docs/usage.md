@@ -325,9 +325,9 @@ class Iban extends \Daycry\Iban\Config\Iban
 `NullProvider` is never wrapped regardless of `$cacheTtl` — it never resolves anything, so caching it
 would just add a pointless cache round-trip to every `resolve()` call.
 
-> **BREAKING CHANGE (migrating from < v1.6)**: `$cacheTtl` used to be a plain `int` defaulting to `0`,
+> **BREAKING CHANGE (migrating from < v2.0)**: `$cacheTtl` used to be a plain `int` defaulting to `0`,
 > and `0` meant "caching disabled". That collided with CI4's own convention — where a cache TTL of `0`
-> means "never expires" — and left no way to actually configure a never-expiring cache. As of v1.6,
+> means "never expires" — and left no way to actually configure a never-expiring cache. As of v2.0,
 > `$cacheTtl` is `?int` and **`null` is now the "disabled" value**. If you previously set
 > `$cacheTtl = 0` to disable caching, change it to `$cacheTtl = null`; if you left it at the old
 > default (`0`), your cache is now enabled with a never-expiring TTL and you should set it explicitly
@@ -433,7 +433,7 @@ property is overridable via `.env` using the `iban.<property>` prefix, e.g. `iba
 | `$checkNationalByDefault` | `false` | Whether national check-digit validation runs by default when a caller doesn't pass an explicit flag — consulted by the [`iban_validate()`/`iban_is_valid()`/`iban_valid()` helpers](#the-iban_helper) and by the [`iban:validate` command](#spark-commands) when `--national` is omitted. The facade's own `validate()` is a separate, frozen contract: it keeps its own explicit `bool $checkNational = false` parameter default and never reads this config. |
 | `$dbGroup` | `null` | The `Config\Database` connection group queried by `DatabaseProvider` / `BankModel` — wired by `Config\Services::iban()`'s `'database'` branch, which builds `new BankModel($config->table, $config->dbGroup)`. `null` means "no override": `BankModel` leaves its own `$DBGroup` unset, so CI4's environment-aware fallback applies transparently (`Database\Config::connect(null)` resolves to `'tests'` when `ENVIRONMENT === 'testing'`, otherwise the app's `Config\Database::$defaultGroup`). Set this only to force a specific connection group regardless of environment (e.g. a read replica). |
 | `$table` | `'banks'` | The table name queried by `DatabaseProvider` / `BankModel` — wired the same way as `$dbGroup` above. |
-| `$cacheTtl` | `null` | Cache TTL, in seconds, for resolved bank lookups (see [`CachedProvider`](#caching-resolved-lookups-cachedprovider)). `null` disables caching: the resolver's provider is left unwrapped. `0` wraps the provider (except `NullProvider`) in a `CachedProvider` backed by `service('cache')` with a TTL of `0`, which CI4 treats as **never expires**. Any value `> 0` wraps it with that TTL in seconds. **BREAKING as of v1.6**: `0` used to mean "disabled"; `null` does now — see the migration note above. |
+| `$cacheTtl` | `null` | Cache TTL, in seconds, for resolved bank lookups (see [`CachedProvider`](#caching-resolved-lookups-cachedprovider)). `null` disables caching: the resolver's provider is left unwrapped. `0` wraps the provider (except `NullProvider`) in a `CachedProvider` backed by `service('cache')` with a TTL of `0`, which CI4 treats as **never expires**. Any value `> 0` wraps it with that TTL in seconds. **BREAKING as of v2.0**: `0` used to mean "disabled"; `null` does now — see the migration note above. |
 | `$ibanComApiKey` | `''` | Opt-in API key for the [iban.com fallback](#ibancom-fallback-ibancomprovider--chainprovider). Empty (the default) disables it entirely; non-empty chains an `IbanComProvider` after the primary provider via `ChainProvider`. |
 | `$ibanComTimeout` | `5` | Request timeout, in seconds, for `IbanComProvider`'s HTTP call to the iban.com Validation API. Only relevant when `$ibanComApiKey` is non-empty. |
 

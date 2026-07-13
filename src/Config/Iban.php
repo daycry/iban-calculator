@@ -61,7 +61,7 @@ class Iban extends BaseConfig
     public string $table = 'banks';
 
     /**
-     * Cache TTL, in seconds, for resolved bank lookups. Nullable since v1.6
+     * Cache TTL, in seconds, for resolved bank lookups. Nullable since v2.0
      * -- BREAKING: this used to be an `int` defaulting to `0` meaning
      * "caching disabled". That collided with CI4's own cache-handler
      * convention, where a TTL of `0` means "never expires" (see
@@ -78,7 +78,7 @@ class Iban extends BaseConfig
      *   "never expires" (CI4 semantics, not this package's).
      * - Any value `> 0` -- wraps the provider with this TTL in seconds.
      *
-     * **Migration from < v1.6**: if you previously set `$cacheTtl = 0` to
+     * **Migration from < v2.0**: if you previously set `$cacheTtl = 0` to
      * DISABLE caching, change it to `null` -- `0` now means the opposite
      * (never expires). See {@see \Daycry\Iban\Providers\CachedProvider}'s
      * class docblock for the cached-miss warning that applies whenever

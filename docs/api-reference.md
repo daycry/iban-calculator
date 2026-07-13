@@ -246,7 +246,7 @@ without publishing an `App\Config\Iban`.
 | `$checkNationalByDefault` | `bool` | `false` | `iban.checkNationalByDefault` | Whether [Validator](src/Core/Validator.php) runs national check-digit validation by default. |
 | `$dbGroup` | `?string` | `null` | `iban.dbGroup` | `Config\Database` connection group for [DatabaseProvider](src/Providers/DatabaseProvider.php) / [BankModel](src/Models/BankModel.php). `null` = no override, so CI4's environment-aware fallback (`Config\Database::$defaultGroup`, or `'tests'` under `ENVIRONMENT === 'testing'`) applies. |
 | `$table` | `string` | `'banks'` | `iban.table` | Table queried by [DatabaseProvider](src/Providers/DatabaseProvider.php) / [BankModel](src/Models/BankModel.php). |
-| `$cacheTtl` | `?int` | `null` | `iban.cacheTtl` | Cache TTL in seconds for resolved bank lookups. `null` disables caching (provider left unwrapped). `0` wraps the provider in a [CachedProvider](src/Providers/CachedProvider.php) with a TTL of `0`, which CI4's cache handlers treat as **never expires** (not "disabled"). Any value `> 0` wraps it with that TTL. **BREAKING as of v1.6**: previously an `int` defaulting to `0`, and `0` meant "disabled" — if you relied on that, set `null` explicitly now. |
+| `$cacheTtl` | `?int` | `null` | `iban.cacheTtl` | Cache TTL in seconds for resolved bank lookups. `null` disables caching (provider left unwrapped). `0` wraps the provider in a [CachedProvider](src/Providers/CachedProvider.php) with a TTL of `0`, which CI4's cache handlers treat as **never expires** (not "disabled"). Any value `> 0` wraps it with that TTL. **BREAKING as of v2.0**: previously an `int` defaulting to `0`, and `0` meant "disabled" — if you relied on that, set `null` explicitly now. |
 | `$ibanComApiKey` | `string` | `''` | `iban.ibanComApiKey` | Opt-in API key for the [iban.com Validation API](https://www.iban.com/validation-api). Empty (default) disables the fallback entirely; non-empty chains an [IbanComProvider](src/Providers/IbanComProvider.php) after the primary provider via [ChainProvider](src/Providers/ChainProvider.php). |
 | `$ibanComTimeout` | `int` | `5` | `iban.ibanComTimeout` | Request timeout, in seconds, for [IbanComProvider](src/Providers/IbanComProvider.php)'s HTTP call. Only relevant when `$ibanComApiKey` is non-empty. |
 
@@ -300,7 +300,7 @@ if ($cacheTtl !== null && ! $provider instanceof NullProvider) {
 }
 ```
 
-Note the check is `!== null`, not `> 0`: since v1.6, `null` is the "caching disabled" value and `0`
+Note the check is `!== null`, not `> 0`: since v2.0, `null` is the "caching disabled" value and `0`
 means "wrap with a TTL of `0`", which CI4's cache handlers treat as **never expires** — see
 `Config\Iban::$cacheTtl`'s row above for the full BREAKING semantics. Note also the
 [NullProvider](src/Providers/NullProvider.php) skip: it never resolves anything, so wrapping it would
