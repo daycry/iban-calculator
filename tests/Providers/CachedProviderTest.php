@@ -15,6 +15,7 @@ use Daycry\Iban\DTO\BankInfo;
 use Daycry\Iban\DTO\ParsedIban;
 use Daycry\Iban\Iban as IbanService;
 use Daycry\Iban\Providers\CachedProvider;
+use Daycry\Iban\Providers\ChainProvider;
 use Daycry\Iban\Providers\DatabaseProvider;
 use Daycry\Iban\Providers\NullProvider;
 use Daycry\Iban\Resolver\Resolver;
@@ -170,7 +171,7 @@ final class CachedProviderTest extends CIUnitTestCase
         self::assertSame(1, $spy->calls, 'The second identical lookup must be served from cache.');
     }
 
-    public function testAMissIsCachedSoTheInnerProviderIsNotReQueried(): void
+    public function testBankCodeMissIsNotCached(): void
     {
         $spy = new class () implements ProviderInterface {
             public int $calls = 0;
@@ -202,20 +203,14 @@ final class CachedProviderTest extends CIUnitTestCase
         self::assertSame(1, $spy->calls);
 
         $second = $cached->findByBankCode('ES', '9999', '0000');
-        self::assertNull($second, 'A cached miss must still resolve to null, not the sentinel.');
-        self::assertSame(1, $spy->calls, 'A cached miss must not re-query the inner provider.');
+        self::assertNull($second);
+        self::assertSame(2, $spy->calls, 'A miss must re-query the inner provider instead of polluting the cache.');
     }
 
-    public function testFindByIbanSharesTheSameCacheEntryAsFindByBankCode(): void
+    public function testFullIbanMissIsNotCached(): void
     {
-        $bankInfo = $this->fixedBankInfo();
-
-        $spy = new class ($bankInfo) implements ProviderInterface {
-            public int $calls = 0;
-
-            public function __construct(private readonly BankInfo $bankInfo)
-            {
-            }
+        $spy = new class () implements ProviderInterface {
+            public int $ibanCalls = 0;
 
             public function supports(string $countryCode): bool
             {
@@ -224,14 +219,70 @@ final class CachedProviderTest extends CIUnitTestCase
 
             public function findByIban(ParsedIban $iban): ?BankInfo
             {
-                \PHPUnit\Framework\Assert::fail('CachedProvider::findByIban() must delegate to its own findByBankCode(), never the inner findByIban().');
+                $this->ibanCalls++;
+
+                return null;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
+            {
+                return null;
+            }
+        };
+
+        $cached = new CachedProvider($spy, $this->makeInMemoryCache());
+        $parsed = $this->parsedIban('IT', '03475', '01605');
+
+        self::assertNull($cached->findByIban($parsed));
+        self::assertNull($cached->findByIban($parsed));
+        self::assertSame(2, $spy->ibanCalls, 'A full-IBAN miss must not be cached.');
+    }
+
+    public function testFindByIbanDelegatesTheFullIbanAndCachesItSeparatelyFromBankCode(): void
+    {
+        $ibanInfo     = $this->fixedBankInfo();
+        $bankCodeInfo = new BankInfo(
+            bankName: 'Bank-code result',
+            shortName: null,
+            bic: null,
+            city: null,
+            address: null,
+            sepaSct: null,
+            sepaSctInst: null,
+            sepaSddCore: null,
+            sepaSddB2b: null,
+            sourceId: null,
+            sourceVersion: null,
+            sourceLicense: null,
+        );
+
+        $spy = new class ($ibanInfo, $bankCodeInfo) implements ProviderInterface {
+            public int $ibanCalls = 0;
+            public int $bankCodeCalls = 0;
+
+            public function __construct(
+                private readonly BankInfo $ibanInfo,
+                private readonly BankInfo $bankCodeInfo,
+            ) {
+            }
+
+            public function supports(string $countryCode): bool
+            {
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): BankInfo
+            {
+                $this->ibanCalls++;
+
+                return $this->ibanInfo;
             }
 
             public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): BankInfo
             {
-                $this->calls++;
+                $this->bankCodeCalls++;
 
-                return $this->bankInfo;
+                return $this->bankCodeInfo;
             }
         };
 
@@ -239,15 +290,70 @@ final class CachedProviderTest extends CIUnitTestCase
 
         $parsed = $this->parsedIban('ES', '2100', '0418');
 
-        $viaIban = $cached->findByIban($parsed);
-        self::assertSame($bankInfo, $viaIban);
-        self::assertSame(1, $spy->calls);
+        self::assertSame($ibanInfo, $cached->findByIban($parsed));
+        self::assertSame($ibanInfo, $cached->findByIban($parsed));
+        self::assertSame(1, $spy->ibanCalls, 'The second full-IBAN lookup must be served from cache.');
+        self::assertSame(0, $spy->bankCodeCalls, 'A full-IBAN lookup must not be downgraded to a bank-code lookup.');
 
-        // Same natural key via the other entry point: must be served from
-        // the cache entry findByIban() already populated.
-        $viaBankCode = $cached->findByBankCode('ES', '2100', '0418');
-        self::assertSame($bankInfo, $viaBankCode);
-        self::assertSame(1, $spy->calls, 'findByIban() and findByBankCode() must share the same cache entry for the same natural key.');
+        self::assertSame($bankCodeInfo, $cached->findByBankCode('ES', '2100', '0418'));
+        self::assertSame(1, $spy->bankCodeCalls, 'The bank-code lookup must use its own cache entry.');
+    }
+
+    public function testCachedChainCanReachAFullIbanFallbackAfterThePrimaryMisses(): void
+    {
+        $primary = new class () implements ProviderInterface {
+            public function supports(string $countryCode): bool
+            {
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): ?BankInfo
+            {
+                return null;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
+            {
+                return null;
+            }
+        };
+
+        $fallbackInfo = $this->fixedBankInfo();
+        $fallback     = new class ($fallbackInfo) implements ProviderInterface {
+            public int $ibanCalls = 0;
+            public int $bankCodeCalls = 0;
+
+            public function __construct(private readonly BankInfo $fallbackInfo)
+            {
+            }
+
+            public function supports(string $countryCode): bool
+            {
+                return true;
+            }
+
+            public function findByIban(ParsedIban $iban): BankInfo
+            {
+                $this->ibanCalls++;
+
+                return $this->fallbackInfo;
+            }
+
+            public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
+            {
+                $this->bankCodeCalls++;
+
+                return null;
+            }
+        };
+
+        $cached = new CachedProvider(new ChainProvider([$primary, $fallback]), $this->makeInMemoryCache());
+        $parsed = $this->parsedIban('IT', '03475', '01605');
+
+        self::assertSame($fallbackInfo, $cached->findByIban($parsed));
+        self::assertSame($fallbackInfo, $cached->findByIban($parsed));
+        self::assertSame(1, $fallback->ibanCalls);
+        self::assertSame(0, $fallback->bankCodeCalls);
     }
 
     public function testDistinctBankOrBranchCodesUseDistinctCacheEntries(): void
@@ -529,7 +635,7 @@ final class CachedProviderTest extends CIUnitTestCase
         self::assertSame(1, $spy->bicCalls, 'The second identical BIC lookup must be served from cache, not re-query the inner provider.');
     }
 
-    public function testFindByBicCachesAMissSoTheInnerProviderIsNotReQueried(): void
+    public function testFindByBicDoesNotCacheAMiss(): void
     {
         $spy = new class () implements BicProviderInterface, ProviderInterface {
             public int $bicCalls = 0;
@@ -562,8 +668,8 @@ final class CachedProviderTest extends CIUnitTestCase
         self::assertNull($cached->findByBic('CAIXESBBXXX'));
         self::assertSame(1, $spy->bicCalls);
 
-        self::assertNull($cached->findByBic('CAIXESBBXXX'), 'A cached BIC miss must still resolve to null, not the sentinel.');
-        self::assertSame(1, $spy->bicCalls, 'A cached BIC miss must not re-query the inner provider.');
+        self::assertNull($cached->findByBic('CAIXESBBXXX'));
+        self::assertSame(2, $spy->bicCalls, 'A BIC miss must not be cached.');
     }
 
     public function testFindByBicReturnsNullWhenInnerProviderIsNotBicCapable(): void

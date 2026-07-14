@@ -34,34 +34,17 @@ use Daycry\Iban\DTO\ParsedIban;
  * is `null` -- by the time a `CachedProvider` exists, `0` always means
  * "cache forever", never "don't cache".
  *
- * **Warning -- misses are cached forever too when `$ttl === 0`**: see the
- * "Miss sentinel" note below. A never-expiring cache means a "not found"
- * result never expires either. Concretely: after running `php spark
- * iban:update` to import bank data, any IBAN/bank code that was a cached
- * miss BEFORE the import stays a permanent miss afterward unless the cache
- * is cleared -- run `php spark cache:clear` after every `iban:update` when
- * `$cacheTtl` is `0` (or any TTL long enough to outlive your update cadence).
- *
- * **Miss sentinel**: misses (`$inner->findByBankCode()` returning `null`)
- * are cached too, via {@see self::MISS}, so repeated lookups of a bank code
- * that doesn't exist don't keep re-querying the inner provider. This is
- * necessary because CI4's `CacheInterface::get()` returns `null` both when
- * a key was never stored AND when the value stored under it *is* `null` --
- * storing the literal `null` for a miss would therefore be indistinguishable
- * from "not cached yet" on the next lookup, permanently defeating the miss
- * cache. Storing a non-null sentinel instead lets a `null` `get()` result
- * unambiguously mean "not cached", while the sentinel means "cached miss".
+ * Only successful {@see BankInfo} results are cached. A provider miss (`null`)
+ * is returned without writing anything, so transient remote failures and
+ * newly imported bank records can be retried immediately and the cache never
+ * fills with negative entries.
  *
  * @see docs/superpowers/specs/2026-07-10-daycry-iban-v1-design.md
  */
 final class CachedProvider implements BicProviderInterface, ProviderInterface
 {
-    /**
-     * Sentinel stored in place of `null` to cache a miss (see class
-     * docblock). Never leaks to callers: {@see self::findByBankCode()} maps
-     * it back to `null` before returning.
-     */
-    private const MISS = '__iban_miss__';
+    /** Cache-key namespace for full-IBAN lookups. */
+    private const IBAN_PREFIX = 'iban_full_';
 
     /**
      * @param string $prefix    Cache-key namespace for bank-code lookups
@@ -98,35 +81,37 @@ final class CachedProvider implements BicProviderInterface, ProviderInterface
             return $cached;
         }
 
-        if ($cached !== null) {
-            // Any other non-null cached value is the self::MISS sentinel.
-            return null;
-        }
-
         $info = $this->inner->findByBankCode($countryCode, $bankCode, $branchCode);
 
-        $this->cache->save($key, $info ?? self::MISS, $this->ttl);
+        if ($info !== null) {
+            $this->cache->save($key, $info, $this->ttl);
+        }
+
+        return $info;
+    }
+
+    public function findByIban(ParsedIban $iban): ?BankInfo
+    {
+        $key = $this->ibanKey($iban);
+
+        $cached = $this->cache->get($key);
+
+        if ($cached instanceof BankInfo) {
+            return $cached;
+        }
+
+        $info = $this->inner->findByIban($iban);
+
+        if ($info !== null) {
+            $this->cache->save($key, $info, $this->ttl);
+        }
 
         return $info;
     }
 
     /**
-     * Delegates to {@see self::findByBankCode()} (this decorator's own
-     * method, not the inner provider's `findByIban()`) so both entry points
-     * share the exact same cache key/entry -- consistent with
-     * {@see DatabaseProvider::findByIban()}, which does the same against
-     * its own `findByBankCode()`.
-     */
-    public function findByIban(ParsedIban $iban): ?BankInfo
-    {
-        return $this->findByBankCode($iban->countryCode, $iban->bankIdentifier, $iban->branchIdentifier);
-    }
-
-    /**
-     * Caches BIC lookups, mirroring {@see findByBankCode()}'s hit/miss
-     * handling (including the {@see self::MISS} sentinel and the CI4 TTL
-     * semantics), under the DISTINCT {@see $bicPrefix} namespace so a BIC
-     * entry can never collide with a bank-code entry.
+     * Caches successful BIC lookups under the DISTINCT {@see $bicPrefix}
+     * namespace so a BIC entry can never collide with a bank-code entry.
      *
      * Delegates only when the inner provider actually implements
      * {@see BicProviderInterface}; otherwise returns `null` immediately WITHOUT
@@ -146,14 +131,11 @@ final class CachedProvider implements BicProviderInterface, ProviderInterface
             return $cached;
         }
 
-        if ($cached !== null) {
-            // Any other non-null cached value is the self::MISS sentinel.
-            return null;
-        }
-
         $info = $this->inner->findByBic($bic);
 
-        $this->cache->save($key, $info ?? self::MISS, $this->ttl);
+        if ($info !== null) {
+            $this->cache->save($key, $info, $this->ttl);
+        }
 
         return $info;
     }
@@ -169,6 +151,13 @@ final class CachedProvider implements BicProviderInterface, ProviderInterface
     private function key(string $countryCode, string $bankCode, ?string $branchCode): string
     {
         $raw = sprintf('%s%s_%s_%s', $this->prefix, strtoupper($countryCode), $bankCode, $branchCode ?? '');
+
+        return preg_replace('/[^A-Za-z0-9_]/', '_', $raw) ?? $raw;
+    }
+
+    private function ibanKey(ParsedIban $iban): string
+    {
+        $raw = self::IBAN_PREFIX . strtoupper($iban->electronic);
 
         return preg_replace('/[^A-Za-z0-9_]/', '_', $raw) ?? $raw;
     }

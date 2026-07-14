@@ -80,9 +80,8 @@ class Iban extends BaseConfig
      *
      * **Migration from < v2.0**: if you previously set `$cacheTtl = 0` to
      * DISABLE caching, change it to `null` -- `0` now means the opposite
-     * (never expires). See {@see \Daycry\Iban\Providers\CachedProvider}'s
-     * class docblock for the cached-miss warning that applies whenever
-     * caching is enabled (`null` excluded), especially with `0`.
+    * (never expires). Only successful bank resolutions are cached; provider
+    * misses (`null`) are never written, regardless of the configured TTL.
      */
     public ?int $cacheTtl = null;
 
