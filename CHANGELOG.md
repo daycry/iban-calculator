@@ -5,6 +5,23 @@ All notable changes to `daycry/iban` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [2.1.1] - 2026-07-14
+
+### Fixed
+
+- `CachedProvider::findByIban()` now caches and delegates the complete IBAN instead of downgrading the
+  request to `findByBankCode()`. This restores the opt-in iban.com fallback when caching is enabled,
+  because `IbanComProvider` can resolve only full IBANs and deliberately returns `null` for bank-code
+  lookups. Full-IBAN and bank-code results now use separate cache-key namespaces.
+- `CachedProvider` no longer caches misses for bank-code, full-IBAN, or BIC lookups. Only successful
+  `BankInfo` results are written, preventing negative entries from consuming cache space or blocking
+  retries after transient provider failures and bank-data imports.
+
+[Unreleased]: https://github.com/daycry/iban-calculator/compare/2.1.1...HEAD
+[2.1.1]: https://github.com/daycry/iban-calculator/compare/2.1.0...2.1.1
+
 ## [2.1.0] - 2026-07-13
 
 Additive release: **BIC / SWIFT (ISO 9362) validation, parsing, IBAN↔BIC cross-checking and BIC-first

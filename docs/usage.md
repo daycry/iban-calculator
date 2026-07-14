@@ -523,11 +523,11 @@ $info?->resolvedBy;                                  // 'database'
 ## Caching resolved lookups: `CachedProvider`
 
 `Providers\CachedProvider` is a `ProviderInterface` decorator that caches `findByBankCode()`/
-`findByIban()` results behind a CI4 `CacheInterface`, so repeated lookups of the same bank/branch code
-don't re-query the decorated provider (e.g. a `DatabaseProvider` hitting the `banks` table on every
-`resolve()` call for the same IBAN). It caches **misses too**, via an internal sentinel value — a
-lookup that resolves to nothing is remembered just as eagerly as one that resolves to a `BankInfo`, so
-repeatedly resolving an unregistered bank code doesn't keep re-querying the underlying provider.
+`findByIban()` results behind a CI4 `CacheInterface`, so repeated lookups of the same full IBAN or
+bank/branch code don't re-query the decorated provider. Full-IBAN and bank-code lookups use separate
+cache entries: this preserves providers such as `IbanComProvider`, which can resolve a complete IBAN
+but cannot query a bare bank code. Only successful `BankInfo` results are cached; a `null` result is
+not stored, so a later call retries the underlying provider.
 
 It's entirely opt-in and CI4-only, wired by `Config\Services::iban()`, not something you construct by
 hand in ordinary use:
@@ -561,13 +561,9 @@ would just add a pointless cache round-trip to every `resolve()` call.
 > `$cacheTtl = 0` to disable caching, change it to `$cacheTtl = null`; if you left it at the old
 > default (`0`), your cache is now enabled with a never-expiring TTL and you should set it explicitly
 > (`null` to keep caching off, or a real TTL in seconds) rather than relying on the default.
->
-> **Cached-miss warning**: `CachedProvider` caches misses too (a lookup that resolves to nothing is
-> remembered just like a hit — see below). With `$cacheTtl = 0` a miss is therefore cached **forever**.
-> Concretely: after running `php spark iban:update` to import new bank data, any IBAN/bank code that
-> was a cached miss before the import stays a permanent miss afterward unless the cache is cleared —
-> always run `php spark cache:clear` after `iban:update` when caching is enabled (any `$cacheTtl` other
-> than `null`, but especially `0`).
+
+Regardless of TTL, misses are never cached. A timeout, unresolved IBAN/BIC, or absent database row
+therefore does not consume cache space and will be retried on the next lookup.
 
 ## iban.com fallback: `IbanComProvider` + `ChainProvider`
 

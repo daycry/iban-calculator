@@ -414,7 +414,7 @@ but `service('iban')` passes an explicitly configured one. It returns `true` fro
 for every country and lets a missing row degrade to unresolved bank fields rather than skipping
 the lookup.
 
-### CachedProvider (decorator + miss sentinel)
+### CachedProvider (successful resolutions only)
 
 ```php
 public function __construct(
@@ -422,28 +422,21 @@ public function __construct(
     private readonly CacheInterface $cache,
     private readonly int $ttl = 3600,
     private readonly string $prefix = 'iban_bank_',
+    private readonly string $bicPrefix = 'iban_bic_',
 ) {}
 ```
 
 `findByBankCode()` builds a sanitized cache key (`prefix + uppercased country + bank + branch`,
 with any non-`[A-Za-z0-9_]` char replaced by `_`), reads the cache, and on a miss delegates to
-`$inner` then stores the result. `findByIban()` delegates to this decorator's own
-`findByBankCode()` so both entry points share one cache entry.
+`$inner` then stores the result. `findByIban()` uses a separate `iban_full_` key containing the
+electronic IBAN and delegates to `$inner->findByIban()`. Keeping those entries separate preserves
+full-IBAN providers such as `IbanComProvider`, whose `findByBankCode()` deliberately returns `null`.
+`findByBic()` likewise uses its own `iban_bic_` namespace.
 
-Misses are cached too, via the `private const MISS = '__iban_miss__'` sentinel: because CI4's
-`CacheInterface::get()` returns `null` both for an unstored key and for a stored literal `null`,
-storing a non-null sentinel lets a genuine `null` `get()` result unambiguously mean "not cached".
-A cached `BankInfo` is returned as-is; any other non-null cached value is the sentinel and maps
-back to `null` before returning (the sentinel never leaks to callers). Because `BankInfo` is a
-`final readonly` class of plain scalars/bools, storing and re-reading it (whether from the in-process
-array used in tests or a real serializing cache handler) round-trips every field — including
-`resolvedBy` — unchanged: a cached hit reports the same `resolvedBy` the original lookup did.
-
-**Warning — a `$ttl` of `0` caches misses forever too**: `$ttl` is forwarded to `CacheInterface::save()`
-verbatim, and CI4's cache handlers treat `0` as "never expires" (e.g. `FileHandler::getMetaData()`:
-`'expire' => $data['ttl'] > 0 ? ... : null`). Combined with the miss-caching above, a "not found" result
-looked up while `$cacheTtl === 0` never expires either — after running `php spark iban:update`, run
-`php spark cache:clear` or previously-missed IBANs/bank codes stay unresolved forever.
+Only successful `BankInfo` results are passed to `CacheInterface::save()`. A `null` result is returned
+without writing a cache entry, so subsequent calls retry the underlying provider and transient API
+failures or newly imported bank rows are visible immediately. Existing cached `BankInfo` objects are
+returned as-is, preserving every field including `resolvedBy`.
 
 Note the constructor's own `$ttl` default of `3600` is inert in the service path — `Config\Iban::$cacheTtl`
 (default `null`, meaning "disabled") always supplies the TTL when non-`null`, and the wrap only
