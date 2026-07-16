@@ -19,9 +19,9 @@ Horas y tokens **base** (sin margen +20 %).
 | Fase 0 — Infra | 1 | 1 | 100% | — / 9h | — / 0,44 M |
 | Fase 1 — Tier A (fetch en vivo) | 5 | 5 | 100% | — / 26h | — / 1,32 M |
 | Fase 2 — Tier B (offline `--file`) | 3 | 3 | 100% | — / 14h | — / 0,63 M |
-| Fase 3 — Tier C (salvedades / curación) | 0 | 8 | 0% | 0 / 46h | 0 / 2,21 M |
+| Fase 3 — Tier C (salvedades / curación) | 1 | 8 | 13% | — / 46h | — / 2,21 M |
 | Fase 4 — Transversal | 0 | 4 | 0% | 0 / 6h | 0 / 0,34 M |
-| **TOTAL** | **9** | **21** | **43%** | **— / 101h** | **— / ≈ 4,94 M** |
+| **TOTAL** | **10** | **21** | **48%** | **— / 101h** | **— / ≈ 4,94 M** |
 
 > Cobertura objetivo por fase: Fase 1 → **30/42**, Fase 2 → **33/42**, Fase 3 → **hasta 41/42**. DK (+FO/GL) fuera (tier D). Tareas condicionadas: **T-16 (LT) bloqueada por licencia**; **T-09 (MK) condicionada a frescura**; **T-15 (RS) con cross-check por alineación**; **T-17 (FI) el último por coste/riesgo**.
 
@@ -254,27 +254,27 @@ Horas y tokens **base** (sin margen +20 %).
 
 ## Fase 3 — Tier C (salvedades / curación) · Cobertura → hasta 41/42
 
-**Estado**: borrador · **Estimado**: 46h · **Real**: — · **Coste est.**: ≈ 2.355 € · **Tokens est.**: 2,21 M
+**Estado**: en-progreso · **Estimado**: 46h · **Real**: — · **Coste est.**: ≈ 2.355 € · **Tokens est.**: 2,21 M
 
 ### T-10 — VA · dato curado (1 entrada)
 
 - **Descripción**: **1 entrada** curada `001 → Istituto per le Opere di Religione (IOR)`, BIC `IOPRVAVX`. Procedencia `curated`/hardcoded. Fichero `data/va.php`.
-- **Estado**: borrador
+- **Estado**: completado
 - **Tiempo**: est. 2h · real —
 - **Previsión IA**: 0,08 M in / 0,02 M out tok · ≈ 2,5 €
 - **Dependencias**: **D4** (aprobada) · **T-18** (nota `licensing.md`, recomendada adelantar)
-- **Archivos**: `src/Import/Importers/VaticanImporter.php`, `src/Import/Importers/data/va.php`, `tests/Import/Importers/VaticanImporterTest.php`, `src/Import/ImporterRegistry.php`
+- **Archivos**: `src/Import/Importers/VaticanCityImporter.php`, `src/Import/Importers/data/va.php`, `tests/Import/Importers/VaticanCityImporterTest.php`, `src/Import/ImporterRegistry.php`
 - **Cubre (tests)**: — (sin UI)
 
 **Criterios de aceptación**
-- [ ] `rows()` yield la entrada curada (`001` → IOR / `IOPRVAVX`); procedencia `curated`.
-- [ ] Test verde; PHPStan L8, PSR-12; framework-free.
-- [ ] Registrado en `registerDefaults()`; `resolve()` de una IBAN VA de ejemplo (`VA…001…`) devuelve IOR.
+- [x] `rows()` yield la entrada curada (`001` → IOR / `IOPRVAVX`); procedencia `curated`.
+- [x] Test verde; PHPStan L8, PSR-12; framework-free.
+- [x] Registrado en `registerDefaults()`; `resolve()` de una IBAN VA de ejemplo (`VA…001…`) devuelve IOR.
 
 **Subtareas**
-- [ ] Autorar `data/va.php`; implementar importador + test; registrar en `registerDefaults()`.
+- [x] Autorar `data/va.php`; implementar importador + test; registrar en `registerDefaults()`.
 
-**Notas**: universo real = 1 banco (IOR). Hecho único no protegible.
+**Notas**: universo real = 1 banco (IOR). Hecho único no protegible. **Impl.**: `VaticanCityImporter` (sourceId `vatican`, license `curated (factual, non-copyrightable)`) hace `require __DIR__/data/va.php` y emite 1 fila (`001` → IOR / IOPRVAVX); `bank_code` string de 3 díg. (ceros a la izquierda). `rows()` ignora `$localFile` (dato constante). **DESVIACIÓN de nombre**: clase nombrada `VaticanCityImporter` (no `VaticanImporter` como sugería el borrador) por consistencia con el país. La IBAN de ejemplo del registro `VA59001123000012345678` (bank code `001`) resuelve a IOR. Catálogo 39 → 40.
 
 ### T-11 — SM · `BcsmImporter` (dato curado, 4 bancos)
 

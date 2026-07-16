@@ -41,6 +41,7 @@ use Daycry\Iban\Import\Importers\OenbImporter;
 use Daycry\Iban\Import\Importers\RegafiImporter;
 use Daycry\Iban\Import\Importers\SixImporter;
 use Daycry\Iban\Import\Importers\SwedenBankInfrastructureImporter;
+use Daycry\Iban\Import\Importers\VaticanCityImporter;
 use Daycry\Iban\Import\ImportReport;
 use Daycry\Iban\Import\ImportRunner;
 use Daycry\Iban\Models\BankModel;
@@ -182,6 +183,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const AD_EXAMPLE_IBAN = 'AD1200012030200359100100'; // Entitat '0001' = Andbank (registry example)
     private const PT_EXAMPLE_IBAN = 'PT16003400000000000000000'; // bank code '0034' = Caixa Geral de Depósitos
     private const MK_EXAMPLE_IBAN = 'MK37300000001234500'; // bank code '300' = Komercijalna banka
+    private const VA_EXAMPLE_IBAN = 'VA59001123000012345678'; // bank code '001' = IOR (registry example)
 
     // MOD-97-valid test IBANs for the EPC SEPA Register importer's seeded
     // banks. GB's is the SRLG example handed down with the task brief
@@ -1509,6 +1511,38 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
 
         self::assertTrue($result->isResolved());
         self::assertSame('Комерцијална банка АД Скопје', $result->bankName);
+    }
+
+    public function testVaticanCityImporterImportsTheCuratedIorRowAndResolvesTheExampleIban(): void
+    {
+        // Curated importer: no $localFile is passed -- rows() yields the
+        // constant data/va.php map (a single IOR entry) on its own.
+        $report = (new ImportRunner())->run(new VaticanCityImporter(), new BankModel(), false, null);
+
+        self::assertSame('VA', $report->countryCode);
+        self::assertSame('vatican', $report->sourceId);
+        // The Vatican's whole bank universe is one institution (the IOR).
+        self::assertSame(1, $report->imported);
+
+        self::assertSame(1, $this->db->table('banks')->countAllResults());
+
+        $this->seeInDatabase('banks', [
+            'country_code'   => 'VA',
+            'bank_code'      => '001',
+            'branch_code'    => null,
+            'name'           => 'Istituto per le Opere di Religione (IOR)',
+            'bic'            => 'IOPRVAVX',
+            'source_id'      => 'vatican',
+            'source_license' => 'curated (factual, non-copyrightable)',
+        ]);
+
+        // The real proof: resolving the registry's own VA example IBAN
+        // (bank code '001' = IOR).
+        $iban   = new Iban(provider: new DatabaseProvider(new BankModel()));
+        $result = $iban->resolve(self::VA_EXAMPLE_IBAN);
+
+        self::assertTrue($result->isResolved());
+        self::assertSame('Istituto per le Opere di Religione (IOR)', $result->bankName);
     }
 
     public function testBothImportersCanCoexistInTheSameBanksTable(): void
