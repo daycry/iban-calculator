@@ -439,7 +439,7 @@ Horas y tokens **base** (sin margen +20 %).
 ### T-18 — `docs/licensing.md`: nota de la excepción de datos curados (D4)
 
 - **Descripción**: nota nueva acotando la excepción de **datos curados** (VA/AD/SM/IS/AL) a micro-jurisdicciones sin fuente legible por máquina, con el argumento «hechos no protegibles» + metodología `registry-authoring.md` y procedencia `curated`. **Recomendada adelantar** para desbloquear los importadores curados de las Fases 2-3.
-- **Estado**: borrador
+- **Estado**: completado
 - **Tiempo**: est. 1,5h · real —
 - **Previsión IA**: 0,05 M in / 0,02 M out tok · ≈ 2,1 €
 - **Dependencias**: **D4** (aprobada)
@@ -447,13 +447,14 @@ Horas y tokens **base** (sin margen +20 %).
 - **Cubre (tests)**: — (sin UI)
 
 **Criterios de aceptación**
-- [ ] La nota acota la excepción a micro-jurisdicciones sin fuente máquina y referencia la metodología factual.
-- [ ] Coherente con la disciplina «no empaquetar datos» del resto del catálogo.
+- [x] La nota acota la excepción a micro-jurisdicciones sin fuente máquina y referencia la metodología factual.
+- [x] Coherente con la disciplina «no empaquetar datos» del resto del catálogo.
 
 **Subtareas**
 - [x] Redactar la nota y enlazarla desde los importadores curados. _(Parcial: hecho en la Fase 2 para desbloquear AD.)_
+- [x] Cerrar la nota con los curados realmente entregados (AD/VA/SM) y remitir IS/AL a «documented, deferred».
 
-**Notas**: adelantar al inicio de la Fase 2 (desbloquea AD/VA/SM/IS/AL). Precisión importante para la credibilidad del proyecto. **PARCIALMENTE ADELANTADA en Fase 2 (T-07)**: `docs/licensing.md` ya lleva la sección "Curated micro-jurisdiction bank data (the narrow exception)" acotando D4 a micro-jurisdicciones sin fuente máquina + el **patrón de importador curado** (fichero `Import/Importers/data/<cc>.php`), enlazado desde `AndorranBankingImporter`. **Pendiente (Fase 4)**: cuando existan los curados de Fase 3 (VA/SM/IS/AL), ampliar la lista de países de ejemplo y cerrar la tarea; por eso el estado sigue **borrador**, no completado.
+**Notas**: adelantar al inicio de la Fase 2 (desbloquea AD/VA/SM/IS/AL). Precisión importante para la credibilidad del proyecto. **CERRADA en Fase 4**: la sección "Curated micro-jurisdiction bank data (the narrow exception)" de `docs/licensing.md` ahora **lista los tres importadores curados que realmente se empaquetan** — AD (`AndorranBankingImporter`/`andorran-banking`), VA (`VaticanCityImporter`/`vatican`), SM (`SanMarinoImporter`/`bcsm`) — con su nº de bancos y su `data/<cc>.php`. **IS y AL NO se empaquetan** (decisión del usuario: documentados solo); la nota los remite explícitamente al bucket "documented, deferred" de `docs/importers.md` con su motivo, en vez de listarlos como curados entregados. Coherente con la disciplina «no empaquetar datos» (hechos no protegibles + autoría independiente + procedencia `curated`).
 
 ### T-19 — `docs/importers.md`: matriz/contadores de cobertura + DK tier D
 

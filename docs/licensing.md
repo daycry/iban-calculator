@@ -76,10 +76,22 @@ institutions). For these, and only these, the package may ship a small, **indepe
 This is *not* a reversal of the no-bundled-data rule; it is the same facts-vs-compilation distinction
 that already lets `src/Registry/data/countries.php` ship. The conditions are strict:
 
-- **Scope.** Only micro-jurisdictions with no machine-readable source. As of this initiative:
-  Andorra (AD), San Marino (SM), Vatican City (VA), Iceland (IS, bank-level prefixes), Albania (AL).
+- **Scope.** Only micro-jurisdictions with no machine-readable source. As of this initiative, **three**
+  curated importers actually ship:
+  - **Andorra (AD)** — `AndorranBankingImporter` (`sourceId` `andorran-banking`): 4 codes / 3 banks
+    (0001 Andbank, 0003 Creand, 0007+0008 MoraBanc), `data/ad.php`.
+  - **Vatican City (VA)** — `VaticanCityImporter` (`sourceId` `vatican`): the Vatican's entire bank
+    universe is one institution, `001` = Istituto per le Opere di Religione (IOR) / IOPRVAVX,
+    `data/va.php`.
+  - **San Marino (SM)** — `SanMarinoImporter` (`sourceId` `bcsm`): the four Sammarinese banks by 5-digit
+    ABI, which the Italian ABI directories do not list, `data/sm.php`.
+
   A country that has *any* fetchable/`--file`-able directory is imported that way instead — it does
-  **not** get a curated map.
+  **not** get a curated map. Two candidates originally scoped for curation, **Iceland (IS)** and
+  **Albania (AL)**, were **not shipped**: they are documented as *deferred* in
+  [`docs/importers.md`](importers.md#documented-deferred-source-exists-but-not-shipped) (IS has no open
+  full branch/bank directory; AL's KIB mapping lives only in a bot-blocked regulation PDF), so curation
+  for both is left for a future pass rather than authored now.
 - **Independent authorship, not a copy.** The map is authored from public facts per the same
   methodology as the structural registry (see
   [`docs/registry-authoring.md`](registry-authoring.md)): the bank code, legal name and BIC are
