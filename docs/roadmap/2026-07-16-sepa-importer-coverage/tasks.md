@@ -134,7 +134,7 @@ Horas y tokens **base** (sin margen +20 %).
 ### T-05 — ME · `CentralBankOfMontenegroImporter` (HTML + filtro)
 
 - **Descripción**: `HtmlTableReader` sobre la página RTGS de CBCG; código de **3 díg.** → nombre + BIC; **filtrar** entes públicos (rango 714-931), dejando solo bancos comerciales.
-- **Estado**: borrador
+- **Estado**: completado
 - **Tiempo**: est. 5h · real —
 - **Previsión IA**: 0,20 M in / 0,05 M out tok · ≈ 6,2 €
 - **Dependencias**: **T-01** (`HtmlTableReader`)
@@ -142,17 +142,17 @@ Horas y tokens **base** (sin margen +20 %).
 - **Cubre (tests)**: — (sin UI)
 
 **Criterios de aceptación**
-- [ ] `rows()` mapea el código de 3 díg. → nombre + BIC y **filtra** el rango 714-931 (entes públicos).
-- [ ] Test verde con fixture HTML reducido (incluye una fila de ente público que debe filtrarse); PHPStan L8, PSR-12; framework-free.
-- [ ] Registrado en `registerDefaults()` y listado por `iban:update`.
-- [ ] `resolve()` de una IBAN ME de ejemplo (p. ej. `ME25 510…` → CKB, `520…` → Hipotekarna) devuelve el banco esperado.
+- [x] `rows()` mapea el código de 3 díg. → nombre + BIC y **filtra** el rango 714-931 (entes públicos).
+- [x] Test verde con fixture HTML reducido (incluye una fila de ente público que debe filtrarse); PHPStan L8, PSR-12; framework-free.
+- [x] Registrado en `registerDefaults()` y listado por `iban:update`.
+- [x] `resolve()` de una IBAN ME de ejemplo (p. ej. `ME25 510…` → CKB, `520…` → Hipotekarna) devuelve el banco esperado.
 
 **Subtareas**
-- [ ] Test con fixture HTML reducido primero.
-- [ ] Implementar `rows()` con `HtmlTableReader` + filtro de rango 714-931.
-- [ ] Registrar en `registerDefaults()`.
+- [x] Test con fixture HTML reducido primero.
+- [x] Implementar `rows()` con `HtmlTableReader` + filtro de rango 714-931.
+- [x] Registrar en `registerDefaults()`.
 
-**Notas**: la tabla mezcla bancos y entes públicos → el filtro por rango debe ser correcto (evitar falsos positivos/negativos). Documentar el CAVEAT de estabilidad del rango.
+**Notas**: la tabla mezcla bancos y entes públicos → el filtro por rango debe ser correcto (evitar falsos positivos/negativos). Documentar el CAVEAT de estabilidad del rango. **Impl.**: `CentralBankOfMontenegroImporter` (sourceId `cbcg`) usa `HtmlTableReader` + `locateHeader`. **ASUNCIÓN a validar en vivo**: cabeceras `Code`/`Name`/`BIC` (CAVEAT en docblock). Filtro numérico `714 ≤ code ≤ 931` → excluye Tesoro/banco central. Fixture DB `tests/Fixtures/import/me_sample.html`; resolve() verde con `ME56510123456789012300` → CKB.
 
 ### T-06 — CY · `CentralBankOfCyprusImporter` (landing + XLSX + WAF)
 

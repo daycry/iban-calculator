@@ -16,6 +16,7 @@ use Daycry\Iban\Import\Importers\BulgarianNationalBankImporter;
 use Daycry\Iban\Import\Importers\BundesbankImporter;
 use Daycry\Iban\Import\Importers\CentralBankOfAzerbaijanImporter;
 use Daycry\Iban\Import\Importers\CentralBankOfMaltaImporter;
+use Daycry\Iban\Import\Importers\CentralBankOfMontenegroImporter;
 use Daycry\Iban\Import\Importers\CroatianNationalBankImporter;
 use Daycry\Iban\Import\Importers\CzechNationalBankImporter;
 use Daycry\Iban\Import\Importers\EpcRegisterImporter;
@@ -86,7 +87,7 @@ final class ImporterRegistryTest extends TestCase
 
         $all = $registry->all();
 
-        self::assertCount(34, $all);
+        self::assertCount(35, $all);
         self::assertInstanceOf(OenbImporter::class, $all[0]);
         self::assertInstanceOf(BundesbankImporter::class, $all[1]);
         self::assertInstanceOf(SixImporter::class, $all[2]);
@@ -121,6 +122,7 @@ final class ImporterRegistryTest extends TestCase
         self::assertInstanceOf(RegafiImporter::class, $all[31]);
         self::assertInstanceOf(RegafiImporter::class, $all[32]);
         self::assertInstanceOf(EstonianBankingAssociationImporter::class, $all[33]);
+        self::assertInstanceOf(CentralBankOfMontenegroImporter::class, $all[34]);
 
         self::assertSame([
             ['country' => 'AT', 'source' => 'oenb', 'name' => 'Oesterreichische Nationalbank', 'license' => 'CC-BY-4.0 (OeNB)'],
@@ -157,6 +159,7 @@ final class ImporterRegistryTest extends TestCase
             ['country' => 'FR', 'source' => 'regafi', 'name' => 'REGAFI (ACPR / Banque de France)', 'license' => 'Licence Ouverte / Etalab (attribution)'],
             ['country' => 'MC', 'source' => 'regafi', 'name' => 'REGAFI (ACPR / Banque de France)', 'license' => 'Licence Ouverte / Etalab (attribution)'],
             ['country' => 'EE', 'source' => 'pangaliit', 'name' => 'Eesti Pangaliit (Estonian Banking Association)', 'license' => 'Eesti Pangaliit (factual list)'],
+            ['country' => 'ME', 'source' => 'cbcg', 'name' => 'Central Bank of Montenegro', 'license' => 'Central Bank of Montenegro'],
         ], $registry->sources());
 
         self::assertNotNull($registry->get('AT', 'oenb'));
@@ -193,6 +196,7 @@ final class ImporterRegistryTest extends TestCase
         self::assertNotNull($registry->get('FR', 'regafi'));
         self::assertNotNull($registry->get('MC', 'regafi'));
         self::assertNotNull($registry->get('EE', 'pangaliit'));
+        self::assertNotNull($registry->get('ME', 'cbcg'));
 
         // FR and MC share the 'regafi' sourceId but are keyed separately by
         // country, so both coexist as distinct registry entries.
@@ -319,7 +323,7 @@ final class ImporterRegistryTest extends TestCase
         // first (in the constructor), then $at and $de.
         $all = $registry->all();
 
-        self::assertCount(36, $all);
+        self::assertCount(37, $all);
         self::assertInstanceOf(OenbImporter::class, $all[0]);
         self::assertInstanceOf(BundesbankImporter::class, $all[1]);
         self::assertInstanceOf(SixImporter::class, $all[2]);
@@ -354,8 +358,9 @@ final class ImporterRegistryTest extends TestCase
         self::assertInstanceOf(RegafiImporter::class, $all[31]);
         self::assertInstanceOf(RegafiImporter::class, $all[32]);
         self::assertInstanceOf(EstonianBankingAssociationImporter::class, $all[33]);
-        self::assertSame($at, $all[34]);
-        self::assertSame($de, $all[35]);
+        self::assertInstanceOf(CentralBankOfMontenegroImporter::class, $all[34]);
+        self::assertSame($at, $all[35]);
+        self::assertSame($de, $all[36]);
     }
 
     public function testAllReturnValueIsAListOfImporterInterfaceInstances(): void

@@ -17,6 +17,7 @@ use Daycry\Iban\Import\Importers\BulgarianNationalBankImporter;
 use Daycry\Iban\Import\Importers\BundesbankImporter;
 use Daycry\Iban\Import\Importers\CentralBankOfAzerbaijanImporter;
 use Daycry\Iban\Import\Importers\CentralBankOfMaltaImporter;
+use Daycry\Iban\Import\Importers\CentralBankOfMontenegroImporter;
 use Daycry\Iban\Import\Importers\CroatianNationalBankImporter;
 use Daycry\Iban\Import\Importers\CzechNationalBankImporter;
 use Daycry\Iban\Import\Importers\EpcRegisterImporter;
@@ -141,6 +142,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const SE_FIXTURE               = __DIR__ . '/../Fixtures/import/se_sample.psv';
     private const REGAFI_FIXTURE           = __DIR__ . '/../Fixtures/import/regafi_sample.json';
     private const EE_FIXTURE               = __DIR__ . '/../Fixtures/import/ee_sample.html';
+    private const ME_FIXTURE               = __DIR__ . '/../Fixtures/import/me_sample.html';
 
     private const CZ_EXAMPLE_IBAN = 'CZ6508000000192000145399';
     private const GR_EXAMPLE_IBAN = 'GR1601101250000000012300695';
@@ -169,6 +171,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const FR_EXAMPLE_IBAN = 'FR0530003000001234567890100'; // CIB '30003' = Société Générale
     private const MC_EXAMPLE_IBAN = 'MC3112739000001234567890100'; // CIB '12739' = CFM Indosuez
     private const EE_EXAMPLE_IBAN = 'EE382200221020145685'; // bank code '22' = Swedbank
+    private const ME_EXAMPLE_IBAN = 'ME56510123456789012300'; // bank code '510' = CKB
 
     // MOD-97-valid test IBANs for the EPC SEPA Register importer's seeded
     // banks. GB's is the SRLG example handed down with the task brief
@@ -1313,6 +1316,39 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
 
         self::assertTrue($result->isResolved());
         self::assertSame('Swedbank AS', $result->bankName);
+    }
+
+    public function testCentralBankOfMontenegroImporterImportsBanksFilteringPublicEntitiesAndResolvesTheExampleIban(): void
+    {
+        $report = (new ImportRunner())->run(new CentralBankOfMontenegroImporter(), new BankModel(), false, self::ME_FIXTURE);
+
+        self::assertSame('ME', $report->countryCode);
+        self::assertSame('cbcg', $report->sourceId);
+        // CKB (510), Hipotekarna (520), Addiko (555); the 833/907 public
+        // entities are filtered out.
+        self::assertSame(3, $report->imported);
+
+        self::assertSame(3, $this->db->table('banks')->countAllResults());
+
+        $this->seeInDatabase('banks', [
+            'country_code'   => 'ME',
+            'bank_code'      => '510',
+            'branch_code'    => null,
+            'name'           => 'Crnogorska komercijalna banka AD',
+            'bic'            => 'CKBCMEPG',
+            'source_id'      => 'cbcg',
+        ]);
+
+        // The public entities in the 714-931 range were not seeded.
+        $this->dontSeeInDatabase('banks', ['country_code' => 'ME', 'bank_code' => '833']);
+        $this->dontSeeInDatabase('banks', ['country_code' => 'ME', 'bank_code' => '907']);
+
+        // The real proof: resolving a MOD-97-valid ME IBAN (bank code '510').
+        $iban   = new Iban(provider: new DatabaseProvider(new BankModel()));
+        $result = $iban->resolve(self::ME_EXAMPLE_IBAN);
+
+        self::assertTrue($result->isResolved());
+        self::assertSame('Crnogorska komercijalna banka AD', $result->bankName);
     }
 
     public function testBothImportersCanCoexistInTheSameBanksTable(): void
