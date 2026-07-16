@@ -7,6 +7,64 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-07-16
+
+Additive release: **completes SEPA-scheme bank resolution from 24/42 to 38/42 countries**, adding 14
+bundled official-source and curated importers for the remaining reachable SEPA countries (Italy + 13
+more). No breaking changes; the IBAN/BIC core, resolution model and public API are untouched — this is
+purely more bundled importers plus one new framework-free support reader.
+
+### Added
+
+- **14 new bundled importers** (bringing the catalog from 30 to **44**), all still shipping **no data in
+  the repo** (imported on demand via `iban:update`), except the three curated micro-jurisdiction maps
+  noted below:
+  - **Live fetch**: `SwedenBankInfrastructureImporter` (SE, `\|`-PSV, MIT community mirror);
+    `RegafiImporter` (**FR and MC via a single REGAFI importer** — Monaco's entities carry a French CIB
+    in the same ACPR/Banque de France Opendatasoft dataset, so one class registered twice resolves both;
+    the serialized-JSON `cib` array is expanded one row per 5-digit code; name only, no BIC);
+    `EstonianBankingAssociationImporter` (EE), `CentralBankOfMontenegroImporter` (ME) and
+    `AgenziaEntrateF24Importer` (IT) via HTML scraping; `CentralBankOfCyprusImporter` (CY, landing scrape
+    → `.xlsx`).
+  - **Offline `--file`** (PDF/legacy sources, operator pre-extracts text/CSV with `pdftotext -layout`):
+    `BancoDePortugalImporter` (PT), `NbrmImporter` (MK), `NbsSerbiaImporter` (RS) and
+    `FinanceFinlandImporter` (FI). FI carries a bespoke **range-expansion mapper** that turns the
+    variable-length `Rahalaitostunnus` (single values, `ja`/comma lists and 3-digit ranges) into the
+    fixed 3-digit IBAN `bank_code`; post-2024 4-digit codes (leading 72-78) cannot be keyed on 3 digits
+    and are reported as skipped (documented, visible loss).
+  - **Curated** (the one deliberate exception to "ship no bank data"): `AndorranBankingImporter` (AD),
+    `VaticanCityImporter` (VA) and `SanMarinoImporter` (SM) yield a small, independently-authored factual
+    `bank_code → name/BIC` map bundled as `src/Import/Importers/data/<cc>.php`, marked
+    `license() = 'curated (factual, non-copyrightable)'`.
+- **`Import\Support\HtmlTableReader`** — a small framework-free HTML-table reader (`DOMDocument`/`libxml`),
+  the HTML analogue of `XlsxReader`: `readTables()` returns each `<table>` as a 0-indexed grid of cell
+  strings, and static `locateHeader()` finds a header row and its columns by name. Backs the EE/ME/IT
+  importers and CY's landing-page scrape.
+- **Curated-micro-jurisdiction data policy** (decision D4): a documented, narrow exception to the
+  no-bundled-data rule for SEPA micro-jurisdictions with no machine-readable directory, scoped and
+  justified in [`docs/licensing.md`](docs/licensing.md) (facts-vs-compilation, independent authorship,
+  `curated` provenance, annual refresh). As shipped it covers AD/VA/SM only.
+
+### Changed
+
+- **`ext-dom` is now a runtime requirement** (`composer.json` `require`), backing the new
+  `HtmlTableReader` — the same way `ext-zip` backs `XlsxReader`. It ships with a default PHP build.
+- `ImporterRegistry` now registers 44 default importers; its narrative docblocks and `docs/importers.md`
+  (coverage matrix, bundled-importer table, a new "Source shapes" section) were rewritten to this
+  release. SEPA-scheme resolution is now **38/42**.
+
+### Notes
+
+- **SEPA countries still unresolved (4)**: **IS, AL, LT** are *documented, deferred* — a source exists
+  but was not shipped this pass (IS: 4-digit code is bank+branch with no open full RB directory; AL: KIB
+  mapping only in a bot-blocked Bank of Albania regulation PDF; LT: Lietuvos bankas PDF whose licence is
+  unconfirmed, "LB INTERNAL" watermark). **DK (and FO/GL, which share its `registreringsnummer` system)**
+  stays **tier D** — no open, reusable source (`registreringsnumre.dk` is paid and forbids reproduction;
+  the Finanstilsynet PDF is a stale 2011 edition). See
+  [`docs/importers.md`](docs/importers.md#coverage-matrix).
+
+[2.2.0]: https://github.com/daycry/iban-calculator/compare/2.1.1...2.2.0
+
 ## [2.1.1] - 2026-07-14
 
 ### Fixed
@@ -19,7 +77,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `BankInfo` results are written, preventing negative entries from consuming cache space or blocking
   retries after transient provider failures and bank-data imports.
 
-[Unreleased]: https://github.com/daycry/iban-calculator/compare/2.1.1...HEAD
+[Unreleased]: https://github.com/daycry/iban-calculator/compare/2.2.0...HEAD
 [2.1.1]: https://github.com/daycry/iban-calculator/compare/2.1.0...2.1.1
 
 ## [2.1.0] - 2026-07-13

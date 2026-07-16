@@ -20,10 +20,10 @@ Horas y tokens **base** (sin margen +20 %).
 | Fase 1 — Tier A (fetch en vivo) | 5 | 5 | 100% | — / 26h | — / 1,32 M |
 | Fase 2 — Tier B (offline `--file`) | 3 | 3 | 100% | — / 14h | — / 0,63 M |
 | Fase 3 — Tier C (salvedades / curación) | 5 | 8 | 63% | — / 46h | — / 2,21 M |
-| Fase 4 — Transversal | 0 | 4 | 0% | 0 / 6h | 0 / 0,34 M |
-| **TOTAL** | **14** | **21** | **67%** | **— / 101h** | **— / ≈ 4,94 M** |
+| Fase 4 — Transversal | 4 | 4 | 100% | — / 6h | — / 0,34 M |
+| **TOTAL** | **18** | **21** | **86%** | **— / 101h** | **— / ≈ 4,94 M** |
 
-> Cobertura objetivo por fase: Fase 1 → **30/42**, Fase 2 → **33/42**, Fase 3 → **hasta 41/42**. DK (+FO/GL) fuera (tier D). Tareas condicionadas: **T-16 (LT) bloqueada por licencia**; **T-09 (MK) condicionada a frescura**; **T-15 (RS) con cross-check por alineación**; **T-17 (FI) el último por coste/riesgo**.
+> Cobertura objetivo por fase: Fase 1 → **30/42**, Fase 2 → **33/42**, Fase 3 → hasta 41/42. **Cobertura SEPA final entregada: 38/42** (catálogo **44 importadores**). Fuera: **IS/AL/LT documentadas-deferidas** (fuente existe, no empaquetada) y **DK (+FO/GL) tier D**. Tareas no construidas por decisión del usuario: **T-12 (IS)**, **T-14 (AL)**, **T-16 (LT, además bloqueada por licencia)**.
 
 ---
 
@@ -252,9 +252,9 @@ Horas y tokens **base** (sin margen +20 %).
 
 ---
 
-## Fase 3 — Tier C (salvedades / curación) · Cobertura → hasta 41/42
+## Fase 3 — Tier C (salvedades / curación) · Cobertura → 38/42
 
-**Estado**: en-progreso · **Estimado**: 46h · **Real**: — · **Coste est.**: ≈ 2.355 € · **Tokens est.**: 2,21 M
+**Estado**: cerrada (5/8 construidas: T-10 VA, T-11 SM, T-13 IT, T-15 RS, T-17 FI; **T-12 IS / T-14 AL / T-16 LT NO construidas — documentadas-deferidas** por decisión del usuario, ver Fase 4 / `docs/importers.md`) · **Estimado**: 46h · **Real**: — · **Coste est.**: ≈ 2.355 € · **Tokens est.**: 2,21 M
 
 ### T-10 — VA · dato curado (1 entrada)
 
@@ -434,7 +434,7 @@ Horas y tokens **base** (sin margen +20 %).
 
 ## Fase 4 — Transversal (docs / licensing / registro / CHANGELOG)
 
-**Estado**: borrador · **Estimado**: 6h · **Real**: — · **Coste est.**: ≈ 310 € · **Tokens est.**: 0,34 M
+**Estado**: completado · **Estimado**: 6h · **Real**: — · **Coste est.**: ≈ 310 € · **Tokens est.**: 0,34 M
 
 ### T-18 — `docs/licensing.md`: nota de la excepción de datos curados (D4)
 
@@ -500,7 +500,7 @@ Horas y tokens **base** (sin margen +20 %).
 ### T-21 — `CHANGELOG.md`: entrada de versión (salto de cobertura SEPA)
 
 - **Descripción**: entrada nueva en `CHANGELOG.md` (Keep a Changelog) con el salto de cobertura SEPA (24 → hasta 41/42), el nuevo `HtmlTableReader`, los importadores por país y la nota de datos curados. Cierre del plan.
-- **Estado**: borrador
+- **Estado**: completado
 - **Tiempo**: est. 1h · real —
 - **Previsión IA**: 0,05 M in / 0,02 M out tok · ≈ 2,1 €
 - **Dependencias**: T-18, T-19, T-20
@@ -508,13 +508,13 @@ Horas y tokens **base** (sin margen +20 %).
 - **Cubre (tests)**: — (sin UI)
 
 **Criterios de aceptación**
-- [ ] Entrada de versión con Added/Changed acorde al formato Keep a Changelog.
-- [ ] Refleja el salto de cobertura, `HtmlTableReader`, los importadores y la excepción de datos curados.
+- [x] Entrada de versión con Added/Changed acorde al formato Keep a Changelog.
+- [x] Refleja el salto de cobertura, `HtmlTableReader`, los importadores y la excepción de datos curados.
 
 **Subtareas**
-- [ ] Redactar la entrada; enumerar países cubiertos y salvedades (DK tier D, LT condicionado).
+- [x] Redactar la entrada; enumerar países cubiertos y salvedades (DK tier D, LT condicionado).
 
-**Notas**: se escribe al final, con el alcance real entregado (ajustar si T-16 LT queda congelada).
+**Notas**: se escribe al final, con el alcance real entregado (ajustar si T-16 LT queda congelada). **Impl.**: entrada **`[2.2.0] - 2026-07-16`** (versión menor: features aditivas sin roturas; la última publicada era 2.1.1) bajo `[Unreleased]`, con secciones Added/Changed/Notes. **Added**: los 14 importadores nuevos (30 → **44**) agrupados por forma de fuente (live fetch, offline `--file`, curados), **FR/MC vía un único `RegafiImporter`**, el mapeador de rangos de FI y su pérdida documentada de 4 díg., el nuevo `Import\Support\HtmlTableReader`, y la política de datos curados (D4, AD/VA/SM). **Changed**: `ext-dom` como requisito de runtime, `ImporterRegistry` a 44, SEPA **38/42**. **Notes**: **IS/AL/LT documented-deferred** con su motivo y **DK (+FO/GL) tier D**. Actualizados los enlaces de comparación (`[Unreleased]` → `2.2.0...HEAD`, nuevo `[2.2.0]`).
 
 ---
 
@@ -526,3 +526,4 @@ _A completar durante la ejecución. Registra decisiones, desvíos de la estimaci
 - **Tareas condicionadas/bloqueadas**: **T-16 (LT)** bloqueada por confirmación de licencia; **T-09 (MK)** condicionada a frescura del roster 2014; **T-15 (RS)** con cross-check por alineación (posible degradación a curado); **T-17 (FI)** el último por coste/riesgo.
 - **Convenciones del repo** (aplican a todas las tareas de código): TDD (fixture reducido primero), PHPStan L8 limpio, PSR-12, framework-free en `Import/Support` e `Import/Importers` (`CoreIsFrameworkFreeTest`), y `resolve()` de una IBAN de ejemplo del país devuelve el banco esperado.
 - **Ejecución parcial de la Fase 3 (2026-07-16)**: se implementaron **solo las 4 tareas bien fundamentadas** — **T-10 VA**, **T-11 SM**, **T-13 IT**, **T-15 RS** (un commit por tarea). **En espera de una decisión separada** (no tocadas en este lote): **T-12 IS**, **T-14 AL**, **T-16 LT**, **T-17 FI**. Catálogo de importadores 39 → **43**; suite verde tras cada commit (`composer test`/`analyze` L8/`cs`). Desvíos de nombre/formato registrados en cada tarea (VA→`VaticanCityImporter`, SM→`SanMarinoImporter`, IT cabeceras `Codice ABI`/`Denominazione`, RS→CSV preparado por el operador en vez del zip 19↔19).
+- **Lote final (2026-07-16, rama `feat/sepa-importer-coverage`)**: decisión del usuario — **IS/AL/LT NO se construyen (documentadas solo); DK sigue tier D; FI SÍ se construye**. Ejecutado: **T-17 FI** (`FinanceFinlandImporter` con mapeador de rangos; catálogo 43 → **44**) + **Fase 4** completa (T-18 licensing, T-19 `docs/importers.md`, T-20 docblock `ImporterRegistry` + rename test "Thirty"→"FortyFour", T-21 `CHANGELOG` `[2.2.0]`). Un commit por tarea. **Cobertura SEPA 24 → 38/42**. Los tres gates (`composer test` 1363 tests, `composer analyze` PHPStan L8, `composer cs` PSR-12) verdes tras el lote. **Pendiente**: handoff a `qa` (E2E); el plan queda `en-progreso` hasta QA verde + cierre de ciclo.
