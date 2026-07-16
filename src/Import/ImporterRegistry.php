@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Daycry\Iban\Import;
 
 use Daycry\Iban\Contracts\ImporterInterface;
+use Daycry\Iban\Import\Importers\AgenziaEntrateF24Importer;
 use Daycry\Iban\Import\Importers\AndorranBankingImporter;
 use Daycry\Iban\Import\Importers\BancoDeEspanaImporter;
 use Daycry\Iban\Import\Importers\BancoDePortugalImporter;
@@ -259,6 +260,11 @@ class ImporterRegistry
         // directory.
         $this->register(new VaticanCityImporter());
         $this->register(new SanMarinoImporter());
+
+        // IT is an HTML scrape of the Agenzia delle Entrate F24 "elenco banche
+        // convenzionate" page: name-only (no BIC), partial (F24-adhering banks
+        // only), ABI zero-padded to 5 digits.
+        $this->register(new AgenziaEntrateF24Importer());
     }
 
     private static function key(string $countryCode, string $sourceId): string

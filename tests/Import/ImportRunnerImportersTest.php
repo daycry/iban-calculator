@@ -7,6 +7,7 @@ namespace Tests\Import;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Daycry\Iban\Iban;
+use Daycry\Iban\Import\Importers\AgenziaEntrateF24Importer;
 use Daycry\Iban\Import\Importers\AndorranBankingImporter;
 use Daycry\Iban\Import\Importers\BancoDeEspanaImporter;
 use Daycry\Iban\Import\Importers\BancoDePortugalImporter;
@@ -151,6 +152,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const ME_FIXTURE               = __DIR__ . '/../Fixtures/import/me_sample.html';
     private const PT_FIXTURE               = __DIR__ . '/../Fixtures/import/bportugal_sample.txt';
     private const MK_FIXTURE               = __DIR__ . '/../Fixtures/import/nbrm_sample.csv';
+    private const IT_FIXTURE               = __DIR__ . '/../Fixtures/import/agenzia_entrate_sample.html';
 
     private const CZ_EXAMPLE_IBAN = 'CZ6508000000192000145399';
     private const GR_EXAMPLE_IBAN = 'GR1601101250000000012300695';
@@ -186,6 +188,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const MK_EXAMPLE_IBAN = 'MK37300000001234500'; // bank code '300' = Komercijalna banka
     private const VA_EXAMPLE_IBAN = 'VA59001123000012345678'; // bank code '001' = IOR (registry example)
     private const SM_EXAMPLE_IBAN = 'SM15U0303409800000000270100'; // ABI '03034' = Banca Agricola Commerciale
+    private const IT_EXAMPLE_IBAN = 'IT60X0542811101000000123456'; // ABI '05428' (registry example)
 
     // MOD-97-valid test IBANs for the EPC SEPA Register importer's seeded
     // banks. GB's is the SRLG example handed down with the task brief
@@ -1583,6 +1586,41 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
 
         self::assertTrue($result->isResolved());
         self::assertSame('Banca Agricola Commerciale della Repubblica di San Marino', $result->bankName);
+    }
+
+    public function testAgenziaEntrateF24ImporterImportsRowsZeroPaddingAbiWithNoBicAndResolvesTheExampleIban(): void
+    {
+        $report = (new ImportRunner())->run(new AgenziaEntrateF24Importer(), new BankModel(), false, self::IT_FIXTURE);
+
+        self::assertSame('IT', $report->countryCode);
+        self::assertSame('agenzia-entrate', $report->sourceId);
+        // Intesa Sanpaolo, UniCredit, Banco BPM = 3 rows (blank-code row skipped).
+        self::assertSame(3, $report->imported);
+
+        self::assertSame(3, $this->db->table('banks')->countAllResults());
+
+        // '3069' was zero-padded to the 5-digit '03069'; no BIC on this source.
+        $this->seeInDatabase('banks', [
+            'country_code'   => 'IT',
+            'bank_code'      => '03069',
+            'branch_code'    => null,
+            'name'           => 'Intesa Sanpaolo S.p.A.',
+            'bic'            => null,
+            'source_id'      => 'agenzia-entrate',
+            'source_license' => 'Agenzia delle Entrate (F24, partial list)',
+        ]);
+
+        // The registry's IT example ABI, shown as '5428', zero-padded to '05428'.
+        $this->seeInDatabase('banks', ['country_code' => 'IT', 'bank_code' => '05428', 'bic' => null]);
+
+        // The real proof: resolving the registry's own IT example IBAN (ABI
+        // '05428', WITH a branch segment the bank-level row has no exact match
+        // for) via the Resolver's findByBankCode(cc, bank, null) fallback.
+        $iban   = new Iban(provider: new DatabaseProvider(new BankModel()));
+        $result = $iban->resolve(self::IT_EXAMPLE_IBAN);
+
+        self::assertTrue($result->isResolved());
+        self::assertSame('Banco BPM S.p.A. (fixture — IT registry example ABI)', $result->bankName);
     }
 
     public function testBothImportersCanCoexistInTheSameBanksTable(): void

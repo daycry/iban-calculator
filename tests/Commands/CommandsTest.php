@@ -345,7 +345,7 @@ final class CommandsTest extends CIUnitTestCase
         self::assertStringContainsString('SWIFT IBAN Registry', $output);
         self::assertStringContainsString('SWIFT BIC Directory', $output);
         self::assertStringContainsString('National lists require per-source attribution.', $output);
-        self::assertStringContainsString('Registered importers: 41', $output);
+        self::assertStringContainsString('Registered importers: 42', $output);
         self::assertStringContainsString('oenb', $output);
         self::assertStringContainsString('bundesbank', $output);
         self::assertStringContainsString('six', $output);

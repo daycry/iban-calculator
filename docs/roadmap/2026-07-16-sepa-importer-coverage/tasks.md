@@ -19,9 +19,9 @@ Horas y tokens **base** (sin margen +20 %).
 | Fase 0 — Infra | 1 | 1 | 100% | — / 9h | — / 0,44 M |
 | Fase 1 — Tier A (fetch en vivo) | 5 | 5 | 100% | — / 26h | — / 1,32 M |
 | Fase 2 — Tier B (offline `--file`) | 3 | 3 | 100% | — / 14h | — / 0,63 M |
-| Fase 3 — Tier C (salvedades / curación) | 2 | 8 | 25% | — / 46h | — / 2,21 M |
+| Fase 3 — Tier C (salvedades / curación) | 3 | 8 | 38% | — / 46h | — / 2,21 M |
 | Fase 4 — Transversal | 0 | 4 | 0% | 0 / 6h | 0 / 0,34 M |
-| **TOTAL** | **11** | **21** | **52%** | **— / 101h** | **— / ≈ 4,94 M** |
+| **TOTAL** | **12** | **21** | **57%** | **— / 101h** | **— / ≈ 4,94 M** |
 
 > Cobertura objetivo por fase: Fase 1 → **30/42**, Fase 2 → **33/42**, Fase 3 → **hasta 41/42**. DK (+FO/GL) fuera (tier D). Tareas condicionadas: **T-16 (LT) bloqueada por licencia**; **T-09 (MK) condicionada a frescura**; **T-15 (RS) con cross-check por alineación**; **T-17 (FI) el último por coste/riesgo**.
 
@@ -319,7 +319,7 @@ Horas y tokens **base** (sin margen +20 %).
 ### T-13 — IT · `AgenziaEntrateF24Importer` (HTML + zero-pad)
 
 - **Descripción**: `HtmlTableReader` sobre la página F24 `…-xcodice`; `Codice ABI` **zero-pad a 5 díg.** → nombre; **sin BIC**; **parcial** (~400 bancos adheridos a F24). Documentar que el ABI/CAB canónico (SIA-Nexi) es de pago (tier D).
-- **Estado**: borrador
+- **Estado**: completado
 - **Tiempo**: est. 6h · real —
 - **Previsión IA**: 0,24 M in / 0,06 M out tok · ≈ 7,5 €
 - **Dependencias**: **T-01** (`HtmlTableReader`)
@@ -327,17 +327,17 @@ Horas y tokens **base** (sin margen +20 %).
 - **Cubre (tests)**: — (sin UI)
 
 **Criterios de aceptación**
-- [ ] `rows()` mapea `Codice ABI` con **zero-pad a 5 díg.** → nombre; sin BIC.
-- [ ] Test verde con fixture HTML reducido (incluye un ABI sin ceros para validar el zero-pad); PHPStan L8, PSR-12; framework-free.
-- [ ] Registrado en `registerDefaults()`; `resolve()` de una IBAN IT de ejemplo (ABI 5 díg.) devuelve el banco esperado.
-- [ ] `docs/importers.md` documenta la **parcialidad** (~400 bancos F24) y que la fuente ABI/CAB canónica es de pago (tier D).
+- [x] `rows()` mapea `Codice ABI` con **zero-pad a 5 díg.** → nombre; sin BIC.
+- [x] Test verde con fixture HTML reducido (incluye un ABI sin ceros para validar el zero-pad); PHPStan L8, PSR-12; framework-free.
+- [x] Registrado en `registerDefaults()`; `resolve()` de una IBAN IT de ejemplo (ABI 5 díg.) devuelve el banco esperado.
+- [ ] `docs/importers.md` documenta la **parcialidad** (~400 bancos F24) y que la fuente ABI/CAB canónica es de pago (tier D). _(Diferido a **T-19** / Fase 4 — la matriz de `docs/importers.md` se cierra allí con el set estable, como en T-08 PT. Los caveats sí están ya en el docblock del importador.)_
 
 **Subtareas**
-- [ ] Test con fixture HTML reducido primero.
-- [ ] Implementar `rows()` con `HtmlTableReader` + zero-pad a 5 díg.
-- [ ] Registrar en `registerDefaults()`; documentar caveat de parcialidad.
+- [x] Test con fixture HTML reducido primero.
+- [x] Implementar `rows()` con `HtmlTableReader` + zero-pad a 5 díg.
+- [x] Registrar en `registerDefaults()`; documentar caveat de parcialidad (en el docblock; matriz `docs/importers.md` → T-19).
 
-**Notas**: sin licencia de reutilización explícita (cubierto por «fetch bajo demanda»). Capa EPC para BIC diferida (D5).
+**Notas**: sin licencia de reutilización explícita (cubierto por «fetch bajo demanda»). Capa EPC para BIC diferida (D5). **Impl.**: `AgenziaEntrateF24Importer` (sourceId `agenzia-entrate`) usa `HtmlTableReader::readTables()` + `locateHeader()`. **Cabeceras objetivo confirmadas** (de `research.md` §IT): `Codice ABI` y `Denominazione` (documentadas como CAVEAT en el docblock; ruta viva no testeada, patrón del repo). `Codice ABI` viene **sin ceros a la izquierda** en la página → regex `^\d{1,5}$` + `str_pad(…,5,'0',STR_PAD_LEFT)` → `bank_code` string de 5 díg. **Sin BIC**: `bic` siempre `null` (la página F24 no tiene columna BIC). Caveats en docblock: fragilidad HTML, **parcialidad** (~400 bancos adheridos a F24), sin BIC, sin licencia explícita, fuente canónica ABI/CAB (SIA-Nexi) de pago = tier D. Fixture DB `tests/Fixtures/import/agenzia_entrate_sample.html` (incluye ABIs sin ceros `3069`/`2008`/`5428`); `resolve()` verde con el ejemplo del registro `IT60X0542811101000000123456` (ABI `05428`) vía el fallback `findByBankCode(cc, bank, null)`. Catálogo 41 → 42.
 
 ### T-14 — AL · dato curado (~13 bancos, KIB)
 
