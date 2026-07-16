@@ -60,12 +60,12 @@ Horas y tokens **base** (sin margen +20 %).
 
 ## Fase 1 — Tier A (fetch en vivo) · Cobertura 24 → 30/42
 
-**Estado**: borrador · **Estimado**: 26h · **Real**: — · **Coste est.**: ≈ 1.334 € · **Tokens est.**: 1,32 M
+**Estado**: en-progreso · **Estimado**: 26h · **Real**: — · **Coste est.**: ≈ 1.334 € · **Tokens est.**: 1,32 M
 
 ### T-02 — SE · `SwedenBankInfrastructureImporter` (PSV / MIT)
 
 - **Descripción**: fetch `Data/source.psv` (PSV, licencia MIT) del mirror `Bankinfrastruktur/BankData`; columna `IbanId` (3 díg.) = `bank_code` + BIC + nombre; **de-duplicar por `IbanId`** (Nordea=300 en varios rangos); **no** usar columnas de clearing (4-5 díg.). `--file` como hedge.
-- **Estado**: borrador
+- **Estado**: completado
 - **Tiempo**: est. 4h · real —
 - **Previsión IA**: 0,15 M in / 0,04 M out tok · ≈ 4,8 €
 - **Dependencias**: ninguna (PSV se lee con `fgetcsv`, ya soportado)
@@ -73,17 +73,17 @@ Horas y tokens **base** (sin margen +20 %).
 - **Cubre (tests)**: — (sin UI)
 
 **Criterios de aceptación**
-- [ ] `rows()` mapea `IbanId` (3 díg.) → nombre + BIC, de-duplicado por `IbanId`; ignora columnas de clearing.
-- [ ] Test verde con fixture PSV reducido (incluye caso de de-dup, p. ej. Nordea 300); PHPStan L8, PSR-12.
-- [ ] Registrado en `registerDefaults()` y listado por `iban:update`.
-- [ ] `resolve()` de una IBAN SE de ejemplo (`SE45 5000…` → 500 = SEB) devuelve el banco esperado.
+- [x] `rows()` mapea `IbanId` (3 díg.) → nombre + BIC, de-duplicado por `IbanId`; ignora columnas de clearing.
+- [x] Test verde con fixture PSV reducido (incluye caso de de-dup, p. ej. Nordea 300); PHPStan L8, PSR-12.
+- [x] Registrado en `registerDefaults()` y listado por `iban:update`.
+- [x] `resolve()` de una IBAN SE de ejemplo (`SE45 5000…` → 500 = SEB) devuelve el banco esperado.
 
 **Subtareas**
-- [ ] Test con fixture PSV reducido primero.
-- [ ] Implementar `rows()` (columna `IbanId`, de-dup, sin clearing) + soporte `--file` como hedge.
-- [ ] Registrar en `registerDefaults()`.
+- [x] Test con fixture PSV reducido primero.
+- [x] Implementar `rows()` (columna `IbanId`, de-dup, sin clearing) + soporte `--file` como hedge.
+- [x] Registrar en `registerDefaults()`.
 
-**Notas**: mirror comunitario (no fuente oficial BSAB, que es PDF/DOCX = tier D). Si `raw.githubusercontent.com` se bloquea → `--file`.
+**Notas**: mirror comunitario (no fuente oficial BSAB, que es PDF/DOCX = tier D). Si `raw.githubusercontent.com` se bloquea → `--file`. **Impl.**: `SwedenBankInfrastructureImporter` (sourceId `bankinfrastruktur`), usa `ReadsCsvSource` con delimitador `|`; columnas por nombre; `IbanId` exigido `^\d{3}$`. Fixture DB `tests/Fixtures/import/se_sample.psv`; resolve() verde con `SE4550000000058398257466` → SEB.
 
 ### T-03 — FR + MC · `RegafiImporter` (JSON `cib`, parametrizado por país)
 

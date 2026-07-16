@@ -33,6 +33,7 @@ use Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfUkraineImporter;
 use Daycry\Iban\Import\Importers\OenbImporter;
 use Daycry\Iban\Import\Importers\SixImporter;
+use Daycry\Iban\Import\Importers\SwedenBankInfrastructureImporter;
 use Daycry\Iban\Import\ImportReport;
 use Daycry\Iban\Import\ImportRunner;
 use Daycry\Iban\Models\BankModel;
@@ -135,6 +136,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const NBK_FIXTURE              = __DIR__ . '/../Fixtures/import/nbk_sample.json';
     private const BCB_FIXTURE              = __DIR__ . '/../Fixtures/import/bcb_sample.csv';
     private const EPC_FIXTURE              = __DIR__ . '/../Fixtures/import/epc_sct_sample.csv';
+    private const SE_FIXTURE               = __DIR__ . '/../Fixtures/import/se_sample.psv';
 
     private const CZ_EXAMPLE_IBAN = 'CZ6508000000192000145399';
     private const GR_EXAMPLE_IBAN = 'GR1601101250000000012300695';
@@ -156,6 +158,10 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const KZ_EXAMPLE_IBAN = 'KZ86125KZT5004100100';
     private const LI_EXAMPLE_IBAN = 'LI21088100002324013AA';
     private const BR_EXAMPLE_IBAN = 'BR9700360305000010009795493P1';
+
+    // SEPA-coverage batch example IBANs (MOD-97-valid; bank code as extracted
+    // by the structural registry).
+    private const SE_EXAMPLE_IBAN = 'SE4550000000058398257466'; // bank code '500' = SEB
 
     // MOD-97-valid test IBANs for the EPC SEPA Register importer's seeded
     // banks. GB's is the SRLG example handed down with the task brief
@@ -1174,6 +1180,45 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
 
         self::assertTrue($result->isResolved());
         self::assertSame('ForteBank JSC (fixture — KZ registry example bank code)', $result->bankName);
+    }
+
+    public function testSwedenBankInfrastructureImporterImportsRowsWithProvenanceAndResolvesTheExampleIban(): void
+    {
+        $report = (new ImportRunner())->run(new SwedenBankInfrastructureImporter(), new BankModel(), false, self::SE_FIXTURE);
+
+        self::assertSame('SE', $report->countryCode);
+        self::assertSame('bankinfrastruktur', $report->sourceId);
+        // 4 raw data lines, but the duplicate Nordea IbanId (300) dedups to
+        // one row, so the importer yields 3.
+        self::assertSame(3, $report->fetched);
+        self::assertSame(3, $report->imported);
+        self::assertSame(0, $report->skipped);
+
+        self::assertSame(3, $this->db->table('banks')->countAllResults());
+
+        $this->seeInDatabase('banks', [
+            'country_code'   => 'SE',
+            'bank_code'      => '500', // IbanId, NOT clearing '5000'
+            'branch_code'    => null,
+            'name'           => 'Skandinaviska Enskilda Banken',
+            'bic'            => 'ESSESESS',
+            'source_id'      => 'bankinfrastruktur',
+            'source_license' => 'MIT (Bankinfrastruktur BankData)',
+        ]);
+
+        // The duplicate Nordea range must not have produced a second row.
+        self::assertSame(1, $this->db->table('banks')->where('bank_code', '300')->countAllResults());
+
+        // The clearing number must never have leaked in as a bank code.
+        $this->dontSeeInDatabase('banks', ['bank_code' => '5000']);
+
+        // The real proof: resolving SIX/SWIFT's own SE example IBAN (bank
+        // code '500') against the seeded bank-level row.
+        $iban   = new Iban(provider: new DatabaseProvider(new BankModel()));
+        $result = $iban->resolve(self::SE_EXAMPLE_IBAN);
+
+        self::assertTrue($result->isResolved());
+        self::assertSame('Skandinaviska Enskilda Banken', $result->bankName);
     }
 
     public function testBothImportersCanCoexistInTheSameBanksTable(): void

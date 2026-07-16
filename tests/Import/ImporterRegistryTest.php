@@ -32,6 +32,7 @@ use Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfUkraineImporter;
 use Daycry\Iban\Import\Importers\OenbImporter;
 use Daycry\Iban\Import\Importers\SixImporter;
+use Daycry\Iban\Import\Importers\SwedenBankInfrastructureImporter;
 use PHPUnit\Framework\TestCase;
 use Tests\_support\FakeAtImporter;
 
@@ -83,7 +84,7 @@ final class ImporterRegistryTest extends TestCase
 
         $all = $registry->all();
 
-        self::assertCount(30, $all);
+        self::assertCount(31, $all);
         self::assertInstanceOf(OenbImporter::class, $all[0]);
         self::assertInstanceOf(BundesbankImporter::class, $all[1]);
         self::assertInstanceOf(SixImporter::class, $all[2]);
@@ -114,6 +115,7 @@ final class ImporterRegistryTest extends TestCase
         self::assertInstanceOf(EpcRegisterImporter::class, $all[27]);
         self::assertInstanceOf(EpcRegisterImporter::class, $all[28]);
         self::assertInstanceOf(EpcRegisterImporter::class, $all[29]);
+        self::assertInstanceOf(SwedenBankInfrastructureImporter::class, $all[30]);
 
         self::assertSame([
             ['country' => 'AT', 'source' => 'oenb', 'name' => 'Oesterreichische Nationalbank', 'license' => 'CC-BY-4.0 (OeNB)'],
@@ -146,6 +148,7 @@ final class ImporterRegistryTest extends TestCase
             ['country' => 'IE', 'source' => 'epc', 'name' => 'European Payments Council (SEPA Register)', 'license' => 'EPC SEPA Register (credit EPC, no resale as-is)'],
             ['country' => 'LV', 'source' => 'epc', 'name' => 'European Payments Council (SEPA Register)', 'license' => 'EPC SEPA Register (credit EPC, no resale as-is)'],
             ['country' => 'RO', 'source' => 'epc', 'name' => 'European Payments Council (SEPA Register)', 'license' => 'EPC SEPA Register (credit EPC, no resale as-is)'],
+            ['country' => 'SE', 'source' => 'bankinfrastruktur', 'name' => 'Bankinfrastruktur BankData', 'license' => 'MIT (Bankinfrastruktur BankData)'],
         ], $registry->sources());
 
         self::assertNotNull($registry->get('AT', 'oenb'));
@@ -178,6 +181,7 @@ final class ImporterRegistryTest extends TestCase
         self::assertNotNull($registry->get('IE', 'epc'));
         self::assertNotNull($registry->get('LV', 'epc'));
         self::assertNotNull($registry->get('RO', 'epc'));
+        self::assertNotNull($registry->get('SE', 'bankinfrastruktur'));
 
         // LI and CH share the 'six' sourceId but are keyed separately by
         // country, so both coexist as distinct registry entries.
@@ -300,7 +304,7 @@ final class ImporterRegistryTest extends TestCase
         // then $at and $de.
         $all = $registry->all();
 
-        self::assertCount(32, $all);
+        self::assertCount(33, $all);
         self::assertInstanceOf(OenbImporter::class, $all[0]);
         self::assertInstanceOf(BundesbankImporter::class, $all[1]);
         self::assertInstanceOf(SixImporter::class, $all[2]);
@@ -331,8 +335,9 @@ final class ImporterRegistryTest extends TestCase
         self::assertInstanceOf(EpcRegisterImporter::class, $all[27]);
         self::assertInstanceOf(EpcRegisterImporter::class, $all[28]);
         self::assertInstanceOf(EpcRegisterImporter::class, $all[29]);
-        self::assertSame($at, $all[30]);
-        self::assertSame($de, $all[31]);
+        self::assertInstanceOf(SwedenBankInfrastructureImporter::class, $all[30]);
+        self::assertSame($at, $all[31]);
+        self::assertSame($de, $all[32]);
     }
 
     public function testAllReturnValueIsAListOfImporterInterfaceInstances(): void

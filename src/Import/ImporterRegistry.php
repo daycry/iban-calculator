@@ -31,6 +31,7 @@ use Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfUkraineImporter;
 use Daycry\Iban\Import\Importers\OenbImporter;
 use Daycry\Iban\Import\Importers\SixImporter;
+use Daycry\Iban\Import\Importers\SwedenBankInfrastructureImporter;
 
 /**
  * In-memory catalog of {@see ImporterInterface} instances, keyed by their
@@ -225,6 +226,9 @@ class ImporterRegistry
         $this->register(new EpcRegisterImporter('IE'));
         $this->register(new EpcRegisterImporter('LV'));
         $this->register(new EpcRegisterImporter('RO'));
+
+        // v2.x SEPA-coverage batch (Fase 1, tier A -- live fetch):
+        $this->register(new SwedenBankInfrastructureImporter());
     }
 
     private static function key(string $countryCode, string $sourceId): string
