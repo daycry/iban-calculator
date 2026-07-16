@@ -62,6 +62,59 @@ This produces a registry that is **independently authored from public facts**, l
 the reference implementations used to cross-check it (both MIT), and therefore itself freely
 MIT-licensable — with no SWIFT, LGPL, or CC BY-SA obligations attached.
 
+## Curated micro-jurisdiction bank data (the narrow exception)
+
+The default posture above — "never bundle bank-entity data, the operator imports it themselves" — has
+**one deliberately narrow exception**, approved as decision D4 of the
+[SEPA importer-coverage initiative](roadmap/2026-07-16-sepa-importer-coverage/spec.md#8-decisiones-resueltas-2026-07-16).
+A handful of SEPA micro-jurisdictions publish **no machine-readable directory at all** — the mapping
+from a numeric IBAN bank code to a bank name/BIC exists only inside a PDF, an HTML page, or (for the
+smallest) nowhere reusable — yet the real universe of banks is **tiny and stable** (one to a few dozen
+institutions). For these, and only these, the package may ship a small, **independently-authored
+*factual* map** (`bank code → name/BIC`) as a bundled importer.
+
+This is *not* a reversal of the no-bundled-data rule; it is the same facts-vs-compilation distinction
+that already lets `src/Registry/data/countries.php` ship. The conditions are strict:
+
+- **Scope.** Only micro-jurisdictions with no machine-readable source. As of this initiative, **three**
+  curated importers actually ship:
+  - **Andorra (AD)** — `AndorranBankingImporter` (`sourceId` `andorran-banking`): 4 codes / 3 banks
+    (0001 Andbank, 0003 Creand, 0007+0008 MoraBanc), `data/ad.php`.
+  - **Vatican City (VA)** — `VaticanCityImporter` (`sourceId` `vatican`): the Vatican's entire bank
+    universe is one institution, `001` = Istituto per le Opere di Religione (IOR) / IOPRVAVX,
+    `data/va.php`.
+  - **San Marino (SM)** — `SanMarinoImporter` (`sourceId` `bcsm`): the four Sammarinese banks by 5-digit
+    ABI, which the Italian ABI directories do not list, `data/sm.php`.
+
+  A country that has *any* fetchable/`--file`-able directory is imported that way instead — it does
+  **not** get a curated map. Two candidates originally scoped for curation, **Iceland (IS)** and
+  **Albania (AL)**, were **not shipped**: they are documented as *deferred* in
+  [`docs/importers.md`](importers.md#documented-deferred-source-exists-but-not-shipped) (IS has no open
+  full branch/bank directory; AL's KIB mapping lives only in a bot-blocked regulation PDF), so curation
+  for both is left for a future pass rather than authored now.
+- **Independent authorship, not a copy.** The map is authored from public facts per the same
+  methodology as the structural registry (see
+  [`docs/registry-authoring.md`](registry-authoring.md)): the bank code, legal name and BIC are
+  transcribed by hand from public observation and cross-checked against independent references
+  (EPC/SWIFT for the BIC) purely to catch transcription errors — never copy-pasted from, and never a
+  redistribution of, any single source document (e.g. a central bank's IBAN regulation annex). These
+  are uncopyrightable individual facts, not a protected compilation.
+- **Marked provenance.** Every curated importer sets `sourceId` to its own stable id and
+  `license()` to `'curated (factual, non-copyrightable)'`, so each seeded `banks` row carries that
+  provenance in `source_license` and is auditable exactly like any imported row.
+- **Annual refresh.** Curated maps are refreshed on the registry's annual cadence; a bank merger or
+  new licence is a factual change to re-transcribe, not a code change.
+
+### The curated-importer pattern
+
+A curated importer is an ordinary `ImporterInterface` whose `rows()` yields a **constant array** read
+from a data file at `src/Import/Importers/data/<cc>.php` (project-authored, exactly like
+`src/Registry/data/countries.php`), independent of `--file`/network. The data file returns a plain
+`list<array{bank_code: string, name: string, bic: ?string}>` and stays framework-free (it lives under
+the recursively-guarded `Import/Importers` subtree, so `CoreIsFrameworkFreeTest` covers it). See
+[`docs/importers.md`](importers.md) for the per-country coverage matrix and the concrete curated
+importers.
+
 ## `Registry::VERSION`
 
 `Daycry\Iban\Registry\Registry` declares a version marker as legal documentation, not just a build

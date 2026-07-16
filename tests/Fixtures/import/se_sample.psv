@@ -1,0 +1,5 @@
+#ClrStart|ClrEnd|IbanId|BIC|BankName
+5000|5999|500|ESSESESS|Skandinaviska Enskilda Banken
+3000|3299|300|NDEASESS|Nordea Bank
+3300|3300|300|NDEASESS|Nordea Bank
+6000|6999|600|HANDSESS|Svenska Handelsbanken

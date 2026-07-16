@@ -6,7 +6,10 @@ namespace Tests\Import;
 
 use Daycry\Iban\Contracts\ImporterInterface;
 use Daycry\Iban\Import\ImporterRegistry;
+use Daycry\Iban\Import\Importers\AgenziaEntrateF24Importer;
+use Daycry\Iban\Import\Importers\AndorranBankingImporter;
 use Daycry\Iban\Import\Importers\BancoDeEspanaImporter;
+use Daycry\Iban\Import\Importers\BancoDePortugalImporter;
 use Daycry\Iban\Import\Importers\BankOfIsraelImporter;
 use Daycry\Iban\Import\Importers\BankOfSloveniaImporter;
 use Daycry\Iban\Import\Importers\BetaalverenigingImporter;
@@ -15,10 +18,14 @@ use Daycry\Iban\Import\Importers\BrazilianCentralBankImporter;
 use Daycry\Iban\Import\Importers\BulgarianNationalBankImporter;
 use Daycry\Iban\Import\Importers\BundesbankImporter;
 use Daycry\Iban\Import\Importers\CentralBankOfAzerbaijanImporter;
+use Daycry\Iban\Import\Importers\CentralBankOfCyprusImporter;
 use Daycry\Iban\Import\Importers\CentralBankOfMaltaImporter;
+use Daycry\Iban\Import\Importers\CentralBankOfMontenegroImporter;
 use Daycry\Iban\Import\Importers\CroatianNationalBankImporter;
 use Daycry\Iban\Import\Importers\CzechNationalBankImporter;
 use Daycry\Iban\Import\Importers\EpcRegisterImporter;
+use Daycry\Iban\Import\Importers\EstonianBankingAssociationImporter;
+use Daycry\Iban\Import\Importers\FinanceFinlandImporter;
 use Daycry\Iban\Import\Importers\HellenicBankAssociationImporter;
 use Daycry\Iban\Import\Importers\LiechtensteinImporter;
 use Daycry\Iban\Import\Importers\LuxembourgBankersAssociationImporter;
@@ -30,8 +37,14 @@ use Daycry\Iban\Import\Importers\NationalBankOfMoldovaImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfPolandImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfUkraineImporter;
+use Daycry\Iban\Import\Importers\NbrmImporter;
+use Daycry\Iban\Import\Importers\NbsSerbiaImporter;
 use Daycry\Iban\Import\Importers\OenbImporter;
+use Daycry\Iban\Import\Importers\RegafiImporter;
+use Daycry\Iban\Import\Importers\SanMarinoImporter;
 use Daycry\Iban\Import\Importers\SixImporter;
+use Daycry\Iban\Import\Importers\SwedenBankInfrastructureImporter;
+use Daycry\Iban\Import\Importers\VaticanCityImporter;
 use PHPUnit\Framework\TestCase;
 use Tests\_support\FakeAtImporter;
 
@@ -74,16 +87,18 @@ final class ImporterRegistryTest extends TestCase
      * BR/LI batch adds two more -- {@see LiechtensteinImporter} (LI) and
      * {@see BrazilianCentralBankImporter} (BR) -- and this v1.2 EPC SEPA
      * Register batch registers {@see EpcRegisterImporter} five times -- once
-     * each for GB, GI, IE, LV and RO -- so a plain `new ImporterRegistry()`
-     * now finds all thirty without any extra registration.
+     * each for GB, GI, IE, LV and RO -- and finally the v2.x SEPA-coverage
+     * batch adds fourteen more (SE, FR, MC, EE, ME, CY, AD, PT, MK, VA, SM,
+     * IT, RS, FI), so a plain `new ImporterRegistry()` now finds all
+     * forty-four without any extra registration.
      */
-    public function testDefaultConstructionRegistersTheThirtyBundledImporters(): void
+    public function testDefaultConstructionRegistersTheFortyFourBundledImporters(): void
     {
         $registry = new ImporterRegistry();
 
         $all = $registry->all();
 
-        self::assertCount(30, $all);
+        self::assertCount(44, $all);
         self::assertInstanceOf(OenbImporter::class, $all[0]);
         self::assertInstanceOf(BundesbankImporter::class, $all[1]);
         self::assertInstanceOf(SixImporter::class, $all[2]);
@@ -114,6 +129,20 @@ final class ImporterRegistryTest extends TestCase
         self::assertInstanceOf(EpcRegisterImporter::class, $all[27]);
         self::assertInstanceOf(EpcRegisterImporter::class, $all[28]);
         self::assertInstanceOf(EpcRegisterImporter::class, $all[29]);
+        self::assertInstanceOf(SwedenBankInfrastructureImporter::class, $all[30]);
+        self::assertInstanceOf(RegafiImporter::class, $all[31]);
+        self::assertInstanceOf(RegafiImporter::class, $all[32]);
+        self::assertInstanceOf(EstonianBankingAssociationImporter::class, $all[33]);
+        self::assertInstanceOf(CentralBankOfMontenegroImporter::class, $all[34]);
+        self::assertInstanceOf(CentralBankOfCyprusImporter::class, $all[35]);
+        self::assertInstanceOf(AndorranBankingImporter::class, $all[36]);
+        self::assertInstanceOf(BancoDePortugalImporter::class, $all[37]);
+        self::assertInstanceOf(NbrmImporter::class, $all[38]);
+        self::assertInstanceOf(VaticanCityImporter::class, $all[39]);
+        self::assertInstanceOf(SanMarinoImporter::class, $all[40]);
+        self::assertInstanceOf(AgenziaEntrateF24Importer::class, $all[41]);
+        self::assertInstanceOf(NbsSerbiaImporter::class, $all[42]);
+        self::assertInstanceOf(FinanceFinlandImporter::class, $all[43]);
 
         self::assertSame([
             ['country' => 'AT', 'source' => 'oenb', 'name' => 'Oesterreichische Nationalbank', 'license' => 'CC-BY-4.0 (OeNB)'],
@@ -146,6 +175,20 @@ final class ImporterRegistryTest extends TestCase
             ['country' => 'IE', 'source' => 'epc', 'name' => 'European Payments Council (SEPA Register)', 'license' => 'EPC SEPA Register (credit EPC, no resale as-is)'],
             ['country' => 'LV', 'source' => 'epc', 'name' => 'European Payments Council (SEPA Register)', 'license' => 'EPC SEPA Register (credit EPC, no resale as-is)'],
             ['country' => 'RO', 'source' => 'epc', 'name' => 'European Payments Council (SEPA Register)', 'license' => 'EPC SEPA Register (credit EPC, no resale as-is)'],
+            ['country' => 'SE', 'source' => 'bankinfrastruktur', 'name' => 'Bankinfrastruktur BankData', 'license' => 'MIT (Bankinfrastruktur BankData)'],
+            ['country' => 'FR', 'source' => 'regafi', 'name' => 'REGAFI (ACPR / Banque de France)', 'license' => 'Licence Ouverte / Etalab (attribution)'],
+            ['country' => 'MC', 'source' => 'regafi', 'name' => 'REGAFI (ACPR / Banque de France)', 'license' => 'Licence Ouverte / Etalab (attribution)'],
+            ['country' => 'EE', 'source' => 'pangaliit', 'name' => 'Eesti Pangaliit (Estonian Banking Association)', 'license' => 'Eesti Pangaliit (factual list)'],
+            ['country' => 'ME', 'source' => 'cbcg', 'name' => 'Central Bank of Montenegro', 'license' => 'Central Bank of Montenegro'],
+            ['country' => 'CY', 'source' => 'cbc', 'name' => 'Central Bank of Cyprus', 'license' => 'Central Bank of Cyprus (Terms of Use, attribution)'],
+            ['country' => 'AD', 'source' => 'andorran-banking', 'name' => 'Andorran Banking (curated)', 'license' => 'curated (factual, non-copyrightable)'],
+            ['country' => 'PT', 'source' => 'bportugal', 'name' => 'Banco de Portugal (SICOI)', 'license' => 'Banco de Portugal (attribution)'],
+            ['country' => 'MK', 'source' => 'nbrm', 'name' => 'NBRM (National Bank of North Macedonia)', 'license' => 'NBRM (regulatory roster)'],
+            ['country' => 'VA', 'source' => 'vatican', 'name' => 'Vatican City / IOR (curated)', 'license' => 'curated (factual, non-copyrightable)'],
+            ['country' => 'SM', 'source' => 'bcsm', 'name' => 'Banca Centrale di San Marino (curated)', 'license' => 'curated (factual, non-copyrightable)'],
+            ['country' => 'IT', 'source' => 'agenzia-entrate', 'name' => 'Agenzia delle Entrate (F24)', 'license' => 'Agenzia delle Entrate (F24, partial list)'],
+            ['country' => 'RS', 'source' => 'nbs-rs', 'name' => 'National Bank of Serbia (NBS)', 'license' => 'National Bank of Serbia (regulatory directory)'],
+            ['country' => 'FI', 'source' => 'finanssiala', 'name' => 'Finance Finland (Finanssiala ry)', 'license' => 'Finanssiala ry (no reuse terms; fetch-only)'],
         ], $registry->sources());
 
         self::assertNotNull($registry->get('AT', 'oenb'));
@@ -178,6 +221,24 @@ final class ImporterRegistryTest extends TestCase
         self::assertNotNull($registry->get('IE', 'epc'));
         self::assertNotNull($registry->get('LV', 'epc'));
         self::assertNotNull($registry->get('RO', 'epc'));
+        self::assertNotNull($registry->get('SE', 'bankinfrastruktur'));
+        self::assertNotNull($registry->get('FR', 'regafi'));
+        self::assertNotNull($registry->get('MC', 'regafi'));
+        self::assertNotNull($registry->get('EE', 'pangaliit'));
+        self::assertNotNull($registry->get('ME', 'cbcg'));
+        self::assertNotNull($registry->get('CY', 'cbc'));
+        self::assertNotNull($registry->get('AD', 'andorran-banking'));
+        self::assertNotNull($registry->get('PT', 'bportugal'));
+        self::assertNotNull($registry->get('MK', 'nbrm'));
+        self::assertNotNull($registry->get('VA', 'vatican'));
+        self::assertNotNull($registry->get('SM', 'bcsm'));
+        self::assertNotNull($registry->get('IT', 'agenzia-entrate'));
+        self::assertNotNull($registry->get('RS', 'nbs-rs'));
+        self::assertNotNull($registry->get('FI', 'finanssiala'));
+
+        // FR and MC share the 'regafi' sourceId but are keyed separately by
+        // country, so both coexist as distinct registry entries.
+        self::assertNotSame($registry->get('FR', 'regafi'), $registry->get('MC', 'regafi'));
 
         // LI and CH share the 'six' sourceId but are keyed separately by
         // country, so both coexist as distinct registry entries.
@@ -293,14 +354,14 @@ final class ImporterRegistryTest extends TestCase
         $registry->register($at);
         $registry->register($de);
 
-        // Registration order is preserved: the 30 bundled defaults (V-7a +
+        // Registration order is preserved: the bundled defaults (V-7a +
         // V-7b + v1.2 + v1.2 follow-up + v1.2 BE/HR/LU/MT batch + v1.2
-        // HU/NO/GE batch + v1.2 IL/UA/KZ batch + v1.2 BR/LI batch + this
-        // v1.2 EPC SEPA Register batch) register first (in the constructor),
-        // then $at and $de.
+        // HU/NO/GE batch + v1.2 IL/UA/KZ batch + v1.2 BR/LI batch + v1.2
+        // EPC SEPA Register batch + this v2.x SEPA-coverage batch) register
+        // first (in the constructor), then $at and $de.
         $all = $registry->all();
 
-        self::assertCount(32, $all);
+        self::assertCount(46, $all);
         self::assertInstanceOf(OenbImporter::class, $all[0]);
         self::assertInstanceOf(BundesbankImporter::class, $all[1]);
         self::assertInstanceOf(SixImporter::class, $all[2]);
@@ -331,8 +392,22 @@ final class ImporterRegistryTest extends TestCase
         self::assertInstanceOf(EpcRegisterImporter::class, $all[27]);
         self::assertInstanceOf(EpcRegisterImporter::class, $all[28]);
         self::assertInstanceOf(EpcRegisterImporter::class, $all[29]);
-        self::assertSame($at, $all[30]);
-        self::assertSame($de, $all[31]);
+        self::assertInstanceOf(SwedenBankInfrastructureImporter::class, $all[30]);
+        self::assertInstanceOf(RegafiImporter::class, $all[31]);
+        self::assertInstanceOf(RegafiImporter::class, $all[32]);
+        self::assertInstanceOf(EstonianBankingAssociationImporter::class, $all[33]);
+        self::assertInstanceOf(CentralBankOfMontenegroImporter::class, $all[34]);
+        self::assertInstanceOf(CentralBankOfCyprusImporter::class, $all[35]);
+        self::assertInstanceOf(AndorranBankingImporter::class, $all[36]);
+        self::assertInstanceOf(BancoDePortugalImporter::class, $all[37]);
+        self::assertInstanceOf(NbrmImporter::class, $all[38]);
+        self::assertInstanceOf(VaticanCityImporter::class, $all[39]);
+        self::assertInstanceOf(SanMarinoImporter::class, $all[40]);
+        self::assertInstanceOf(AgenziaEntrateF24Importer::class, $all[41]);
+        self::assertInstanceOf(NbsSerbiaImporter::class, $all[42]);
+        self::assertInstanceOf(FinanceFinlandImporter::class, $all[43]);
+        self::assertSame($at, $all[44]);
+        self::assertSame($de, $all[45]);
     }
 
     public function testAllReturnValueIsAListOfImporterInterfaceInstances(): void

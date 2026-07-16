@@ -332,10 +332,11 @@ final class CommandsTest extends CIUnitTestCase
      * `NationalBankOfKazakhstanImporter` (KZ). The v1.2 BR/LI batch adds two
      * more -- `BrazilianCentralBankImporter` (BR) and `LiechtensteinImporter`
      * (LI). This v1.2 EPC SEPA Register batch registers `EpcRegisterImporter`
-     * five times -- once each for GB, GI, IE, LV and RO. So with no
-     * `--country`/`--source` selection, `iban:update` now lists all thirty
-     * alongside the v1.0 licensing notices instead of the old "nothing
-     * bundled yet" deferral.
+     * five times -- once each for GB, GI, IE, LV and RO. Finally the v2.x
+     * SEPA-coverage batch adds fourteen more (SE, FR, MC, EE, ME, CY, AD, PT,
+     * MK, VA, SM, IT, RS, FI). So with no `--country`/`--source` selection,
+     * `iban:update` now lists all forty-four alongside the v1.0 licensing
+     * notices instead of the old "nothing bundled yet" deferral.
      */
     public function testUpdatePrintsLicenseNoticesAndListsTheBundledImportersAndExitsSuccess(): void
     {
@@ -345,7 +346,7 @@ final class CommandsTest extends CIUnitTestCase
         self::assertStringContainsString('SWIFT IBAN Registry', $output);
         self::assertStringContainsString('SWIFT BIC Directory', $output);
         self::assertStringContainsString('National lists require per-source attribution.', $output);
-        self::assertStringContainsString('Registered importers: 30', $output);
+        self::assertStringContainsString('Registered importers: 44', $output);
         self::assertStringContainsString('oenb', $output);
         self::assertStringContainsString('bundesbank', $output);
         self::assertStringContainsString('six', $output);
@@ -371,6 +372,15 @@ final class CommandsTest extends CIUnitTestCase
         self::assertStringContainsString('nbk', $output);
         self::assertStringContainsString('bcb', $output);
         self::assertStringContainsString('epc', $output);
+        self::assertStringContainsString('bankinfrastruktur', $output);
+        self::assertStringContainsString('regafi', $output);
+        self::assertStringContainsString('pangaliit', $output);
+        self::assertStringContainsString('cbcg', $output);
+        self::assertStringContainsString('cbc', $output);
+        self::assertStringContainsString('andorran-banking', $output);
+        self::assertStringContainsString('bportugal', $output);
+        self::assertStringContainsString('nbrm', $output);
+        self::assertStringContainsString('finanssiala', $output);
         self::assertStringContainsString('AT', $output);
         self::assertStringContainsString('DE', $output);
         self::assertStringContainsString('CH', $output);
@@ -401,18 +411,27 @@ final class CommandsTest extends CIUnitTestCase
         self::assertStringContainsString('IE', $output);
         self::assertStringContainsString('LV', $output);
         self::assertStringContainsString('RO', $output);
+        self::assertStringContainsString('SE', $output);
+        self::assertStringContainsString('FR', $output);
+        self::assertStringContainsString('MC', $output);
+        self::assertStringContainsString('EE', $output);
+        self::assertStringContainsString('ME', $output);
+        self::assertStringContainsString('CY', $output);
+        self::assertStringContainsString('AD', $output);
+        self::assertStringContainsString('PT', $output);
+        self::assertStringContainsString('MK', $output);
+        self::assertStringContainsString('FI', $output);
         self::assertStringContainsString('Select one with --country=/--source= to run it', $output);
     }
 
     public function testUpdateAcceptsDryRunAndCountryOptionsWithoutErrorAndReportsNoMatch(): void
     {
-        // 'FR' matches none of the 30 bundled importers
-        // (AT/DE/CH/NL/ES/CZ/GR/SI/SK/BG/MD/PL/AZ/BE/HR/LU/MT/HU/NO/GE/IL/UA/KZ/LI/BR/GB/GI/IE/LV/RO)
-        // -- the EPC SEPA Register importer is registered for GB/GI/IE/LV/RO
-        // only, NOT for FR, even though the EPC Register itself also lists
-        // French participants -- so this stays the graceful "no match"
-        // branch -- and, crucially, never reaches the network/file fetch.
-        [$exit, $output] = $this->runSpark(['iban:update', '--dry-run', '--country', 'FR']);
+        // 'DK' matches none of the bundled importers -- Denmark is tier D in
+        // the SEPA-coverage initiative (no open, machine-readable source), so
+        // it is deliberately never bundled. This keeps the graceful "no
+        // match" branch and, crucially, never reaches the network/file fetch.
+        // (FR/MC used to sit here but are now bundled via RegafiImporter.)
+        [$exit, $output] = $this->runSpark(['iban:update', '--dry-run', '--country', 'DK']);
 
         self::assertSame(EXIT_SUCCESS, $exit);
         self::assertStringContainsString('SWIFT IBAN Registry', $output);
@@ -514,7 +533,7 @@ final class CommandsTest extends CIUnitTestCase
     // -- iban:update --all (v1.2) ------------------------------------------
 
     // The `--all` run loop is exercised against an INJECTED registry of fake
-    // importers (via `UpdateCommand::$registry`) rather than the 30 bundled
+    // importers (via `UpdateCommand::$registry`) rather than the 44 bundled
     // ones. The bundled importers fetch their source live over the network --
     // and several official sources ARE reachable from CI and return large
     // payloads -- so a real `--all` run in the test suite would be

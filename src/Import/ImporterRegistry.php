@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Daycry\Iban\Import;
 
 use Daycry\Iban\Contracts\ImporterInterface;
+use Daycry\Iban\Import\Importers\AgenziaEntrateF24Importer;
+use Daycry\Iban\Import\Importers\AndorranBankingImporter;
 use Daycry\Iban\Import\Importers\BancoDeEspanaImporter;
+use Daycry\Iban\Import\Importers\BancoDePortugalImporter;
 use Daycry\Iban\Import\Importers\BankOfIsraelImporter;
 use Daycry\Iban\Import\Importers\BankOfSloveniaImporter;
 use Daycry\Iban\Import\Importers\BetaalverenigingImporter;
@@ -14,10 +17,14 @@ use Daycry\Iban\Import\Importers\BrazilianCentralBankImporter;
 use Daycry\Iban\Import\Importers\BulgarianNationalBankImporter;
 use Daycry\Iban\Import\Importers\BundesbankImporter;
 use Daycry\Iban\Import\Importers\CentralBankOfAzerbaijanImporter;
+use Daycry\Iban\Import\Importers\CentralBankOfCyprusImporter;
 use Daycry\Iban\Import\Importers\CentralBankOfMaltaImporter;
+use Daycry\Iban\Import\Importers\CentralBankOfMontenegroImporter;
 use Daycry\Iban\Import\Importers\CroatianNationalBankImporter;
 use Daycry\Iban\Import\Importers\CzechNationalBankImporter;
 use Daycry\Iban\Import\Importers\EpcRegisterImporter;
+use Daycry\Iban\Import\Importers\EstonianBankingAssociationImporter;
+use Daycry\Iban\Import\Importers\FinanceFinlandImporter;
 use Daycry\Iban\Import\Importers\HellenicBankAssociationImporter;
 use Daycry\Iban\Import\Importers\LiechtensteinImporter;
 use Daycry\Iban\Import\Importers\LuxembourgBankersAssociationImporter;
@@ -29,8 +36,14 @@ use Daycry\Iban\Import\Importers\NationalBankOfMoldovaImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfPolandImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfUkraineImporter;
+use Daycry\Iban\Import\Importers\NbrmImporter;
+use Daycry\Iban\Import\Importers\NbsSerbiaImporter;
 use Daycry\Iban\Import\Importers\OenbImporter;
+use Daycry\Iban\Import\Importers\RegafiImporter;
+use Daycry\Iban\Import\Importers\SanMarinoImporter;
 use Daycry\Iban\Import\Importers\SixImporter;
+use Daycry\Iban\Import\Importers\SwedenBankInfrastructureImporter;
+use Daycry\Iban\Import\Importers\VaticanCityImporter;
 
 /**
  * In-memory catalog of {@see ImporterInterface} instances, keyed by their
@@ -80,9 +93,34 @@ use Daycry\Iban\Import\Importers\SixImporter;
  * five times, once each for GB, GI, IE, LV and RO: the SEPA countries whose
  * IBAN `bank_code` is the BIC's 4-letter prefix and that have no dedicated
  * national importer already registered here (BG/MT/NL share that same
- * bank-code shape but already have one, so are not double-registered) -- so
- * `new ImporterRegistry()` picks up all thirty automatically for every
+ * bank-code shape but already have one, so are not double-registered).
+ *
+ * The v2.x SEPA-coverage batch then adds FOURTEEN more, taking SEPA-scheme
+ * resolution from 24/42 to 38/42 (see docs/importers.md's coverage matrix):
+ * a PSV live-fetch ({@see \Daycry\Iban\Import\Importers\SwedenBankInfrastructureImporter}
+ * SE), a JSON REGAFI importer registered TWICE
+ * ({@see \Daycry\Iban\Import\Importers\RegafiImporter} FR and MC -- Monaco's
+ * entities carry a French CIB in the same dataset), three HTML scrapes via
+ * the new {@see \Daycry\Iban\Import\Support\HtmlTableReader}
+ * ({@see \Daycry\Iban\Import\Importers\EstonianBankingAssociationImporter} EE,
+ * {@see \Daycry\Iban\Import\Importers\CentralBankOfMontenegroImporter} ME,
+ * {@see \Daycry\Iban\Import\Importers\AgenziaEntrateF24Importer} IT) plus a
+ * landing-scrape-then-`.xlsx` importer
+ * ({@see \Daycry\Iban\Import\Importers\CentralBankOfCyprusImporter} CY), four
+ * offline-`--file` PDF/CSV importers
+ * ({@see \Daycry\Iban\Import\Importers\BancoDePortugalImporter} PT,
+ * {@see \Daycry\Iban\Import\Importers\NbrmImporter} MK,
+ * {@see \Daycry\Iban\Import\Importers\NbsSerbiaImporter} RS,
+ * {@see \Daycry\Iban\Import\Importers\FinanceFinlandImporter} FI, the last
+ * carrying a bespoke range-expansion mapper), and THREE curated
+ * micro-jurisdiction importers whose `rows()` yield a bundled factual
+ * `data/<cc>.php` map ({@see \Daycry\Iban\Import\Importers\AndorranBankingImporter}
+ * AD, {@see \Daycry\Iban\Import\Importers\VaticanCityImporter} VA,
+ * {@see \Daycry\Iban\Import\Importers\SanMarinoImporter} SM) -- so
+ * `new ImporterRegistry()` picks up all forty-four automatically for every
  * consumer (`iban:update` included) without any other call site changing.
+ * The SEPA-scheme countries still unresolved (AL, IS, LT documented-deferred;
+ * DK/FO/GL tier D) are covered in docs/importers.md, not here.
  *
  * @see \Daycry\Iban\Commands\UpdateCommand
  * @see ImportRunner
@@ -189,9 +227,20 @@ class ImporterRegistry
      * v1.2 BR/LI batch adds two more -- {@see BrazilianCentralBankImporter}
      * (BR) and {@see LiechtensteinImporter} (LI) -- and this v1.2 EPC SEPA
      * Register batch registers {@see EpcRegisterImporter} five times -- once
-     * each for GB, GI, IE, LV and RO -- so every consumer (`iban:update`
-     * included) picks up all thirty automatically without any other call
-     * site changing.
+     * each for GB, GI, IE, LV and RO. Finally the v2.x SEPA-coverage batch
+     * adds fourteen more -- {@see SwedenBankInfrastructureImporter} (SE),
+     * {@see RegafiImporter} (FR and MC, registered twice),
+     * {@see EstonianBankingAssociationImporter} (EE),
+     * {@see CentralBankOfMontenegroImporter} (ME),
+     * {@see CentralBankOfCyprusImporter} (CY),
+     * {@see AndorranBankingImporter} (AD, curated),
+     * {@see BancoDePortugalImporter} (PT), {@see NbrmImporter} (MK),
+     * {@see VaticanCityImporter} (VA, curated),
+     * {@see SanMarinoImporter} (SM, curated),
+     * {@see AgenziaEntrateF24Importer} (IT), {@see NbsSerbiaImporter} (RS)
+     * and {@see FinanceFinlandImporter} (FI) -- so every consumer
+     * (`iban:update` included) picks up all forty-four automatically without
+     * any other call site changing.
      */
     protected function registerDefaults(): void
     {
@@ -225,6 +274,46 @@ class ImporterRegistry
         $this->register(new EpcRegisterImporter('IE'));
         $this->register(new EpcRegisterImporter('LV'));
         $this->register(new EpcRegisterImporter('RO'));
+
+        // v2.x SEPA-coverage batch (Fase 1, tier A -- live fetch):
+        $this->register(new SwedenBankInfrastructureImporter());
+        $this->register(new RegafiImporter('FR'));
+        $this->register(new RegafiImporter('MC'));
+        $this->register(new EstonianBankingAssociationImporter());
+        $this->register(new CentralBankOfMontenegroImporter());
+        $this->register(new CentralBankOfCyprusImporter());
+
+        // v2.x SEPA-coverage batch (Fase 2, tier B -- offline `--file` +
+        // curated): AD is curated (no machine-readable source; a tiny, stable
+        // 3-bank set), PT/MK are `--file`-only (their landings block bots /
+        // sit behind Cloudflare).
+        $this->register(new AndorranBankingImporter());
+        $this->register(new BancoDePortugalImporter());
+        $this->register(new NbrmImporter());
+
+        // v2.x SEPA-coverage batch (Fase 3, tier C -- caveats / curation):
+        // VA/SM are curated (the Vatican's whole bank universe is a single
+        // institution, the IOR; San Marino's is four banks, and the Italian
+        // ABI directories don't list them). Neither has a machine-readable
+        // directory.
+        $this->register(new VaticanCityImporter());
+        $this->register(new SanMarinoImporter());
+
+        // IT is an HTML scrape of the Agenzia delle Entrate F24 "elenco banche
+        // convenzionate" page: name-only (no BIC), partial (F24-adhering banks
+        // only), ABI zero-padded to 5 digits.
+        $this->register(new AgenziaEntrateF24Importer());
+
+        // RS is `--file`-only: the NBS data lives in two misaligned-layout PDFs,
+        // so it consumes an operator-prepared `code;name;bic` CSV built by
+        // cross-checking them.
+        $this->register(new NbsSerbiaImporter());
+
+        // FI is `--file`-only: the Finanssiala directory is a PDF, and its
+        // variable-length Rahalaitostunnus is expanded to the fixed 3-digit
+        // bank_code via a bespoke range-expansion mapper (4-digit post-2024
+        // codes are dropped -- see FinanceFinlandImporter).
+        $this->register(new FinanceFinlandImporter());
     }
 
     private static function key(string $countryCode, string $sourceId): string

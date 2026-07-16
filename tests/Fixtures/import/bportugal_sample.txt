@@ -1,0 +1,7 @@
+BIC associated with IBANs of PSPs participating in SICOI - 21.10.2026
+
+IBAN Bank Identifier    Payment Service Provider                          BIC
+0033                    BNP Paribas                                       BNPAPTPL
+0034                    Caixa Geral de Depósitos, S.A.                    CGDIPTPL
+0035                    Caixa Económica Montepio Geral                    MPIOPTPL
+0010                    Banco BPI, S.A.                                    BBPIPTPL
