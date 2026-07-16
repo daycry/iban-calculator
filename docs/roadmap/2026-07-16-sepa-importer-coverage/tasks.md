@@ -17,11 +17,11 @@ Horas y tokens **base** (sin margen +20 %).
 | Fase | Completadas | Total | Progreso | Horas (real/est) | Tokens (real/est) |
 |------|------------|-------|----------|------------------|-------------------|
 | Fase 0 — Infra | 1 | 1 | 100% | — / 9h | — / 0,44 M |
-| Fase 1 — Tier A (fetch en vivo) | 0 | 5 | 0% | 0 / 26h | 0 / 1,32 M |
+| Fase 1 — Tier A (fetch en vivo) | 5 | 5 | 100% | — / 26h | — / 1,32 M |
 | Fase 2 — Tier B (offline `--file`) | 0 | 3 | 0% | 0 / 14h | 0 / 0,63 M |
 | Fase 3 — Tier C (salvedades / curación) | 0 | 8 | 0% | 0 / 46h | 0 / 2,21 M |
 | Fase 4 — Transversal | 0 | 4 | 0% | 0 / 6h | 0 / 0,34 M |
-| **TOTAL** | **0** | **21** | **0%** | **0 / 101h** | **0 / ≈ 4,94 M** |
+| **TOTAL** | **6** | **21** | **29%** | **— / 101h** | **— / ≈ 4,94 M** |
 
 > Cobertura objetivo por fase: Fase 1 → **30/42**, Fase 2 → **33/42**, Fase 3 → **hasta 41/42**. DK (+FO/GL) fuera (tier D). Tareas condicionadas: **T-16 (LT) bloqueada por licencia**; **T-09 (MK) condicionada a frescura**; **T-15 (RS) con cross-check por alineación**; **T-17 (FI) el último por coste/riesgo**.
 
@@ -60,7 +60,7 @@ Horas y tokens **base** (sin margen +20 %).
 
 ## Fase 1 — Tier A (fetch en vivo) · Cobertura 24 → 30/42
 
-**Estado**: en-progreso · **Estimado**: 26h · **Real**: — · **Coste est.**: ≈ 1.334 € · **Tokens est.**: 1,32 M
+**Estado**: completado · **Estimado**: 26h · **Real**: — · **Coste est.**: ≈ 1.334 € · **Tokens est.**: 1,32 M
 
 ### T-02 — SE · `SwedenBankInfrastructureImporter` (PSV / MIT)
 
@@ -157,7 +157,7 @@ Horas y tokens **base** (sin margen +20 %).
 ### T-06 — CY · `CentralBankOfCyprusImporter` (landing + XLSX + WAF)
 
 - **Descripción**: GET a la landing IBAN estable, **regex del href** `CIs_and_EMIs_BICs_updated_*.xlsx` (nombre con fecha rotatoria), fetch con **User-Agent de navegador** (WAF devuelve 403 sin él), leer con `XlsxReader`; columna *"Bank identifiers used in IBAN"* (3 díg.) → nombre + BIC.
-- **Estado**: borrador
+- **Estado**: completado
 - **Tiempo**: est. 6h · real —
 - **Previsión IA**: 0,25 M in / 0,06 M out tok · ≈ 7,6 €
 - **Dependencias**: `XlsxReader` (existe); **T-01** (`HtmlTableReader`) recomendado para el scrape de la landing (alternativa: regex del href sin `HtmlTableReader`, según evaluación C-04)
@@ -165,17 +165,17 @@ Horas y tokens **base** (sin margen +20 %).
 - **Cubre (tests)**: — (sin UI)
 
 **Criterios de aceptación**
-- [ ] Resuelve la URL con fecha vía regex del href y fetch con User-Agent de navegador; lee la `.xlsx` con `XlsxReader` (no la `.xls` BIFF).
-- [ ] `rows()` mapea la columna de 3 díg. → nombre + BIC (instituciones 001-129, EMIs 901-912).
-- [ ] Test verde con fixture XLSX reducido; PHPStan L8, PSR-12.
-- [ ] Registrado en `registerDefaults()`; `resolve()` de una IBAN CY de ejemplo devuelve el banco esperado.
+- [x] Resuelve la URL con fecha vía regex del href y fetch con User-Agent de navegador; lee la `.xlsx` con `XlsxReader` (no la `.xls` BIFF).
+- [x] `rows()` mapea la columna de 3 díg. → nombre + BIC (instituciones 001-129, EMIs 901-912).
+- [x] Test verde con fixture XLSX reducido; PHPStan L8, PSR-12.
+- [x] Registrado en `registerDefaults()`; `resolve()` de una IBAN CY de ejemplo devuelve el banco esperado.
 
 **Subtareas**
-- [ ] Test con fixture XLSX reducido primero.
-- [ ] Implementar resolución del href (regex) + fetch con User-Agent + lectura `XlsxReader`.
-- [ ] Registrar en `registerDefaults()`.
+- [x] Test con fixture XLSX reducido primero.
+- [x] Implementar resolución del href (regex) + fetch con User-Agent + lectura `XlsxReader`.
+- [x] Registrar en `registerDefaults()`.
 
-**Notas**: la edición `.xls` (BIFF) más nueva **no** es legible → fijar la `.xlsx`. Regex robusto ante la rotación del nombre de fichero.
+**Notas**: la edición `.xls` (BIFF) más nueva **no** es legible → fijar la `.xlsx`. Regex robusto ante la rotación del nombre de fichero. **Impl.**: `CentralBankOfCyprusImporter` (sourceId `cbc`). Vía viva (no testeada): landing con User-Agent de navegador → regex `href=…CIs_and_EMIs_BICs_updated_*.xlsx` → descarga con User-Agent → `XlsxReader`. Columna código anclada por el literal *"Bank identifiers used in IBAN"*; BIC/nombre por subcadena `bic`/`name|institution`. Zero-pad a 3 díg. Fixture DB generado con `XlsxFixtureFactory` en `setUp`; resolve() verde con `CY17002001280000001200527600` → Bank of Cyprus.
 
 ---
 

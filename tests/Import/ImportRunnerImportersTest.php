@@ -16,6 +16,7 @@ use Daycry\Iban\Import\Importers\BrazilianCentralBankImporter;
 use Daycry\Iban\Import\Importers\BulgarianNationalBankImporter;
 use Daycry\Iban\Import\Importers\BundesbankImporter;
 use Daycry\Iban\Import\Importers\CentralBankOfAzerbaijanImporter;
+use Daycry\Iban\Import\Importers\CentralBankOfCyprusImporter;
 use Daycry\Iban\Import\Importers\CentralBankOfMaltaImporter;
 use Daycry\Iban\Import\Importers\CentralBankOfMontenegroImporter;
 use Daycry\Iban\Import\Importers\CroatianNationalBankImporter;
@@ -172,6 +173,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const MC_EXAMPLE_IBAN = 'MC3112739000001234567890100'; // CIB '12739' = CFM Indosuez
     private const EE_EXAMPLE_IBAN = 'EE382200221020145685'; // bank code '22' = Swedbank
     private const ME_EXAMPLE_IBAN = 'ME56510123456789012300'; // bank code '510' = CKB
+    private const CY_EXAMPLE_IBAN = 'CY17002001280000001200527600'; // bank code '002' = Bank of Cyprus
 
     // MOD-97-valid test IBANs for the EPC SEPA Register importer's seeded
     // banks. GB's is the SRLG example handed down with the task brief
@@ -198,9 +200,19 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
 
     private ?string $nbgFixture = null;
 
+    private ?string $cyFixture = null;
+
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->cyFixture = XlsxFixtureFactory::write([
+            ['Credit Institutions and EMIs - Bank identifiers used in IBAN'],
+            ['Name of Credit Institution', 'Bank identifiers used in IBAN', 'BIC'],
+            ['Bank of Cyprus Public Company Ltd', '002', 'BCYPCY2N'],
+            ['Hellenic Bank Public Company Ltd', '5', 'HEBACY2N'],
+            ['Some EMI Ltd', '901', 'SOMECY2NXXX'],
+        ]);
 
         $this->nbbFixture = XlsxFixtureFactory::write([
             ['Version 06/05/2026'],
@@ -282,6 +294,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
             $this->mnbFixture,
             $this->bitsFixture,
             $this->nbgFixture,
+            $this->cyFixture,
         ] as $path) {
             if ($path !== null && is_file($path)) {
                 unlink($path);
@@ -295,6 +308,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
         $this->mnbFixture  = null;
         $this->bitsFixture = null;
         $this->nbgFixture  = null;
+        $this->cyFixture   = null;
     }
 
     public function testOenbImporterImportsHeadOfficeRowsWithProvenance(): void
@@ -1349,6 +1363,37 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
 
         self::assertTrue($result->isResolved());
         self::assertSame('Crnogorska komercijalna banka AD', $result->bankName);
+    }
+
+    public function testCentralBankOfCyprusImporterImportsRowsZeroPaddingAndResolvesTheExampleIban(): void
+    {
+        $report = (new ImportRunner())->run(new CentralBankOfCyprusImporter(), new BankModel(), false, (string) $this->cyFixture);
+
+        self::assertSame('CY', $report->countryCode);
+        self::assertSame('cbc', $report->sourceId);
+        self::assertSame(3, $report->imported);
+
+        self::assertSame(3, $this->db->table('banks')->countAllResults());
+
+        $this->seeInDatabase('banks', [
+            'country_code'   => 'CY',
+            'bank_code'      => '002',
+            'branch_code'    => null,
+            'name'           => 'Bank of Cyprus Public Company Ltd',
+            'bic'            => 'BCYPCY2N',
+            'source_id'      => 'cbc',
+            'source_license' => 'Central Bank of Cyprus (Terms of Use, attribution)',
+        ]);
+
+        // '5' was zero-padded to the 3-digit '005'.
+        $this->seeInDatabase('banks', ['country_code' => 'CY', 'bank_code' => '005', 'name' => 'Hellenic Bank Public Company Ltd']);
+
+        // The real proof: resolving the SWIFT CY example IBAN (bank code '002').
+        $iban   = new Iban(provider: new DatabaseProvider(new BankModel()));
+        $result = $iban->resolve(self::CY_EXAMPLE_IBAN);
+
+        self::assertTrue($result->isResolved());
+        self::assertSame('Bank of Cyprus Public Company Ltd', $result->bankName);
     }
 
     public function testBothImportersCanCoexistInTheSameBanksTable(): void
