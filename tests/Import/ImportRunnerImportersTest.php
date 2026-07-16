@@ -38,6 +38,7 @@ use Daycry\Iban\Import\Importers\NationalBankOfPolandImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfUkraineImporter;
 use Daycry\Iban\Import\Importers\NbrmImporter;
+use Daycry\Iban\Import\Importers\NbsSerbiaImporter;
 use Daycry\Iban\Import\Importers\OenbImporter;
 use Daycry\Iban\Import\Importers\RegafiImporter;
 use Daycry\Iban\Import\Importers\SanMarinoImporter;
@@ -153,6 +154,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const PT_FIXTURE               = __DIR__ . '/../Fixtures/import/bportugal_sample.txt';
     private const MK_FIXTURE               = __DIR__ . '/../Fixtures/import/nbrm_sample.csv';
     private const IT_FIXTURE               = __DIR__ . '/../Fixtures/import/agenzia_entrate_sample.html';
+    private const RS_FIXTURE               = __DIR__ . '/../Fixtures/import/nbs_rs_sample.csv';
 
     private const CZ_EXAMPLE_IBAN = 'CZ6508000000192000145399';
     private const GR_EXAMPLE_IBAN = 'GR1601101250000000012300695';
@@ -189,6 +191,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const VA_EXAMPLE_IBAN = 'VA59001123000012345678'; // bank code '001' = IOR (registry example)
     private const SM_EXAMPLE_IBAN = 'SM15U0303409800000000270100'; // ABI '03034' = Banca Agricola Commerciale
     private const IT_EXAMPLE_IBAN = 'IT60X0542811101000000123456'; // ABI '05428' (registry example)
+    private const RS_EXAMPLE_IBAN = 'RS35105008123123123173'; // bank code '105' = AIK Banka
 
     // MOD-97-valid test IBANs for the EPC SEPA Register importer's seeded
     // banks. GB's is the SRLG example handed down with the task brief
@@ -1621,6 +1624,39 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
 
         self::assertTrue($result->isResolved());
         self::assertSame('Banco BPM S.p.A. (fixture — IT registry example ABI)', $result->bankName);
+    }
+
+    public function testNbsSerbiaImporterImportsRowsFromPreparedCsvAndResolvesTheExampleIban(): void
+    {
+        $report = (new ImportRunner())->run(new NbsSerbiaImporter(), new BankModel(), false, self::RS_FIXTURE);
+
+        self::assertSame('RS', $report->countryCode);
+        self::assertSame('nbs-rs', $report->sourceId);
+        // AIK 105, Intesa 160, UniCredit 170, no-BIC 999 = 4 rows (preamble +
+        // header located by name, not seeded).
+        self::assertSame(4, $report->imported);
+
+        self::assertSame(4, $this->db->table('banks')->countAllResults());
+
+        $this->seeInDatabase('banks', [
+            'country_code'   => 'RS',
+            'bank_code'      => '105',
+            'branch_code'    => null,
+            'name'           => 'AIK Banka a.d. Beograd',
+            'bic'            => 'AIKBRS22',
+            'source_id'      => 'nbs-rs',
+            'source_license' => 'National Bank of Serbia (regulatory directory)',
+        ]);
+
+        $this->seeInDatabase('banks', ['country_code' => 'RS', 'bank_code' => '160', 'bic' => 'DBDBRSBG']);
+        $this->seeInDatabase('banks', ['country_code' => 'RS', 'bank_code' => '170', 'bic' => 'BACXRSBG']);
+
+        // The real proof: resolving the RS example IBAN (bank code '105' = AIK).
+        $iban   = new Iban(provider: new DatabaseProvider(new BankModel()));
+        $result = $iban->resolve(self::RS_EXAMPLE_IBAN);
+
+        self::assertTrue($result->isResolved());
+        self::assertSame('AIK Banka a.d. Beograd', $result->bankName);
     }
 
     public function testBothImportersCanCoexistInTheSameBanksTable(): void

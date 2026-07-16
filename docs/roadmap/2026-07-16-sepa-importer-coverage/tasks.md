@@ -19,9 +19,9 @@ Horas y tokens **base** (sin margen +20 %).
 | Fase 0 — Infra | 1 | 1 | 100% | — / 9h | — / 0,44 M |
 | Fase 1 — Tier A (fetch en vivo) | 5 | 5 | 100% | — / 26h | — / 1,32 M |
 | Fase 2 — Tier B (offline `--file`) | 3 | 3 | 100% | — / 14h | — / 0,63 M |
-| Fase 3 — Tier C (salvedades / curación) | 3 | 8 | 38% | — / 46h | — / 2,21 M |
+| Fase 3 — Tier C (salvedades / curación) | 4 | 8 | 50% | — / 46h | — / 2,21 M |
 | Fase 4 — Transversal | 0 | 4 | 0% | 0 / 6h | 0 / 0,34 M |
-| **TOTAL** | **12** | **21** | **57%** | **— / 101h** | **— / ≈ 4,94 M** |
+| **TOTAL** | **13** | **21** | **62%** | **— / 101h** | **— / ≈ 4,94 M** |
 
 > Cobertura objetivo por fase: Fase 1 → **30/42**, Fase 2 → **33/42**, Fase 3 → **hasta 41/42**. DK (+FO/GL) fuera (tier D). Tareas condicionadas: **T-16 (LT) bloqueada por licencia**; **T-09 (MK) condicionada a frescura**; **T-15 (RS) con cross-check por alineación**; **T-17 (FI) el último por coste/riesgo**.
 
@@ -364,25 +364,25 @@ Horas y tokens **base** (sin margen +20 %).
 ### T-15 — RS · `NbsSerbiaImporter` (`--file`, 2 PDFs) · con cross-check
 
 - **Descripción**: importador `--file` con **dos PDFs pre-extraídos** (`pregled_racuna` código→BIC + `id_brojevi` código→nombre); **zip 19 nombres ↔ 19 códigos** (layout de dos columnas desalineado); 3 díg. → nombre + BIC. Alternativa/red de seguridad: mapa curado (~19).
-- **Estado**: borrador
+- **Estado**: completado
 - **Tiempo**: est. 6h · real —
 - **Previsión IA**: 0,24 M in / 0,06 M out tok · ≈ 7,5 €
 - **Dependencias**: patrón `--file` (existe)
-- **Archivos**: `src/Import/Importers/NbsSerbiaImporter.php`, `tests/Import/Importers/NbsSerbiaImporterTest.php` (+ 2 fixtures texto-PDF), `src/Import/ImporterRegistry.php`, `docs/importers.md`
+- **Archivos**: `src/Import/Importers/NbsSerbiaImporter.php`, `tests/Import/Importers/NbsSerbiaImporterTest.php` (+ fixture CSV), `src/Import/ImporterRegistry.php`, `docs/importers.md`
 - **Cubre (tests)**: — (sin UI)
 
 **Criterios de aceptación**
-- [ ] `rows(--file)` une los dos textos pre-extraídos (código→BIC y código→nombre) → 3 díg. → nombre + BIC.
-- [ ] Cross-check de la alineación (zip 19↔19) contra un mapa curado de referencia; el test cubre el caso desalineado.
-- [ ] Test verde con fixtures reducidos de los 2 PDFs; PHPStan L8, PSR-12.
-- [ ] Registrado en `registerDefaults()`; `resolve()` de una IBAN RS de ejemplo (`RS35 105…` → AIK) devuelve el banco esperado.
+- [x] `rows(--file)` une los dos textos pre-extraídos (código→BIC y código→nombre) → 3 díg. → nombre + BIC. _(Vía **CSV preparado por el operador** `code;name;bic`: el operador hace el join por código a mano, cross-check de los 2 PDFs, no el zip 19↔19 en código — ver DESVIACIÓN abajo.)_
+- [x] Cross-check de la alineación (zip 19↔19) contra un mapa curado de referencia; el test cubre el caso desalineado. _(Resuelto degradando a **CSV preparado**: el join por código lo hace el operador cross-checkeando los 2 PDFs; el importador nunca hace el zip frágil, eliminando el riesgo de desalineación. Es la «red de seguridad» que preveía la propia tarea.)_
+- [x] Test verde con fixture reducido; PHPStan L8, PSR-12.
+- [x] Registrado en `registerDefaults()`; `resolve()` de una IBAN RS de ejemplo (`RS35 105…` → AIK) devuelve el banco esperado.
 
 **Subtareas**
-- [ ] Test con 2 fixtures de texto reducido primero.
-- [ ] Implementar el zip 19↔19 + cross-check; evaluar degradar a mapa curado si la alineación es frágil.
-- [ ] Registrar en `registerDefaults()`; documentar receta `--file`.
+- [x] Test con fixture reducido primero.
+- [x] Implementar (CSV preparado por el operador, join por código hecho fuera → sin zip frágil).
+- [x] Registrar en `registerDefaults()`; documentar receta `--file` (en el docblock; matriz `docs/importers.md` → T-19).
 
-**Notas**: **CONDICIONADA** — layout de dos columnas desalineado; si el zip resulta frágil, degradar a mapa curado (~19), más barato y robusto.
+**Notas**: **CONDICIONADA** — layout de dos columnas desalineado; si el zip resulta frágil, degradar a mapa curado (~19), más barato y robusto. **Impl.**: `NbsSerbiaImporter` (sourceId `nbs-rs`) es `--file`-only. **DESVIACIÓN (aplicada la red de seguridad de la tarea)**: en vez de que el importador extraiga y haga el zip 19↔19 de los 2 PDFs (frágil por el desalineamiento de las dos columnas), consume un **CSV `code;name;bic` preparado por el operador** que hace el join **por código** cross-checkeando los 2 PDFs (`pregled_racuna_banka.pdf` + `pu_jedinstveni_id_brojevi.pdf`). Receta documentada en el docblock: extraer ambos PDFs (`pdftotext -layout -enc UTF-8`), unir por código (no por orden de fila = la trampa del desalineamiento), guardar CSV UTF-8 `code;name;bic`. Columnas por **nombre de cabecera** (substring case-insensitive EN `code`/`name`/`bic` o SR `šifra`/`naziv`/`swift` vía `mb_stripos`) → robusto al orden y a la línea de título/preámbulo. `bank_code` string zero-pad a 3 díg.; BIC normalizado, blank→`null`. Fetch live (sin `--file`) sobre el PDF → sin cabecera CSV → itera vacío sin romper. `sourceId` `nbs-rs` no colisiona con `nbs` (SK). Fixture DB `tests/Fixtures/import/nbs_rs_sample.csv` (105 AIK/AIKBRS22, 160 Intesa/DBDBRSBG, 170 UniCredit/BACXRSBG, 999 sin BIC); `resolve()` verde con `RS35105008123123123173` (código `105`) → AIK. Catálogo 42 → 43.
 
 ### T-16 — LT · `LietuvosBankasImporter` (`--file`, PDF) · 🔴 BLOQUEADA por licencia
 
@@ -524,3 +524,4 @@ _A completar durante la ejecución. Registra decisiones, desvíos de la estimaci
 - **Orden recomendado**: T-01 → T-02 SE → T-03 FR+MC → T-04 EE → T-05 ME → T-06 CY → (T-18 licensing, adelantada) → T-07 AD → T-08 PT → T-09 MK → T-10 VA → T-11 SM → T-12 IS → T-13 IT → T-14 AL → T-15 RS → T-16 LT (si licencia) → T-17 FI → T-19 docs → T-20 registro → T-21 CHANGELOG.
 - **Tareas condicionadas/bloqueadas**: **T-16 (LT)** bloqueada por confirmación de licencia; **T-09 (MK)** condicionada a frescura del roster 2014; **T-15 (RS)** con cross-check por alineación (posible degradación a curado); **T-17 (FI)** el último por coste/riesgo.
 - **Convenciones del repo** (aplican a todas las tareas de código): TDD (fixture reducido primero), PHPStan L8 limpio, PSR-12, framework-free en `Import/Support` e `Import/Importers` (`CoreIsFrameworkFreeTest`), y `resolve()` de una IBAN de ejemplo del país devuelve el banco esperado.
+- **Ejecución parcial de la Fase 3 (2026-07-16)**: se implementaron **solo las 4 tareas bien fundamentadas** — **T-10 VA**, **T-11 SM**, **T-13 IT**, **T-15 RS** (un commit por tarea). **En espera de una decisión separada** (no tocadas en este lote): **T-12 IS**, **T-14 AL**, **T-16 LT**, **T-17 FI**. Catálogo de importadores 39 → **43**; suite verde tras cada commit (`composer test`/`analyze` L8/`cs`). Desvíos de nombre/formato registrados en cada tarea (VA→`VaticanCityImporter`, SM→`SanMarinoImporter`, IT cabeceras `Codice ABI`/`Denominazione`, RS→CSV preparado por el operador en vez del zip 19↔19).

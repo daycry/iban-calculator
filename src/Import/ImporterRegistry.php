@@ -36,6 +36,7 @@ use Daycry\Iban\Import\Importers\NationalBankOfPolandImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfUkraineImporter;
 use Daycry\Iban\Import\Importers\NbrmImporter;
+use Daycry\Iban\Import\Importers\NbsSerbiaImporter;
 use Daycry\Iban\Import\Importers\OenbImporter;
 use Daycry\Iban\Import\Importers\RegafiImporter;
 use Daycry\Iban\Import\Importers\SanMarinoImporter;
@@ -265,6 +266,11 @@ class ImporterRegistry
         // convenzionate" page: name-only (no BIC), partial (F24-adhering banks
         // only), ABI zero-padded to 5 digits.
         $this->register(new AgenziaEntrateF24Importer());
+
+        // RS is `--file`-only: the NBS data lives in two misaligned-layout PDFs,
+        // so it consumes an operator-prepared `code;name;bic` CSV built by
+        // cross-checking them.
+        $this->register(new NbsSerbiaImporter());
     }
 
     private static function key(string $countryCode, string $sourceId): string
