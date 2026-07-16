@@ -330,7 +330,7 @@ Horas y tokens **base** (sin margen +20 %).
 - [x] `rows()` mapea `Codice ABI` con **zero-pad a 5 díg.** → nombre; sin BIC.
 - [x] Test verde con fixture HTML reducido (incluye un ABI sin ceros para validar el zero-pad); PHPStan L8, PSR-12; framework-free.
 - [x] Registrado en `registerDefaults()`; `resolve()` de una IBAN IT de ejemplo (ABI 5 díg.) devuelve el banco esperado.
-- [ ] `docs/importers.md` documenta la **parcialidad** (~400 bancos F24) y que la fuente ABI/CAB canónica es de pago (tier D). _(Diferido a **T-19** / Fase 4 — la matriz de `docs/importers.md` se cierra allí con el set estable, como en T-08 PT. Los caveats sí están ya en el docblock del importador.)_
+- [x] `docs/importers.md` documenta la **parcialidad** (~400 bancos F24) y que la fuente ABI/CAB canónica es de pago (tier D). _(Cerrado en **T-19**: la fila IT de la tabla de importadores anota "name only (no BIC), partial (F24-adhering banks)" y la matriz de cobertura lista la fuente canónica ABI/CAB SIA-Nexi como tier D.)_
 
 **Subtareas**
 - [x] Test con fixture HTML reducido primero.
@@ -459,7 +459,7 @@ Horas y tokens **base** (sin margen +20 %).
 ### T-19 — `docs/importers.md`: matriz/contadores de cobertura + DK tier D
 
 - **Descripción**: actualizar la matriz de cobertura y los contadores (24 → 30 → 33 → hasta 41/42), añadir las recetas `--file` por país (PT/MK/LT/RS/FI) y **documentar DK (+FO/GL) como tier D** (sin fuente abierta legible; `registreringsnumre.dk` de pago y prohíbe copia; Finanstilsynet PDF 2011).
-- **Estado**: borrador
+- **Estado**: completado
 - **Tiempo**: est. 2,5h · real —
 - **Previsión IA**: 0,12 M in / 0,04 M out tok · ≈ 4,4 €
 - **Dependencias**: set de importadores estable (Fases 0-3)
@@ -467,14 +467,14 @@ Horas y tokens **base** (sin margen +20 %).
 - **Cubre (tests)**: — (sin UI)
 
 **Criterios de aceptación**
-- [ ] Matriz y contadores de cobertura actualizados (hasta 41/42); una fila por importador nuevo.
-- [ ] Recetas `--file` documentadas (PT/MK/LT/RS/FI, incl. `pdftotext -layout`).
-- [ ] DK (+FO/GL) documentado como **tier D** con el motivo.
+- [x] Matriz y contadores de cobertura actualizados (**44 importadores**, SEPA **38/42**); una fila por importador nuevo (14 filas añadidas: SE/FR/MC/EE/ME/CY/AD/PT/MK/VA/SM/IT/RS/FI).
+- [x] Recetas `--file` documentadas (PT/MK/RS/FI, incl. `pdftotext -layout`); nueva sección "Source shapes: HTML, offline `--file`, and curated data".
+- [x] DK (+FO/GL) documentado como **tier D** con el motivo; IS/AL/LT sacados de "no viable" a un bucket propio "documented, deferred (source exists but not shipped)".
 
 **Subtareas**
-- [ ] Actualizar la matriz y contadores; añadir recetas `--file`; añadir la fila/sección DK tier D.
+- [x] Actualizar la matriz y contadores; añadir recetas `--file`; añadir la fila/sección DK tier D.
 
-**Notas**: se cierra con el set de importadores estable (tras Fases 1-3).
+**Notas**: se cierra con el set de importadores estable (tras Fases 1-3). **Impl.**: `docs/importers.md` reescrito al estado de este release: contador **44** (intro, TOC, tabla `iban:update`, overview, custom-importer), tabla de importadores con las 14 filas nuevas (fuente/formato/licencia), nueva sección **"Source shapes"** documentando `HtmlTableReader` (CY landing/EE/ME/IT), los importadores offline `--file` PDF/CSV (PT/MK/RS/FI) y el patrón curado (AD/VA/SM). **Matriz de cobertura**: SEPA 24 → **38/42**; grupos "Covered (44)" ampliados; **FI sacado de "deferred"** (ahora construido); nuevo bucket **"Documented, deferred (source exists but not shipped)"** con IS (código 4 díg. = banco+sucursal, sin lista RB pública), AL (KIB solo en PDF regulatorio bot-blocked), LT (PDF con marca "LB INTERNAL", licencia sin confirmar); **DK (+FO/GL) como tier D** con el motivo confirmado (registreringsnumre.dk de pago + prohíbe copia; Finanstilsynet PDF 2011). Ancla `#documented-deferred-source-exists-but-not-shipped` referenciada desde `licensing.md`. **CY** añadido a la sección `.xlsx`/offline. Cierra el criterio diferido de T-13 (parcialidad IT).
 
 ### T-20 — `ImporterRegistry`: consolidar registro y docblock
 

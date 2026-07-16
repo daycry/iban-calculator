@@ -1,13 +1,15 @@
 # Bank-data importers
 
 Reference for the importer subsystem: the `ImporterInterface` contract, the `iban:update` command, the
-30 bundled official-source importers, the bank-level resolution model, the EPC SEPA Register importer,
+44 bundled official-source importers, the bank-level resolution model, the EPC SEPA Register importer,
 how provenance is stored, and how to write a custom importer. See [`docs/licensing.md`](licensing.md)
-first for *why* this package ships zero bundled bank data and imports everything on-demand instead.
+first for *why* this package ships zero bundled bank data (with one narrow, factual curated exception)
+and imports everything on-demand instead.
 
 - [Overview](#overview)
 - [`iban:update` usage](#ibanupdate-usage)
-- [The 30 bundled importers](#the-30-bundled-importers)
+- [The 44 bundled importers](#the-44-bundled-importers)
+- [Source shapes: HTML, offline `--file`, and curated data](#source-shapes-html-offline---file-and-curated-data)
 - [Coverage matrix](#coverage-matrix)
 - [Bank-level resolution: why `branch_code` is `null`](#bank-level-resolution-why-branch_code-is-null)
 - [The EPC SEPA Register importer](#the-epc-sepa-register-importer)
@@ -23,7 +25,7 @@ Four pieces make up the importer subsystem:
 |---|---|---|---|
 | `ImporterInterface` | `src/Contracts/ImporterInterface.php` | Yes | Per-`(country, source)` contract: describes the source and yields normalized rows. |
 | `ImportReport` | `src/Import/ImportReport.php` | Yes | Immutable result of one import run: `fetched`/`imported`/`skipped`/`dryRun`/`messages`. |
-| `ImporterRegistry` | `src/Import/ImporterRegistry.php` | Yes | In-memory catalog of `ImporterInterface` instances, keyed by `(countryCode, sourceId)`. `registerDefaults()` wires in all 30 bundled importers. |
+| `ImporterRegistry` | `src/Import/ImporterRegistry.php` | Yes | In-memory catalog of `ImporterInterface` instances, keyed by `(countryCode, sourceId)`. `registerDefaults()` wires in all 44 bundled importers. |
 | `ImportRunner` | `src/Import/ImportRunner.php` | **No** (uses `Models\BankModel`) | Runs one importer's `rows()` against the `banks` table, upserting by natural key and stamping provenance. |
 | `UpdateCommand` | `src/Commands/UpdateCommand.php` | No (CI4 `spark` command) | `iban:update` — lists/selects/runs importers, prints an `ImportReport`. |
 
@@ -58,7 +60,7 @@ iban:update [--all] [--country=<cc>] [--source=<id>] [--dry-run] [--file=<path>]
 
 | Flag | Meaning |
 |---|---|
-| `--all` | v1.2: run **every** bundled importer (all 30) in one invocation instead of just one selected source — see the full `--all` reference (failure isolation, aggregate summary, the `--country`/`--file` interactions) in [`docs/usage.md`](usage.md#spark-commands)'s `iban:update` entry. |
+| `--all` | v1.2: run **every** bundled importer (all 44) in one invocation instead of just one selected source — see the full `--all` reference (failure isolation, aggregate summary, the `--country`/`--file` interactions) in [`docs/usage.md`](usage.md#spark-commands)'s `iban:update` entry. |
 | `--country=<cc>` | Restrict to importers for this ISO 3166-1 alpha-2 country code (e.g. `AT`). |
 | `--source=<id>` | Restrict to the importer with this source id (e.g. `oenb`). |
 | `--dry-run` | Preview: count what would be imported/skipped without writing to the `banks` table. |
@@ -73,7 +75,7 @@ $ php spark iban:update
 SWIFT IBAN Registry is non-commercial/no-derivatives (not bundled).
 SWIFT BIC Directory (SwiftRef) is proprietary (not bundled).
 National lists require per-source attribution.
-Registered importers: 30
+Registered importers: 44
 +---------+------------------+-------------------------------+------------------------------------+
 | Country | Source           | Name                          | License                             |
 +---------+------------------+-------------------------------+------------------------------------+
@@ -83,13 +85,13 @@ Registered importers: 30
 | NL      | betaalvereniging | Betaalvereniging Nederland    | Betaalvereniging Nederland (see terms) |
 | ES      | bde              | Banco de España               | Banco de España                     |
 | CZ      | cnb              | Czech National Bank           | Czech National Bank (cite source, no changes) |
-| ...     | ...              | ... (22 more)                  | ...                                  |
+| ...     | ...              | ... (36 more)                  | ...                                  |
 | GB/GI/IE/LV/RO | epc       | European Payments Council (SEPA Register) | EPC SEPA Register (credit EPC, no resale as-is) |
 +---------+------------------+-------------------------------+------------------------------------+
 Select one with --country=/--source= to run it (add --dry-run to preview).
 ```
 
-(The full 30-row listing is in [the table below](#the-30-bundled-importers) — the block above is
+(The full 44-row listing is in [the table below](#the-44-bundled-importers) — the block above is
 abbreviated for readability.) Selecting a source (by `--country`, `--source`, or both) runs each match
 through `ImportRunner` against `Config\Iban::$table`/`$dbGroup`, and prints its `ImportReport`:
 
@@ -134,12 +136,17 @@ only when nothing was skipped.)
 A selection matching no registered importer prints `No bundled importer matches that selection.` and
 exits `0` (no exception).
 
-## The 30 bundled importers
+## The 44 bundled importers
 
-None of these ship any actual data in the repository — running them is always something the operator
-does deliberately, against a live network fetch or a locally downloaded/exported file. `--source=` is
-shared by `LI` and `CH` (both `six`, the same SIX Bank Master V3 file, filtered by country) and by the
-five EPC registrations (all `epc`, disambiguated by `--country=`).
+Most of these ship **no** actual data in the repository — running them is always something the operator
+does deliberately, against a live network fetch or a locally downloaded/exported file. The three
+**curated** micro-jurisdiction importers (AD, VA, SM) are the one narrow exception: they yield a small,
+independently-authored *factual* map bundled as `src/Import/Importers/data/<cc>.php` (see
+[`docs/licensing.md`](licensing.md#curated-micro-jurisdiction-bank-data-the-narrow-exception) and
+[Source shapes](#source-shapes-html-offline---file-and-curated-data) below). `--source=` is shared by
+`LI` and `CH` (both `six`, the same SIX Bank Master V3 file, filtered by country), by the five EPC
+registrations (all `epc`, disambiguated by `--country=`), and by `FR` and `MC` (both `regafi`, the same
+REGAFI dataset — Monaco's entities carry a French CIB, so one importer resolves both).
 
 | Country | `--source=` | Publisher | Format | License |
 |---|---|---|---|---|
@@ -173,6 +180,20 @@ five EPC registrations (all `epc`, disambiguated by `--country=`).
 | IE | `epc` | European Payments Council (SEPA Register) | `,`-CSV, one file per SEPA scheme | EPC SEPA Register (credit EPC, no resale as-is) |
 | LV | `epc` | European Payments Council (SEPA Register) | `,`-CSV, one file per SEPA scheme | EPC SEPA Register (credit EPC, no resale as-is) |
 | RO | `epc` | European Payments Council (SEPA Register) | `,`-CSV, one file per SEPA scheme | EPC SEPA Register (credit EPC, no resale as-is) |
+| SE | `bankinfrastruktur` | Bankinfrastruktur BankData (community mirror of the official BSAB list) | `\|`-PSV, UTF-8 | MIT (Bankinfrastruktur BankData) |
+| FR | `regafi` | REGAFI (ACPR / Banque de France) | JSON (Opendatasoft export), UTF-8 — `cib` is a serialized JSON array, expanded one row per 5-digit code; name only, no BIC | Licence Ouverte / Etalab (attribution) |
+| MC | `regafi` | REGAFI (ACPR / Banque de France) | JSON — same dataset as FR, filtered to Monaco (its entities carry a French CIB) | Licence Ouverte / Etalab (attribution) |
+| EE | `pangaliit` | Eesti Pangaliit (Estonian Banking Association) | HTML table (via `HtmlTableReader`); 2-digit code, handles doubles (Luminor 96/17) and leading zero (TBB 00) | Eesti Pangaliit (factual list) |
+| ME | `cbcg` | Central Bank of Montenegro | HTML table (via `HtmlTableReader`); 3-digit code, public-entity range 714-931 filtered out | Central Bank of Montenegro |
+| CY | `cbc` | Central Bank of Cyprus | Landing scrape (regex the date-stamped href) + `.xlsx` (via `XlsxReader`), browser User-Agent (WAF 403s otherwise) | Central Bank of Cyprus (Terms of Use, attribution) |
+| AD | `andorran-banking` | Andorran Banking (curated) | Curated `data/ad.php` (4 codes / 3 banks; BIC cross-checked) | curated (factual, non-copyrightable) |
+| PT | `bportugal` | Banco de Portugal (SICOI) | Offline `--file` text pre-extracted from the SICOI PDF (`pdftotext -layout`); 4-digit code, mojibake-repaired accents | Banco de Portugal (attribution) |
+| MK | `nbrm` | NBRM (National Bank of North Macedonia) | Offline `--file` CSV exported from the legacy `.xls`/`.docx` (Cloudflare-gated); 3-digit code, Windows-1251 Cyrillic fallback | NBRM (regulatory roster) |
+| VA | `vatican` | Vatican City / IOR (curated) | Curated `data/va.php` (single entry: 001 = IOR / IOPRVAVX) | curated (factual, non-copyrightable) |
+| SM | `bcsm` | Banca Centrale di San Marino (curated) | Curated `data/sm.php` (4 banks by 5-digit ABI) | curated (factual, non-copyrightable) |
+| IT | `agenzia-entrate` | Agenzia delle Entrate (F24) | HTML table (via `HtmlTableReader`); `Codice ABI` zero-padded to 5 digits, name only (no BIC), partial (F24-adhering banks) | Agenzia delle Entrate (F24, partial list) |
+| RS | `nbs-rs` | National Bank of Serbia (NBS) | Offline `--file` operator-prepared `code;name;bic` CSV (join of two misaligned NBS PDFs); 3-digit code | National Bank of Serbia (regulatory directory) |
+| FI | `finanssiala` | Finance Finland (Finanssiala ry) | Offline `--file` CSV pre-extracted from the PDF; variable-length `Rahalaitostunnus` expanded to the fixed 3-digit bank_code (ranges/lists), 4-digit post-2024 codes dropped | Finanssiala ry (no reuse terms; fetch-only) |
 
 The License column above is the exact string each importer's `license()` returns (and thus what gets
 stored verbatim in `banks.source_license` — see
@@ -180,7 +201,14 @@ stored verbatim in `banks.source_license` — see
 that short string, which aren't part of the stored value: Deutsche Bundesbank permits free use with
 mandatory attribution; Betaalvereniging Nederland's "(see terms)" means written consent is needed to
 redistribute; Banco de España requires attribution and no alteration; Hellenic Bank Association (HEBIC)
-and Central Bank of Azerbaijan state no explicit license.
+and Central Bank of Azerbaijan state no explicit license. Among the SEPA-coverage batch: REGAFI (FR/MC)
+is Licence Ouverte / Etalab (mandatory attribution + date); the SE mirror is MIT while the *official*
+BSAB list it mirrors is not open (PDF/DOCX); EE/ME/IT state no explicit reuse license (consumed as
+fetch-on-demand factual lists); Banco de Portugal permits reuse with attribution; **Finanssiala ry
+(FI) states no reuse terms at all**, so its importer is strictly fetch-only from an operator-supplied
+`--file` and its data is never bundled; the three curated sources (AD/VA/SM) carry
+`curated (factual, non-copyrightable)` per
+[the curated-data exception](licensing.md#curated-micro-jurisdiction-bank-data-the-narrow-exception).
 
 Each importer's class docblock (`src/Import/Importers/*.php`) documents its exact column
 layout/positions, encoding quirks, and any row-filtering/dedup rules (e.g. OeNB and Bundesbank dedupe
@@ -190,13 +218,42 @@ an importer against a freshly downloaded file — publishers change layouts with
 docblock says so explicitly ("CAVEAT: parsing targets the documented/observed format as of this
 release").
 
+## Source shapes: HTML, offline `--file`, and curated data
+
+The SEPA-coverage batch added three capabilities beyond the CSV/fixed-width/XML/`.xlsx`/JSON shapes the
+earlier importers use:
+
+- **HTML tables — `Import\Support\HtmlTableReader`.** A small framework-free reader
+  (`DOMDocument`/`libxml`, requires `ext-dom` — the HTML analogue of `XlsxReader`): `readTables()`
+  returns every `<table>` as a 0-indexed grid of cell strings, and the static `locateHeader()` finds a
+  header row and its columns by name. Used by **EE** (`pangaliit`), **ME** (`cbcg`), **IT**
+  (`agenzia-entrate`), and by **CY** (`cbc`, to scrape the date-stamped `.xlsx` href off the landing
+  page). HTML scraping is structurally fragile — every consumer's docblock documents the exact
+  header/column assumptions and warns to re-verify after a site redesign.
+- **Offline `--file` text/PDF and operator-prepared CSV.** This package still ships **no PDF reader**;
+  where the authoritative source is a PDF (or a Cloudflare/bot-blocked download), the importer is
+  `--file`-only and consumes text/CSV the operator pre-extracts. The documented recipe is
+  `pdftotext -layout -enc UTF-8 <pdf> out.txt`. **PT** (`bportugal`) parses the extracted SICOI text
+  directly; **RS** (`nbs-rs`) and **FI** (`finanssiala`) consume a small operator-prepared
+  semicolon-CSV (RS joins two misaligned NBS PDFs *by code*; FI expands a variable-length
+  `Rahalaitostunnus` to the fixed 3-digit `bank_code`); **MK** (`nbrm`) consumes a CSV exported from the
+  legacy `.xls`/`.docx`. A live, no-`--file` call on any of these fetches the raw source bytes, finds no
+  parseable data, and gracefully yields nothing rather than erroring.
+- **Curated micro-jurisdiction data.** For SEPA micro-jurisdictions with *no* machine-readable directory
+  at all, a curated importer yields a constant, independently-authored factual map from
+  `src/Import/Importers/data/<cc>.php`, independent of `--file`/network: **AD** (`andorran-banking`, 4
+  codes / 3 banks), **VA** (`vatican`, the single IOR entry), **SM** (`bcsm`, 4 banks by ABI). This is
+  the one deliberate exception to "ship no bank data"; see
+  [`docs/licensing.md`](licensing.md#curated-micro-jurisdiction-bank-data-the-narrow-exception).
+
 ## Coverage matrix
 
-30 of the 78 registry countries now have a bundled importer. Of the 42 SEPA-scheme countries, **24 now
-resolve** through a bundled importer (the 19 non-EPC SEPA countries below, plus GB/GI/IE/LV/RO via the
-EPC SEPA Register).
+44 of the 78 registry countries now have a bundled importer. Of the 42 SEPA-scheme countries, **38 now
+resolve** through a bundled importer — up from 24 before the SEPA-coverage batch, which added 14
+(SE, FR, MC, EE, ME, CY, AD, PT, MK, VA, SM, IT, RS, FI). The four SEPA countries still unresolved are
+**AL, IS, LT** (documented, deferred — see below) and **DK** (tier D — no open source).
 
-**Covered (30)** — grouped by source shape:
+**Covered (44)** — grouped by source shape:
 
 | Group | Countries |
 |---|---|
@@ -207,28 +264,51 @@ EPC SEPA Register).
 | v1.2, JSON | IL, UA, KZ |
 | v1.2, shared SIX source | LI (alongside CH) |
 | v1.2, EPC SEPA Register | GB, GI, IE, LV, RO |
+| SEPA batch, PSV | SE |
+| SEPA batch, JSON (REGAFI, one importer) | FR, MC |
+| SEPA batch, HTML (`HtmlTableReader`) | EE, ME, IT (+ CY, which scrapes the landing then reads `.xlsx`) |
+| SEPA batch, offline `--file` (PDF/CSV) | PT, MK, RS, FI |
+| SEPA batch, curated (`data/<cc>.php`) | AD, VA, SM |
 
-**Deferred** — a plausible source exists but was deliberately not shipped:
+The SEPA-coverage batch **removed FI from "deferred"**: v1.2 had parked it (the machine-readable file
+was stale and its `rahalaitostunnus` is variable-length), but the batch ships `FinanceFinlandImporter`,
+an offline `--file` importer with a bespoke range-expansion mapper that turns the variable-length source
+code into the fixed 3-digit `bank_code` (4-digit post-2024 codes are a documented, reported loss). FI
+keeps its v1.1 `FinnishNationalCheckValidator` too.
 
-| Country | Why |
-|---|---|
-| FI | Finance Finland's `rahalaitostunnus` is only 1–3 digits, and cannot be zero-padded into the 3-digit IBAN `bank_code` the registry parses without risking a wrong mapping; the machine-readable file is also stale (dated 2022, while the PDF is refreshed) and its license is unstated. FI keeps its v1.1 `FinnishNationalCheckValidator` (Luhn check-digit validation) instead of a bank-directory importer. |
-| BY | A viable-looking source exists (NBRB's `bic-rb.xlsx`), but shipping it raises a sanctions/compliance concern; the site also blocked first-hand format verification, its license is unstated, and the bank-code mapping would be a BIC-prefix derivation, not an explicit column. Documented, not built. |
+**Documented, deferred (source exists but not shipped)** — three SEPA countries where a source was found
+but deliberately left unbuilt this pass (reasoning from the initiative's `research.md`):
 
-**Not viable** — no clean, open, machine-readable, IBAN-bank-code-mapping source was found (buckets
-below; full per-country reasoning is in the v1.2 research record):
+| Country | `bank_code` | Why not shipped |
+|---|---|---|
+| IS | 4 digits | The 4-digit code is bank + branch, and there is no open, full Reiknistofa bankanna (RB) directory to author a complete map from; it doesn't fit exact-code resolution. A bank-level curated prefix map was scoped (D4) but deferred rather than authored without an authoritative branch list. |
+| AL | 3 digits | The KIB → bank mapping lives only in the Bank of Albania IBAN-regulation PDF (Annex 4), and `bankofalbania.org` bot-blocks automated fetches; curating ~13 banks cross-checked against EPC/SWIFT was scoped but deferred. |
+| LT | 5 digits | Lietuvos bankas publishes a complete financial-institution PDF (221 rows, code → BIC → name), but its **licence is unconfirmed** — the file carries an "LB INTERNAL" / "LB VIDAUS (ECB INTERNAL)" watermark despite being downloadable — so the enrichment is not shipped until the terms are confirmed. |
+
+**Not viable — DK (+FO/GL), tier D.** Denmark has **no open, machine-readable, reusable** source for
+its 4-digit `registreringsnummer` → bank mapping: the authoritative live registry
+(`registreringsnumre.dk`, Mastercard Payment Services Denmark) is a paid subscription whose licence
+**forbids reproduction and commercial use**, and the only free artefact (a Finanstilsynet PDF) is stale
+(~2011). The Faroe Islands (**FO**) and Greenland (**GL**) share Denmark's `registreringsnummer` system,
+so they inherit the same blocker (and are non-SEPA besides). DK/FO/GL are documented here and **not
+built**; the only theoretical path is an operator-supplied `--file` under their own licence risk.
+
+**Not viable — other non-SEPA buckets** (no clean, open, machine-readable, IBAN-bank-code-mapping source;
+full per-country reasoning is in the v1.2 research record):
 
 | Bucket | Countries |
 |---|---|
-| Paywalled | FR, IT (GB's EISCD was also paywalled — GB is now covered via the EPC SEPA Register instead) |
-| PDF-only | PT, SE, DK, LT, CY, RS, EG, LB, MC, MU, PK, QA, SC, TN, LC |
-| Portal/HTML-only, no bulk export | AL, BA, ME, MK, EE, SA, SV, TL, KW, JO, SM, BH, VA, AD |
+| Paywalled / subscription only | (SEPA FR and IT are now covered via REGAFI / the Agenzia delle Entrate F24 list; the canonical paid registries — France's FIB, Italy's SIA-Nexi ABI/CAB — remain tier D) |
+| PDF-only, non-SEPA | EG, LB, MU, PK, QA, SC, TN, LC |
+| Portal/HTML-only, non-SEPA | BA, SA, SV, TL, KW, JO, BH |
 | SWIFT-only (`bank_code` = BIC prefix, non-SEPA so not in the EPC register) | DO, VG, IQ, ST, LY, MR, AE, CR, GT, XK |
-| Other (inherit another country's blocker, no directory at all, or fail on licensing/freshness) | FO and GL (use Denmark's `registreringsnummer` system — see DK, PDF-only), IS (no official directory of any kind; SWIFT-only in practice), PS (PMA's directory is address-only, currently unreachable, and PS's `bank_code` is itself SWIFT-derived), TR (the only downloadable file is a stale one-off 2022 export with no maintained refresh path or stated license) |
+| Other | PS (PMA's directory is address-only, currently unreachable, and PS's `bank_code` is itself SWIFT-derived), TR (the only downloadable file is a stale one-off 2022 export with no maintained refresh path or stated license), BY (a viable-looking NBRB `bic-rb.xlsx` exists but raises a sanctions/compliance concern, blocked format verification, unstated licence, BIC-prefix-derived code) |
 
 IE, LV, RO, GI and GB were previously bucketed as SWIFT-only/portal-only/paywalled in the pre-EPC
 research pass — they moved to "covered" once the EPC SEPA Register importer shipped, since the SEPA
-Register publishes exactly the BIC each of their IBANs' `bank_code` is derived from.
+Register publishes exactly the BIC each of their IBANs' `bank_code` is derived from. Likewise, most of
+the SEPA-batch countries above were previously in the PDF-only / portal-only buckets and moved to
+"covered" once `HtmlTableReader`, the offline `--file` importers, and the curated-data exception landed.
 
 ## Bank-level resolution: why `branch_code` is `null`
 
@@ -281,9 +361,11 @@ under `epc`).
 
 ## `.xlsx` sources and offline-only imports
 
-Seven importers (BE, HR, LU, MT, HU, NO, GE) consume a genuine `.xlsx` (OOXML) spreadsheet, read
+Eight importers (BE, HR, LU, MT, HU, NO, GE, and CY) consume a genuine `.xlsx` (OOXML) spreadsheet, read
 natively via `Import\Support\XlsxReader` (`ZipArchive` + `SimpleXMLElement`, requires `ext-zip`) — this
-package deliberately does not depend on a full spreadsheet library such as PhpSpreadsheet.
+package deliberately does not depend on a full spreadsheet library such as PhpSpreadsheet. CY differs in
+that it first scrapes the Central Bank of Cyprus IBAN landing page for the date-stamped `.xlsx` href
+(with a browser User-Agent, since the WAF 403s otherwise), then reads that file with `XlsxReader`.
 `XlsxReader::readFirstSheet()` returns the first worksheet as a plain 0-indexed grid of cell strings;
 each importer locates its own header row and column-by-name within that grid (see each class's
 `locateHeader()`). v1.1's NL (`betaalvereniging`) importer predates `XlsxReader` and takes a different
@@ -303,6 +385,13 @@ import from a file you download yourself) for these:
   (403); offline `--file` is the tested/supported path.
 - **KZ** (`nbk`) — the data.egov.kz dataset API requires a portal-issued API key this package doesn't
   ship; offline `--file` is the tested/supported path.
+- **CY** (`cbc`) — the download href is date-stamped and rotates; the WAF requires a browser
+  User-Agent. A live fetch scrapes the stable landing page for the current href, but `--file` is the
+  reliable fallback.
+- **PT** (`bportugal`), **MK** (`nbrm`), **RS** (`nbs-rs`), **FI** (`finanssiala`) — PDF- or
+  Cloudflare-gated sources with no PDF reader in the package; **offline `--file`** (operator-extracted
+  text/CSV) is the only supported path. See
+  [Source shapes](#source-shapes-html-offline---file-and-curated-data).
 
 ## Provenance: how imported data is stored
 
@@ -358,7 +447,7 @@ final class MyImporterRegistry extends ImporterRegistry
 {
     protected function registerDefaults(): void
     {
-        parent::registerDefaults(); // keep the 30 bundled importers
+        parent::registerDefaults(); // keep the 44 bundled importers
         $this->register(new MyBankListImporter());
     }
 }
@@ -379,7 +468,7 @@ $report = (new ImportRunner())->run(new MyBankListImporter(), new BankModel(), d
 $report->fetched; $report->imported; $report->skipped; $report->messages;
 ```
 
-Keep the same licensing discipline this package follows for its own 30 importers (see
+Keep the same licensing discipline this package follows for its own 44 importers (see
 [`docs/licensing.md`](licensing.md)): don't bundle the source's actual data file in your app's
 repository if its license doesn't allow redistribution — ship the importer code, and let the operator
 supply the data via a live fetch or `--file`.
