@@ -38,12 +38,12 @@ use Daycry\Iban\Import\Importers\Concerns\NormalizesStrings;
  *   {@see ImporterInterface::rows()}'s optional-`bic` contract.
  * - **Country filter**: a record is kept only when one of its country fields
  *   ({@see self::COUNTRY_FIELDS}) matches this instance's country
- *   ({@see self::COUNTRY_TOKENS}). ASSUMPTION: the live dataset exposes the
- *   entity's country under one of those field names with a `FRANCE`/`MONACO`
- *   (or `FR`/`MC`) value -- validate against the live export before
- *   production use; a record with no recognizable country field is treated
- *   as "not this country" (skipped) rather than defaulted, so France and
- *   Monaco never bleed into each other.
+ *   ({@see self::COUNTRY_TOKENS}). Confirmed live 2026-07-16: the dataset
+ *   exposes the country in the `pays` field as the full uppercase name
+ *   `FRANCE` / `MONACO` (Monaco entities sit in the same dataset and carry a
+ *   CIB, e.g. `11999`, `10160`). A record with no recognizable country field
+ *   is treated as "not this country" (skipped) rather than defaulted, so
+ *   France and Monaco never bleed into each other.
  * - **Dedup by `bank_code`**: first name seen for a CIB wins, defensive
  *   against the same code appearing under more than one record.
  *

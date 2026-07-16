@@ -22,11 +22,11 @@ use Daycry\Iban\Import\Support\HtmlTableReader;
  *   page, fetched with a plain `file_get_contents()` and parsed as HTML. Also
  *   accepts a saved copy via `iban:update --file=...` (the tested path).
  * - Format: a single `<table>` with a header row this importer locates by
- *   name via {@see HtmlTableReader::locateHeader()}. ASSUMPTION: the column
- *   labels are `Bank` / `Bank code` / `BIC` -- validate against the live page
- *   before production use; if the labels differ (e.g. an Estonian-language
- *   edition), the header won't be located and nothing is imported (the
- *   documented HTML-scraping fragility, shared by every importer here).
+ *   name via {@see HtmlTableReader::locateHeader()}. The column labels are
+ *   `Bank` / `BIC / SWIFT` / `IBAN identifier` (confirmed live 2026-07-16) --
+ *   the 2-digit code sits in the `IBAN identifier` column. If a site redesign
+ *   changes the labels the header won't be located and nothing is imported
+ *   (the documented HTML-scraping fragility, shared by every importer here).
  * - `bank_code` = the 2-digit code, kept as a STRING so a leading zero
  *   survives (e.g. TBB = `00`). A code cell can list MORE THAN ONE code
  *   (Luminor is assigned both `96` and `17`); every 2-digit code found in the
@@ -53,8 +53,8 @@ final class EstonianBankingAssociationImporter implements ImporterInterface
     use NormalizesStrings;
 
     private const HEADER_NAME = 'Bank';
-    private const HEADER_CODE = 'Bank code';
-    private const HEADER_BIC  = 'BIC';
+    private const HEADER_CODE = 'IBAN identifier';
+    private const HEADER_BIC  = 'BIC / SWIFT';
 
     /** Matches each standalone 2-digit code inside a (possibly multi-code) cell. */
     private const CODE_PATTERN = '/(?<!\d)\d{2}(?!\d)/';

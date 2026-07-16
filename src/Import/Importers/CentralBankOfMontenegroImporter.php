@@ -18,10 +18,13 @@ use Daycry\Iban\Import\Support\HtmlTableReader;
  *   fetched with a plain `file_get_contents()` and parsed as HTML via
  *   {@see HtmlTableReader}. Also accepts a saved copy via `iban:update
  *   --file=...` (the tested path).
- * - Format: an HTML `<table>` whose header row this importer locates by name
- *   ({@see HtmlTableReader::locateHeader()}). ASSUMPTION: the column labels
- *   are `Code` / `Name` / `BIC` -- validate against the live page before
- *   production use (the documented HTML-scraping fragility).
+ * - Format: the CBCG RTGS page carries TWO tables. The participants table
+ *   (`No.` / `Participant` / `Fixed no.`) carries no BIC; the one this
+ *   importer targets is "Banking identification codes in the RTGS system"
+ *   (`No.` / `Bank` / `BIC code` / `Fixed no.`, confirmed live 2026-07-16),
+ *   located by name via {@see HtmlTableReader::locateHeader()} -- the
+ *   participants table is skipped automatically because it lacks the `Bank`
+ *   and `BIC code` labels. The 3-digit code is the `Fixed no.` column.
  * - `bank_code` = the 3-digit participant code, kept as a STRING.
  * - **Public-entity filter**: the RTGS table mixes commercial banks with
  *   public/government participants. Codes in the 714-931 range are
@@ -49,9 +52,9 @@ final class CentralBankOfMontenegroImporter implements ImporterInterface
 {
     use NormalizesStrings;
 
-    private const HEADER_CODE = 'Code';
-    private const HEADER_NAME = 'Name';
-    private const HEADER_BIC  = 'BIC';
+    private const HEADER_CODE = 'Fixed no.';
+    private const HEADER_NAME = 'Bank';
+    private const HEADER_BIC  = 'BIC code';
 
     private const CODE_PATTERN = '/^[0-9]{3}$/';
 
