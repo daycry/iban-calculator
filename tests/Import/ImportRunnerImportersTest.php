@@ -9,6 +9,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Daycry\Iban\Iban;
 use Daycry\Iban\Import\Importers\AndorranBankingImporter;
 use Daycry\Iban\Import\Importers\BancoDeEspanaImporter;
+use Daycry\Iban\Import\Importers\BancoDePortugalImporter;
 use Daycry\Iban\Import\Importers\BankOfIsraelImporter;
 use Daycry\Iban\Import\Importers\BankOfSloveniaImporter;
 use Daycry\Iban\Import\Importers\BetaalverenigingImporter;
@@ -145,6 +146,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const REGAFI_FIXTURE           = __DIR__ . '/../Fixtures/import/regafi_sample.json';
     private const EE_FIXTURE               = __DIR__ . '/../Fixtures/import/ee_sample.html';
     private const ME_FIXTURE               = __DIR__ . '/../Fixtures/import/me_sample.html';
+    private const PT_FIXTURE               = __DIR__ . '/../Fixtures/import/bportugal_sample.txt';
 
     private const CZ_EXAMPLE_IBAN = 'CZ6508000000192000145399';
     private const GR_EXAMPLE_IBAN = 'GR1601101250000000012300695';
@@ -176,6 +178,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const ME_EXAMPLE_IBAN = 'ME56510123456789012300'; // bank code '510' = CKB
     private const CY_EXAMPLE_IBAN = 'CY17002001280000001200527600'; // bank code '002' = Bank of Cyprus
     private const AD_EXAMPLE_IBAN = 'AD1200012030200359100100'; // Entitat '0001' = Andbank (registry example)
+    private const PT_EXAMPLE_IBAN = 'PT16003400000000000000000'; // bank code '0034' = Caixa Geral de Depósitos
 
     // MOD-97-valid test IBANs for the EPC SEPA Register importer's seeded
     // banks. GB's is the SRLG example handed down with the task brief
@@ -1435,6 +1438,41 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
 
         self::assertTrue($result->isResolved());
         self::assertSame('Andorra Banc Agrícol Reig, S.A. (Andbank)', $result->bankName);
+    }
+
+    public function testBancoDePortugalImporterImportsRowsFromExtractedTextAndResolvesTheExampleIban(): void
+    {
+        $report = (new ImportRunner())->run(new BancoDePortugalImporter(), new BankModel(), false, self::PT_FIXTURE);
+
+        self::assertSame('PT', $report->countryCode);
+        self::assertSame('bportugal', $report->sourceId);
+        // 0033, 0034, 0035, 0010 = 4 rows (preamble + header skipped).
+        self::assertSame(4, $report->imported);
+
+        self::assertSame(4, $this->db->table('banks')->countAllResults());
+
+        $this->seeInDatabase('banks', [
+            'country_code'   => 'PT',
+            'bank_code'      => '0034',
+            'branch_code'    => null,
+            'name'           => 'Caixa Geral de Depósitos, S.A.', // UTF-8 accented round trip
+            'bic'            => 'CGDIPTPL',
+            'source_id'      => 'bportugal',
+            'source_license' => 'Banco de Portugal (attribution)',
+        ]);
+
+        // The preamble/header lines must not have produced rows.
+        $this->dontSeeInDatabase('banks', ['bank_code' => 'IBAN']);
+
+        // The real proof: resolving a MOD-97-valid PT IBAN (bank code '0034',
+        // WITH a branch segment the bank-level row has no exact match for)
+        // against the seeded bank-level row, via the Resolver's
+        // findByBankCode(cc, bank, null) fallback.
+        $iban   = new Iban(provider: new DatabaseProvider(new BankModel()));
+        $result = $iban->resolve(self::PT_EXAMPLE_IBAN);
+
+        self::assertTrue($result->isResolved());
+        self::assertSame('Caixa Geral de Depósitos, S.A.', $result->bankName);
     }
 
     public function testBothImportersCanCoexistInTheSameBanksTable(): void

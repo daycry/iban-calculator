@@ -18,10 +18,10 @@ Horas y tokens **base** (sin margen +20 %).
 |------|------------|-------|----------|------------------|-------------------|
 | Fase 0 — Infra | 1 | 1 | 100% | — / 9h | — / 0,44 M |
 | Fase 1 — Tier A (fetch en vivo) | 5 | 5 | 100% | — / 26h | — / 1,32 M |
-| Fase 2 — Tier B (offline `--file`) | 1 | 3 | 33% | — / 14h | — / 0,63 M |
+| Fase 2 — Tier B (offline `--file`) | 2 | 3 | 67% | — / 14h | — / 0,63 M |
 | Fase 3 — Tier C (salvedades / curación) | 0 | 8 | 0% | 0 / 46h | 0 / 2,21 M |
 | Fase 4 — Transversal | 0 | 4 | 0% | 0 / 6h | 0 / 0,34 M |
-| **TOTAL** | **7** | **21** | **33%** | **— / 101h** | **— / ≈ 4,94 M** |
+| **TOTAL** | **8** | **21** | **38%** | **— / 101h** | **— / ≈ 4,94 M** |
 
 > Cobertura objetivo por fase: Fase 1 → **30/42**, Fase 2 → **33/42**, Fase 3 → **hasta 41/42**. DK (+FO/GL) fuera (tier D). Tareas condicionadas: **T-16 (LT) bloqueada por licencia**; **T-09 (MK) condicionada a frescura**; **T-15 (RS) con cross-check por alineación**; **T-17 (FI) el último por coste/riesgo**.
 
@@ -207,7 +207,7 @@ Horas y tokens **base** (sin margen +20 %).
 ### T-08 — PT · `BancoDePortugalImporter` (`--file`, texto del PDF SICOI)
 
 - **Descripción**: importador `--file` que consume el **texto/CSV pre-extraído** del PDF SICOI (receta `pdftotext -layout`, patrón `betaalvereniging`); columna de **4 díg.** → nombre + BIC; **limpieza de mojibake** de acentos.
-- **Estado**: borrador
+- **Estado**: completado
 - **Tiempo**: est. 6h · real —
 - **Previsión IA**: 0,22 M in / 0,055 M out tok · ≈ 6,8 €
 - **Dependencias**: patrón `--file` (existe)
@@ -215,17 +215,17 @@ Horas y tokens **base** (sin margen +20 %).
 - **Cubre (tests)**: — (sin UI)
 
 **Criterios de aceptación**
-- [ ] `rows(--file)` parsea el texto pre-extraído (columnas de ancho fijo), mapea 4 díg. → nombre + BIC y **limpia el mojibake** de acentos.
-- [ ] En modo live no rompe (documentar que la landing bloquea bots → `--file`).
-- [ ] Test verde con fixture de texto-PDF reducido; PHPStan L8, PSR-12.
-- [ ] Registrado en `registerDefaults()`; `resolve()` de una IBAN PT de ejemplo (0034 CGD, 0033 BNP) devuelve el banco esperado.
+- [x] `rows(--file)` parsea el texto pre-extraído (columnas de ancho fijo), mapea 4 díg. → nombre + BIC y **limpia el mojibake** de acentos.
+- [x] En modo live no rompe (documentar que la landing bloquea bots → `--file`).
+- [x] Test verde con fixture de texto-PDF reducido; PHPStan L8, PSR-12.
+- [x] Registrado en `registerDefaults()`; `resolve()` de una IBAN PT de ejemplo (0034 CGD, 0033 BNP) devuelve el banco esperado.
 
 **Subtareas**
-- [ ] Test con fixture de texto pre-extraído reducido primero.
-- [ ] Implementar parseo posicional + limpieza de mojibake.
-- [ ] Documentar la receta `pdftotext -layout` en `docs/importers.md`; registrar en `registerDefaults()`.
+- [x] Test con fixture de texto pre-extraído reducido primero.
+- [x] Implementar parseo posicional + limpieza de mojibake.
+- [x] Documentar la receta `pdftotext -layout` en el docblock del importador (la matriz de `docs/importers.md` es T-19, Fase 4); registrar en `registerDefaults()`.
 
-**Notas**: verificar estabilidad del layout entre ediciones (existe edición 2026). `listaimeipdsp2.xlsx` es pista falsa (registro PSD2 sin códigos).
+**Notas**: verificar estabilidad del layout entre ediciones (existe edición 2026). `listaimeipdsp2.xlsx` es pista falsa (registro PSD2 sin códigos). **Impl.**: `BancoDePortugalImporter` (sourceId `bportugal`) es `--file`-only (PDF + landing bloquea bots + URL rotatoria → un fetch live devuelve el PDF/403 y `rows()` no encuentra líneas de datos → itera vacío sin romper). Receta documentada en el docblock: `pdftotext -layout -enc UTF-8 <pdf> bportugal.txt`. Parseo por línea con regex: código 4 díg. al inicio, BIC bien-formado (`[A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?`) anclado al final, nombre en medio (whitespace colapsado); fallback código+nombre sin BIC. **Limpieza de mojibake**: `decodeToUtf8()` deja pasar UTF-8 válido (receta `-enc UTF-8`) y convierte desde Windows-1252 si los bytes no son UTF-8 válido (operador sin `-enc UTF-8` → acentos Latin-1); el test genera una variante Windows-1252 al vuelo y verifica la recuperación a UTF-8. `bank_code` string de 4 díg. Fixture DB `tests/Fixtures/import/bportugal_sample.txt`; `resolve()` verde con `PT16003400000000000000000` → CGD (fallback `findByBankCode(cc, bank, null)`).
 
 ### T-09 — MK · `NbrmImporter` (`--file` CSV del `.xls`/`.docx`) · condicionada a frescura
 

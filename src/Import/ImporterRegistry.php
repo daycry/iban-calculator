@@ -7,6 +7,7 @@ namespace Daycry\Iban\Import;
 use Daycry\Iban\Contracts\ImporterInterface;
 use Daycry\Iban\Import\Importers\AndorranBankingImporter;
 use Daycry\Iban\Import\Importers\BancoDeEspanaImporter;
+use Daycry\Iban\Import\Importers\BancoDePortugalImporter;
 use Daycry\Iban\Import\Importers\BankOfIsraelImporter;
 use Daycry\Iban\Import\Importers\BankOfSloveniaImporter;
 use Daycry\Iban\Import\Importers\BetaalverenigingImporter;
@@ -245,6 +246,7 @@ class ImporterRegistry
         // 3-bank set), PT/MK are `--file`-only (their landings block bots /
         // sit behind Cloudflare).
         $this->register(new AndorranBankingImporter());
+        $this->register(new BancoDePortugalImporter());
     }
 
     private static function key(string $countryCode, string $sourceId): string
