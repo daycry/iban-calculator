@@ -24,6 +24,7 @@ use Daycry\Iban\Import\Importers\CroatianNationalBankImporter;
 use Daycry\Iban\Import\Importers\CzechNationalBankImporter;
 use Daycry\Iban\Import\Importers\EpcRegisterImporter;
 use Daycry\Iban\Import\Importers\EstonianBankingAssociationImporter;
+use Daycry\Iban\Import\Importers\FinanceFinlandImporter;
 use Daycry\Iban\Import\Importers\HellenicBankAssociationImporter;
 use Daycry\Iban\Import\Importers\LiechtensteinImporter;
 use Daycry\Iban\Import\Importers\LuxembourgBankersAssociationImporter;
@@ -271,6 +272,12 @@ class ImporterRegistry
         // so it consumes an operator-prepared `code;name;bic` CSV built by
         // cross-checking them.
         $this->register(new NbsSerbiaImporter());
+
+        // FI is `--file`-only: the Finanssiala directory is a PDF, and its
+        // variable-length Rahalaitostunnus is expanded to the fixed 3-digit
+        // bank_code via a bespoke range-expansion mapper (4-digit post-2024
+        // codes are dropped -- see FinanceFinlandImporter).
+        $this->register(new FinanceFinlandImporter());
     }
 
     private static function key(string $countryCode, string $sourceId): string

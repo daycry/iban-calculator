@@ -19,9 +19,9 @@ Horas y tokens **base** (sin margen +20 %).
 | Fase 0 — Infra | 1 | 1 | 100% | — / 9h | — / 0,44 M |
 | Fase 1 — Tier A (fetch en vivo) | 5 | 5 | 100% | — / 26h | — / 1,32 M |
 | Fase 2 — Tier B (offline `--file`) | 3 | 3 | 100% | — / 14h | — / 0,63 M |
-| Fase 3 — Tier C (salvedades / curación) | 4 | 8 | 50% | — / 46h | — / 2,21 M |
+| Fase 3 — Tier C (salvedades / curación) | 5 | 8 | 63% | — / 46h | — / 2,21 M |
 | Fase 4 — Transversal | 0 | 4 | 0% | 0 / 6h | 0 / 0,34 M |
-| **TOTAL** | **13** | **21** | **62%** | **— / 101h** | **— / ≈ 4,94 M** |
+| **TOTAL** | **14** | **21** | **67%** | **— / 101h** | **— / ≈ 4,94 M** |
 
 > Cobertura objetivo por fase: Fase 1 → **30/42**, Fase 2 → **33/42**, Fase 3 → **hasta 41/42**. DK (+FO/GL) fuera (tier D). Tareas condicionadas: **T-16 (LT) bloqueada por licencia**; **T-09 (MK) condicionada a frescura**; **T-15 (RS) con cross-check por alineación**; **T-17 (FI) el último por coste/riesgo**.
 
@@ -410,7 +410,7 @@ Horas y tokens **base** (sin margen +20 %).
 ### T-17 — FI · `FinanceFinlandImporter` (`--file` + mapeador de rangos) · el último
 
 - **Descripción**: importador `--file` (texto PDF) + **mapeador de rangos a medida** que convierte el `Rahalaitostunnus` de longitud variable (1-4 díg., valores sueltos y **rangos**: Nordea «1 ja 2», POP `470-479`, cajas de ahorro con listas largas) a la clave **fija de 3 díg.** del paquete, gestionando los códigos de 4 díg. (`72-78`, desde 2024) que no caben (pérdida controlada, documentada).
-- **Estado**: borrador
+- **Estado**: completado
 - **Tiempo**: est. 10h · real —
 - **Previsión IA**: 0,40 M in / 0,10 M out tok · ≈ 12,4 €
 - **Dependencias**: patrón `--file` · **recomendado el último** (mayor coste/menor confianza)
@@ -418,17 +418,17 @@ Horas y tokens **base** (sin margen +20 %).
 - **Cubre (tests)**: — (sin UI)
 
 **Criterios de aceptación**
-- [ ] El mapeador expande valores sueltos, listas y rangos (`470-479`, «1 ja 2») a claves de 3 díg. sin colisiones.
-- [ ] Documenta y gestiona la **pérdida controlada** de códigos de 4 díg. (`72-78`).
-- [ ] Test verde con fixture que cubra los tres tipos (suelto/lista/rango) y un caso de 4 díg.; PHPStan L8, PSR-12.
-- [ ] Registrado en `registerDefaults()`; `resolve()` de una IBAN FI de ejemplo (código 5 Nordea/OP) devuelve el banco esperado.
+- [x] El mapeador expande valores sueltos, listas y rangos (`470-479`, «1 ja 2») a claves de 3 díg. sin colisiones.
+- [x] Documenta y gestiona la **pérdida controlada** de códigos de 4 díg. (`72-78`).
+- [x] Test verde con fixture que cubra los tres tipos (suelto/lista/rango) y un caso de 4 díg.; PHPStan L8, PSR-12.
+- [x] Registrado en `registerDefaults()`; `resolve()` de una IBAN FI de ejemplo (código 5 Nordea/OP) devuelve el banco esperado.
 
 **Subtareas**
-- [ ] Test con fixture de texto-PDF con rangos primero.
-- [ ] Diseñar el mapeador de rangos → clave de 3 díg. (modelar solapamientos sin colisión).
-- [ ] Implementar + documentar la pérdida de 4 díg.; registrar en `registerDefaults()`.
+- [x] Test con fixture de texto-PDF con rangos primero.
+- [x] Diseñar el mapeador de rangos → clave de 3 díg. (modelar solapamientos sin colisión).
+- [x] Implementar + documentar la pérdida de 4 díg.; registrar en `registerDefaults()`.
 
-**Notas**: **el más caro / menor confianza → el último** (aprender de RS/LT). El join exacto falla para los grandes bancos → el mapeador es la parte cara y con riesgo de correctitud.
+**Notas**: **el más caro / menor confianza → el último** (aprender de RS/LT). El join exacto falla para los grandes bancos → el mapeador es la parte cara y con riesgo de correctitud. **Impl.**: `FinanceFinlandImporter` (sourceId `finanssiala`) es `--file`-only (PDF, sin lector PDF en el paquete; un fetch live de la landing HTML no encuentra la cabecera `Rahalaitos;Rahalaitostunnus;BIC` → itera vacío sin romper). **DESVIACIÓN de formato**: en vez de parsear texto whitespace-layout (ambiguo: tanto el nombre como el código pueden llevar espacios), consume un **CSV semicolon-delimited preparado por el operador** (patrón NBS-RS/NBRM), porque una celda `Rahalaitostunnus` puede contener comas (`405, 497`). Receta en el docblock: `pdftotext -layout -enc UTF-8` → ordenar 3 columnas en CSV UTF-8 `Rahalaitos;Rahalaitostunnus;BIC`. Columnas por **nombre de cabecera** (substring case-insensitive): código por `tunnus` (único; **no** `rahalaitos`, que es subcadena de `Rahalaitostunnus`), nombre por `rahalaitos`/`nimi`, BIC por `bic`/`swift`. **Mapeador de rangos** (`expandToken`): token 1 díg. `d`→`d00`..`d99` (100), 2 díg. `de`→`de0`..`de9` (10), 3 díg. `def`→`def`, rango `abc-xyz`→`[abc,xyz]`; **4+ díg. (72-78) → no keable en 3 díg. → se emite una fila SIN `bank_code`** para que `ImportRunner` la cuente en `skipped`/`messages` (pérdida visible, no silenciosa). **De-dup** por código de 3 díg. (primer banco que lo reclama gana; reclamaciones posteriores solapadas se saltan). Codepage: `decodeCsvBytes` por defecto (fallback Windows-1252 para acentos å/ä/ö). Fixture DB `tests/Fixtures/import/finanssiala_sample.csv` (Nordea `1 ja 2`, OP `5`, Danske `8 ja 34`, SEB `33`, POP `470-479`, Bigbank `717`, + fila 4 díg. `7180` para probar el skip). Test E2E: `FI2112345600000785` (bank field `123`) resuelve a Nordea vía la expansión `1`→1xx; report `imported=431`, `skipped=1`. Catálogo 43 → **44**. **Licencia**: Finanssiala ry no declara términos de reutilización → license `Finanssiala ry (no reuse terms; fetch-only)`; solo fetch bajo demanda, dato NO empaquetado.
 
 ---
 

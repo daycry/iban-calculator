@@ -26,6 +26,7 @@ use Daycry\Iban\Import\Importers\CroatianNationalBankImporter;
 use Daycry\Iban\Import\Importers\CzechNationalBankImporter;
 use Daycry\Iban\Import\Importers\EpcRegisterImporter;
 use Daycry\Iban\Import\Importers\EstonianBankingAssociationImporter;
+use Daycry\Iban\Import\Importers\FinanceFinlandImporter;
 use Daycry\Iban\Import\Importers\HellenicBankAssociationImporter;
 use Daycry\Iban\Import\Importers\LiechtensteinImporter;
 use Daycry\Iban\Import\Importers\LuxembourgBankersAssociationImporter;
@@ -155,6 +156,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const MK_FIXTURE               = __DIR__ . '/../Fixtures/import/nbrm_sample.csv';
     private const IT_FIXTURE               = __DIR__ . '/../Fixtures/import/agenzia_entrate_sample.html';
     private const RS_FIXTURE               = __DIR__ . '/../Fixtures/import/nbs_rs_sample.csv';
+    private const FI_FIXTURE               = __DIR__ . '/../Fixtures/import/finanssiala_sample.csv';
 
     private const CZ_EXAMPLE_IBAN = 'CZ6508000000192000145399';
     private const GR_EXAMPLE_IBAN = 'GR1601101250000000012300695';
@@ -192,6 +194,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const SM_EXAMPLE_IBAN = 'SM15U0303409800000000270100'; // ABI '03034' = Banca Agricola Commerciale
     private const IT_EXAMPLE_IBAN = 'IT60X0542811101000000123456'; // ABI '05428' (registry example)
     private const RS_EXAMPLE_IBAN = 'RS35105008123123123173'; // bank code '105' = AIK Banka
+    private const FI_EXAMPLE_IBAN = 'FI2112345600000785'; // bank field '123' = Nordea (via the '1' -> 1xx expansion)
 
     // MOD-97-valid test IBANs for the EPC SEPA Register importer's seeded
     // banks. GB's is the SRLG example handed down with the task brief
@@ -1657,6 +1660,54 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
 
         self::assertTrue($result->isResolved());
         self::assertSame('AIK Banka a.d. Beograd', $result->bankName);
+    }
+
+    public function testFinanceFinlandImporterExpandsRangesToThreeDigitCodesSkipsFourDigitAndResolvesTheExampleIban(): void
+    {
+        $report = (new ImportRunner())->run(new FinanceFinlandImporter(), new BankModel(), false, self::FI_FIXTURE);
+
+        self::assertSame('FI', $report->countryCode);
+        self::assertSame('finanssiala', $report->sourceId);
+
+        // Nordea 1xx+2xx (200) + OP 5xx (100) + Danske 8xx+34x (110) + SEB 33x
+        // (10) + POP 470-479 (10) + Bigbank 717 (1) = 431 imported 3-digit codes.
+        self::assertSame(431, $report->imported);
+
+        // The one 4-digit '7180' (post-2024) code cannot be keyed on 3 digits:
+        // it is surfaced as a bank_code-less row that the runner counts as
+        // skipped, with a message.
+        self::assertSame(1, $report->skipped);
+        self::assertNotEmpty($report->messages);
+
+        self::assertSame(431, $this->db->table('banks')->countAllResults());
+
+        // The registry's FI example IBAN carries bank field '123', covered by
+        // Nordea's single-digit '1' -> 1xx expansion.
+        $this->seeInDatabase('banks', [
+            'country_code'   => 'FI',
+            'bank_code'      => '123',
+            'branch_code'    => null,
+            'name'           => 'Nordea Bank Abp',
+            'bic'            => 'NDEAFIHH',
+            'source_id'      => 'finanssiala',
+            'source_license' => 'Finanssiala ry (no reuse terms; fetch-only)',
+        ]);
+
+        // A 3-digit range endpoint (POP 470-479) and a 2-digit expansion
+        // (Danske '34' -> 340..349) both landed as their own rows.
+        $this->seeInDatabase('banks', ['country_code' => 'FI', 'bank_code' => '470', 'bic' => 'POPFFI22']);
+        $this->seeInDatabase('banks', ['country_code' => 'FI', 'bank_code' => '345', 'bic' => 'DABAFIHH']);
+
+        // The 4-digit code produced no 3-digit bank_code (nothing leaked in).
+        $this->dontSeeInDatabase('banks', ['country_code' => 'FI', 'bank_code' => '718']);
+
+        // The real proof: resolving the FI example IBAN (bank field '123') to
+        // Nordea via the range-expansion mapper.
+        $iban   = new Iban(provider: new DatabaseProvider(new BankModel()));
+        $result = $iban->resolve(self::FI_EXAMPLE_IBAN);
+
+        self::assertTrue($result->isResolved());
+        self::assertSame('Nordea Bank Abp', $result->bankName);
     }
 
     public function testBothImportersCanCoexistInTheSameBanksTable(): void
