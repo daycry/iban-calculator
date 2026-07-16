@@ -93,9 +93,34 @@ use Daycry\Iban\Import\Importers\VaticanCityImporter;
  * five times, once each for GB, GI, IE, LV and RO: the SEPA countries whose
  * IBAN `bank_code` is the BIC's 4-letter prefix and that have no dedicated
  * national importer already registered here (BG/MT/NL share that same
- * bank-code shape but already have one, so are not double-registered) -- so
- * `new ImporterRegistry()` picks up all thirty automatically for every
+ * bank-code shape but already have one, so are not double-registered).
+ *
+ * The v2.x SEPA-coverage batch then adds FOURTEEN more, taking SEPA-scheme
+ * resolution from 24/42 to 38/42 (see docs/importers.md's coverage matrix):
+ * a PSV live-fetch ({@see \Daycry\Iban\Import\Importers\SwedenBankInfrastructureImporter}
+ * SE), a JSON REGAFI importer registered TWICE
+ * ({@see \Daycry\Iban\Import\Importers\RegafiImporter} FR and MC -- Monaco's
+ * entities carry a French CIB in the same dataset), three HTML scrapes via
+ * the new {@see \Daycry\Iban\Import\Support\HtmlTableReader}
+ * ({@see \Daycry\Iban\Import\Importers\EstonianBankingAssociationImporter} EE,
+ * {@see \Daycry\Iban\Import\Importers\CentralBankOfMontenegroImporter} ME,
+ * {@see \Daycry\Iban\Import\Importers\AgenziaEntrateF24Importer} IT) plus a
+ * landing-scrape-then-`.xlsx` importer
+ * ({@see \Daycry\Iban\Import\Importers\CentralBankOfCyprusImporter} CY), four
+ * offline-`--file` PDF/CSV importers
+ * ({@see \Daycry\Iban\Import\Importers\BancoDePortugalImporter} PT,
+ * {@see \Daycry\Iban\Import\Importers\NbrmImporter} MK,
+ * {@see \Daycry\Iban\Import\Importers\NbsSerbiaImporter} RS,
+ * {@see \Daycry\Iban\Import\Importers\FinanceFinlandImporter} FI, the last
+ * carrying a bespoke range-expansion mapper), and THREE curated
+ * micro-jurisdiction importers whose `rows()` yield a bundled factual
+ * `data/<cc>.php` map ({@see \Daycry\Iban\Import\Importers\AndorranBankingImporter}
+ * AD, {@see \Daycry\Iban\Import\Importers\VaticanCityImporter} VA,
+ * {@see \Daycry\Iban\Import\Importers\SanMarinoImporter} SM) -- so
+ * `new ImporterRegistry()` picks up all forty-four automatically for every
  * consumer (`iban:update` included) without any other call site changing.
+ * The SEPA-scheme countries still unresolved (AL, IS, LT documented-deferred;
+ * DK/FO/GL tier D) are covered in docs/importers.md, not here.
  *
  * @see \Daycry\Iban\Commands\UpdateCommand
  * @see ImportRunner
@@ -202,9 +227,20 @@ class ImporterRegistry
      * v1.2 BR/LI batch adds two more -- {@see BrazilianCentralBankImporter}
      * (BR) and {@see LiechtensteinImporter} (LI) -- and this v1.2 EPC SEPA
      * Register batch registers {@see EpcRegisterImporter} five times -- once
-     * each for GB, GI, IE, LV and RO -- so every consumer (`iban:update`
-     * included) picks up all thirty automatically without any other call
-     * site changing.
+     * each for GB, GI, IE, LV and RO. Finally the v2.x SEPA-coverage batch
+     * adds fourteen more -- {@see SwedenBankInfrastructureImporter} (SE),
+     * {@see RegafiImporter} (FR and MC, registered twice),
+     * {@see EstonianBankingAssociationImporter} (EE),
+     * {@see CentralBankOfMontenegroImporter} (ME),
+     * {@see CentralBankOfCyprusImporter} (CY),
+     * {@see AndorranBankingImporter} (AD, curated),
+     * {@see BancoDePortugalImporter} (PT), {@see NbrmImporter} (MK),
+     * {@see VaticanCityImporter} (VA, curated),
+     * {@see SanMarinoImporter} (SM, curated),
+     * {@see AgenziaEntrateF24Importer} (IT), {@see NbsSerbiaImporter} (RS)
+     * and {@see FinanceFinlandImporter} (FI) -- so every consumer
+     * (`iban:update` included) picks up all forty-four automatically without
+     * any other call site changing.
      */
     protected function registerDefaults(): void
     {

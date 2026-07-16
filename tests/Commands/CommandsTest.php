@@ -332,10 +332,11 @@ final class CommandsTest extends CIUnitTestCase
      * `NationalBankOfKazakhstanImporter` (KZ). The v1.2 BR/LI batch adds two
      * more -- `BrazilianCentralBankImporter` (BR) and `LiechtensteinImporter`
      * (LI). This v1.2 EPC SEPA Register batch registers `EpcRegisterImporter`
-     * five times -- once each for GB, GI, IE, LV and RO. So with no
-     * `--country`/`--source` selection, `iban:update` now lists all thirty
-     * alongside the v1.0 licensing notices instead of the old "nothing
-     * bundled yet" deferral.
+     * five times -- once each for GB, GI, IE, LV and RO. Finally the v2.x
+     * SEPA-coverage batch adds fourteen more (SE, FR, MC, EE, ME, CY, AD, PT,
+     * MK, VA, SM, IT, RS, FI). So with no `--country`/`--source` selection,
+     * `iban:update` now lists all forty-four alongside the v1.0 licensing
+     * notices instead of the old "nothing bundled yet" deferral.
      */
     public function testUpdatePrintsLicenseNoticesAndListsTheBundledImportersAndExitsSuccess(): void
     {
@@ -532,7 +533,7 @@ final class CommandsTest extends CIUnitTestCase
     // -- iban:update --all (v1.2) ------------------------------------------
 
     // The `--all` run loop is exercised against an INJECTED registry of fake
-    // importers (via `UpdateCommand::$registry`) rather than the 30 bundled
+    // importers (via `UpdateCommand::$registry`) rather than the 44 bundled
     // ones. The bundled importers fetch their source live over the network --
     // and several official sources ARE reachable from CI and return large
     // payloads -- so a real `--all` run in the test suite would be

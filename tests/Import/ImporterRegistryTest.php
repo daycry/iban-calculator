@@ -87,10 +87,12 @@ final class ImporterRegistryTest extends TestCase
      * BR/LI batch adds two more -- {@see LiechtensteinImporter} (LI) and
      * {@see BrazilianCentralBankImporter} (BR) -- and this v1.2 EPC SEPA
      * Register batch registers {@see EpcRegisterImporter} five times -- once
-     * each for GB, GI, IE, LV and RO -- so a plain `new ImporterRegistry()`
-     * now finds all thirty without any extra registration.
+     * each for GB, GI, IE, LV and RO -- and finally the v2.x SEPA-coverage
+     * batch adds fourteen more (SE, FR, MC, EE, ME, CY, AD, PT, MK, VA, SM,
+     * IT, RS, FI), so a plain `new ImporterRegistry()` now finds all
+     * forty-four without any extra registration.
      */
-    public function testDefaultConstructionRegistersTheThirtyBundledImporters(): void
+    public function testDefaultConstructionRegistersTheFortyFourBundledImporters(): void
     {
         $registry = new ImporterRegistry();
 

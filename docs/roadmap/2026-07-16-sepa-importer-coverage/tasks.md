@@ -479,7 +479,7 @@ Horas y tokens **base** (sin margen +20 %).
 ### T-20 — `ImporterRegistry`: consolidar registro y docblock
 
 - **Descripción**: verificar que los **18 registros nuevos** (17 países + `RegafiImporter('MC')`) están en `registerDefaults()` y actualizar el **docblock narrativo** de `ImporterRegistry` describiendo el lote SEPA-coverage. Confirmar que `iban:update` los lista todos y que el conteo del catálogo cuadra.
-- **Estado**: borrador
+- **Estado**: completado
 - **Tiempo**: est. 1h · real —
 - **Previsión IA**: 0,03 M in / 0,01 M out tok · ≈ 1,1 €
 - **Dependencias**: todas las tareas de importador (T-02…T-17); **excluye T-16 si su licencia no se confirma**
@@ -487,15 +487,15 @@ Horas y tokens **base** (sin margen +20 %).
 - **Cubre (tests)**: — (sin UI)
 
 **Criterios de aceptación**
-- [ ] `registerDefaults()` incluye todos los importadores entregados (T-16 solo si su licencia se confirmó).
-- [ ] Docblock de `ImporterRegistry` actualizado con el lote SEPA-coverage.
-- [ ] `iban:update` lista todos los importadores; el conteo del catálogo cuadra; suite verde.
+- [x] `registerDefaults()` incluye todos los importadores entregados (14 del lote: SE/FR/MC/EE/ME/CY/AD/PT/MK/VA/SM/IT/RS/FI; **LT/T-16 NO** por licencia sin confirmar).
+- [x] Docblock de `ImporterRegistry` actualizado con el lote SEPA-coverage.
+- [x] `iban:update` lista todos los importadores; el conteo del catálogo cuadra (**44**); suite verde.
 
 **Subtareas**
-- [ ] Consolidar registros + `use` ordenados alfabéticamente (PSR-12).
-- [ ] Actualizar el docblock narrativo; verificar `iban:update` y `composer test`.
+- [x] Consolidar registros + `use` ordenados alfabéticamente (PSR-12).
+- [x] Actualizar el docblock narrativo; verificar `iban:update` y `composer test`.
 
-**Notas**: cada importador ya se registra en su propia tarea; esta tarea consolida y documenta el lote (evita divergencias).
+**Notas**: cada importador ya se registra en su propia tarea; esta tarea consolida y documenta el lote (evita divergencias). **Impl.**: los dos docblocks narrativos de `ImporterRegistry` (clase + `registerDefaults()`) que decían "thirty"/"all thirty" ahora describen el lote v2.x SEPA-coverage (14 importadores, SEPA 24→38/42) y cierran con "all **forty-four**"; se enumeran los 14 con su forma de fuente (PSV/JSON REGAFI×2/HTML×3+CY/`--file`×4/curados×3) y se remite a `docs/importers.md` para AL/IS/LT (deferred) y DK/FO/GL (tier D). **Renombrado** el test `testDefaultConstructionRegistersTheThirtyBundledImporters` → `...TheFortyFourBundledImporters` (+ su docblock); actualizadas las menciones "all thirty"/"the 30 bundled" en `CommandsTest`. Los 44 registros ya estaban consolidados en `registerDefaults()` (uno por tarea) con los `use` alfabéticos; **T-16 LT no registrada** (congelada por licencia).
 
 ### T-21 — `CHANGELOG.md`: entrada de versión (salto de cobertura SEPA)
 
