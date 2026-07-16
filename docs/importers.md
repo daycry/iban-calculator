@@ -56,7 +56,7 @@ branch-carrying IBAN still resolves against those rows.
 ## `iban:update` usage
 
 ```
-iban:update [--all] [--country=<cc>] [--source=<id>] [--dry-run] [--file=<path>]
+iban:update [--all] [--country=<cc>] [--source=<id>] [--dry-run] [--file=<path>] [--prune]
 ```
 
 | Flag | Meaning |
@@ -66,6 +66,16 @@ iban:update [--all] [--country=<cc>] [--source=<id>] [--dry-run] [--file=<path>]
 | `--source=<id>` | Restrict to the importer with this source id (e.g. `oenb`). |
 | `--dry-run` | Preview: count what would be imported/skipped without writing to the `banks` table. |
 | `--file=<path>` | Import offline from this local file instead of fetching from the source live. |
+| `--prune` | After importing, DELETE rows this `(country, source)` previously wrote but no longer produces — a full **sync** of that source's slice, not the default **upsert**. Skipped when the run imports nothing (so a failed/empty fetch can't wipe data); with `--dry-run` the would-prune count is reported but nothing is deleted. The report line then shows `pruned=<N>`. |
+
+By default `iban:update` is **upsert-only**: re-running a source inserts new rows and updates
+existing ones (matched by the natural key `(country_code, bank_code, branch_code)`, with a NULL
+`branch_code` matched as `IS NULL`), but never deletes — so an institution a source has dropped
+lingers until removed. Pass `--prune` to make the run a full **sync** of that `(country, source)`
+slice instead: after the upsert, any row this run did not produce is deleted. Pruning is **scoped
+per `(country, source)`** (it never touches rows written by another source or another country) and
+**guarded** — skipped entirely when the run imported nothing, so a failed or empty fetch can never
+wipe good data. Preview it with `--prune --dry-run` (reports `pruned=<N>`, deletes nothing).
 
 v1.0's licensing notices (SWIFT IBAN Registry / SWIFT BIC Directory / per-source attribution) are
 always printed first, regardless of selection. With **no** `--country`/`--source` at all, the command

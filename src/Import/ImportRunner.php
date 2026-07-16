@@ -34,12 +34,24 @@ class ImportRunner
      *                                       to {@see ImporterInterface::rows()}
      *                                       for an offline import from a
      *                                       previously-downloaded file.
+     * @param bool              $prune     When `true`, after upserting this
+     *                                       run's rows, DELETE any pre-existing
+     *                                       row for the same `(country_code,
+     *                                       source_id)` that this run did not
+     *                                       produce (a full sync of that
+     *                                       source's slice). Guarded: pruning is
+     *                                       skipped entirely when the run
+     *                                       imported nothing, so a failed/empty
+     *                                       fetch can never wipe good data. In
+     *                                       `--dry-run` the would-prune count is
+     *                                       reported but nothing is deleted.
      */
     public function run(
         ImporterInterface $importer,
         BankModel $model,
         bool $dryRun = false,
         ?string $localFile = null,
+        bool $prune = false,
     ): ImportReport {
         $countryCode = $importer->countryCode();
         $sourceId    = $importer->sourceId();
@@ -56,6 +68,9 @@ class ImportRunner
         $skipped  = 0;
         $messages = [];
 
+        /** @var array<string, true> $seen Natural keys (bank_code + branch_code) produced by this run, for `--prune`. */
+        $seen = [];
+
         foreach ($importer->rows($localFile) as $row) {
             $fetched++;
 
@@ -70,6 +85,8 @@ class ImportRunner
 
             $branchCodeRaw = $row['branch_code'] ?? null;
             $branchCode    = is_string($branchCodeRaw) && $branchCodeRaw !== '' ? $branchCodeRaw : null;
+
+            $seen[$bankCode . "\x1f" . ($branchCode ?? '')] = true;
 
             if ($dryRun) {
                 $imported++;
@@ -108,6 +125,32 @@ class ImportRunner
             $imported++;
         }
 
+        // --prune: delete rows this source previously wrote for this country
+        // that the current run no longer produced. Guarded by `$imported > 0`
+        // so an empty/failed fetch never wipes existing data; in --dry-run the
+        // count is computed but nothing is deleted.
+        $pruned = 0;
+
+        if ($prune && $imported > 0) {
+            $staleIds = [];
+
+            foreach ($model->rowsForSource($countryCode, $sourceId) as $existing) {
+                $bank   = $existing['bank_code'] ?? null;
+                $branch = $existing['branch_code'] ?? null;
+                $key    = (is_string($bank) ? $bank : '') . "\x1f" . (is_string($branch) ? $branch : '');
+
+                if (! isset($seen[$key])) {
+                    $staleIds[] = $existing['id'];
+                }
+            }
+
+            $pruned = count($staleIds);
+
+            if (! $dryRun && $staleIds !== []) {
+                $model->delete($staleIds);
+            }
+        }
+
         return new ImportReport(
             countryCode: $countryCode,
             sourceId: $sourceId,
@@ -116,6 +159,7 @@ class ImportRunner
             skipped: $skipped,
             dryRun: $dryRun,
             messages: $messages,
+            pruned: $pruned,
         );
     }
 

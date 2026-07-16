@@ -55,7 +55,7 @@ final class UpdateCommand extends BaseCommand
     protected $group       = 'IBAN';
     protected $name        = 'iban:update';
     protected $description = 'Lists/runs bank-data importers against the `banks` table, printing licensing notices and an import report.';
-    protected $usage       = 'iban:update [--all] [--country=<cc>] [--source=<id>] [--dry-run] [--file=<path>]';
+    protected $usage       = 'iban:update [--all] [--country=<cc>] [--source=<id>] [--dry-run] [--file=<path>] [--prune]';
 
     /** @var array<string, string> */
     protected $options = [
@@ -64,6 +64,7 @@ final class UpdateCommand extends BaseCommand
         '--source'  => 'Restrict to the importer with this source id (e.g. oenb).',
         '--dry-run' => 'Preview: count what would be imported without writing to the `banks` table.',
         '--file'    => 'Import offline from this local file instead of fetching from the source live.',
+        '--prune'   => 'After importing, delete rows this (country, source) previously wrote but no longer produces (sync). Skipped when the run imports nothing; combine with --dry-run to preview the count.',
     ];
 
     /**
@@ -90,6 +91,7 @@ final class UpdateCommand extends BaseCommand
         $source        = is_string($sourceOption) ? $sourceOption : null;
 
         $dryRun     = (bool) CLI::getOption('dry-run');
+        $prune      = (bool) CLI::getOption('prune');
         $fileOption = CLI::getOption('file');
         $file       = is_string($fileOption) ? $fileOption : null;
 
@@ -102,7 +104,7 @@ final class UpdateCommand extends BaseCommand
         if ($all) {
             $matches = $country !== null ? $registry->forCountry($country) : $registry->all();
 
-            return $this->runAll($matches, $dryRun);
+            return $this->runAll($matches, $dryRun, $prune);
         }
 
         if ($country === null && $source === null) {
@@ -127,7 +129,7 @@ final class UpdateCommand extends BaseCommand
 
         foreach ($matches as $importer) {
             $model  = new BankModel($config->table, $config->dbGroup);
-            $report = $runner->run($importer, $model, $dryRun, $file);
+            $report = $runner->run($importer, $model, $dryRun, $file, $prune);
 
             $this->printReport($importer, $report);
         }
@@ -142,7 +144,7 @@ final class UpdateCommand extends BaseCommand
      *
      * @param list<ImporterInterface> $importers
      */
-    private function runAll(array $importers, bool $dryRun): int
+    private function runAll(array $importers, bool $dryRun, bool $prune = false): int
     {
         if ($importers === []) {
             CLI::write(
@@ -163,7 +165,7 @@ final class UpdateCommand extends BaseCommand
         foreach ($importers as $importer) {
             try {
                 $model  = new BankModel($config->table, $config->dbGroup);
-                $report = $runner->run($importer, $model, $dryRun);
+                $report = $runner->run($importer, $model, $dryRun, null, $prune);
 
                 $this->printReport($importer, $report);
 
@@ -223,15 +225,17 @@ final class UpdateCommand extends BaseCommand
 
     private function printReport(ImporterInterface $importer, ImportReport $report): void
     {
-        $label = $report->dryRun ? ' (dry-run — nothing written)' : '';
+        $label      = $report->dryRun ? ' (dry-run — nothing written)' : '';
+        $prunedNote = $report->pruned > 0 ? sprintf(' pruned=%d', $report->pruned) : '';
 
         CLI::write(sprintf(
-            '[%s/%s] fetched=%d imported=%d skipped=%d%s',
+            '[%s/%s] fetched=%d imported=%d skipped=%d%s%s',
             $report->countryCode,
             $report->sourceId,
             $report->fetched,
             $report->imported,
             $report->skipped,
+            $prunedNote,
             $label,
         ), 'green');
 

@@ -937,7 +937,7 @@ $ php spark iban:bic DEUTDEFF5
 INVALID: bic_bad_length - The BIC must be 8 or 11 characters long.
 ```
 
-### `iban:update [--all] [--country=<cc>] [--source=<id>] [--dry-run] [--file=<path>]`
+### `iban:update [--all] [--country=<cc>] [--source=<id>] [--dry-run] [--file=<path>] [--prune]`
 
 Lists or runs the bundled bank-data importers against the `banks` table, printing licensing notices
 plus an import report per source.
@@ -949,6 +949,14 @@ plus an import report per source.
 | `--source=<id>` | Restrict to the importer with this source id (e.g. `oenb`). |
 | `--dry-run` | Preview: count what would be imported/skipped without writing to the `banks` table. |
 | `--file=<path>` | Import offline from this local file instead of fetching from the source live. |
+| `--prune` | Turn the run into a full **sync** of the selected `(country, source)` slice: after upserting, DELETE any row that source previously wrote but no longer produces. Default (without it) is **upsert-only** (insert/update, never delete). Guarded — skipped when the run imports nothing, so a failed/empty fetch can't wipe data — and scoped per `(country, source)`. With `--dry-run` it reports the would-prune count (`pruned=<N>`) without deleting. |
+
+By default a re-run **upserts** (matched by `(country_code, bank_code, branch_code)`) and never
+deletes, so an institution a source has dropped lingers until removed. `--prune` makes the run a
+scoped, guarded full sync instead — useful for `--file` sources you clean up between runs (e.g. MK)
+and for live sources that change over time. Works with a single selection and with `--all` (each
+importer prunes only its own slice); the per-source report line shows `pruned=<N>` when any row was
+(or would be) pruned.
 
 **Exit codes**: `0` in every normal case — including "no importer matched the selection" and the
 no-selection listing — except `--all` combined with `--file`, which exits `1`.

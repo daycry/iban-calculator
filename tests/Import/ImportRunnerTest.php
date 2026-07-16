@@ -185,4 +185,149 @@ final class ImportRunnerTest extends CIUnitTestCase
 
         self::assertSame(1, $this->db->table('banks')->countAllResults());
     }
+
+    public function testPrunedDefaultsToZeroWhenPruneIsOff(): void
+    {
+        $report = (new ImportRunner())->run(new FakeAtImporter(), new BankModel());
+
+        self::assertSame(0, $report->pruned, 'Without --prune, nothing is pruned.');
+        self::assertSame(3, $this->db->table('banks')->countAllResults());
+    }
+
+    public function testPruneDeletesRowsNoLongerInTheSourceForThatCountryAndSource(): void
+    {
+        $runner = new ImportRunner();
+
+        $runner->run(new FakeAtImporter(), new BankModel());
+        self::assertSame(3, $this->db->table('banks')->countAllResults());
+
+        // Second run drops bank_code 12000 (Bank Austria) from the source.
+        $rows = array_slice(FakeAtImporter::defaultRows(), 1); // 20111, 32000
+
+        $report = $runner->run(new FakeAtImporter($rows), new BankModel(), prune: true);
+
+        self::assertSame(2, $report->imported);
+        self::assertSame(1, $report->pruned, 'The bank_code the source dropped must be pruned.');
+        self::assertSame(2, $this->db->table('banks')->countAllResults());
+
+        $this->dontSeeInDatabase('banks', ['country_code' => 'AT', 'bank_code' => '12000']);
+        $this->seeInDatabase('banks', ['country_code' => 'AT', 'bank_code' => '20111']);
+        // A branch-carrying key (32000/00001) must be matched and kept, not pruned.
+        $this->seeInDatabase('banks', ['country_code' => 'AT', 'bank_code' => '32000', 'branch_code' => '00001']);
+    }
+
+    public function testPruneOnlyTouchesRowsWrittenByTheSameSource(): void
+    {
+        $runner = new ImportRunner();
+
+        // A row seeded by a DIFFERENT source (same country) that prune must never touch.
+        $otherSource = new class () implements ImporterInterface {
+            public function countryCode(): string
+            {
+                return 'AT';
+            }
+
+            public function sourceId(): string
+            {
+                return 'other-src';
+            }
+
+            public function sourceName(): string
+            {
+                return 'Other Source';
+            }
+
+            public function license(): string
+            {
+                return 'n/a';
+            }
+
+            public function sourceUrl(): string
+            {
+                return 'https://example.test/other-source';
+            }
+
+            public function rows(?string $localFile = null): iterable
+            {
+                yield ['bank_code' => '55555', 'name' => 'Other-Source Bank'];
+            }
+        };
+
+        $runner->run($otherSource, new BankModel());
+        $runner->run(new FakeAtImporter(), new BankModel());
+        self::assertSame(4, $this->db->table('banks')->countAllResults());
+
+        // Re-run 'fake' with 12000 dropped and prune on.
+        $rows   = array_slice(FakeAtImporter::defaultRows(), 1); // 20111, 32000
+        $report = $runner->run(new FakeAtImporter($rows), new BankModel(), prune: true);
+
+        self::assertSame(1, $report->pruned, 'Only the same-source dropped row (fake/12000) is pruned.');
+        self::assertSame(3, $this->db->table('banks')->countAllResults());
+        $this->seeInDatabase('banks', ['bank_code' => '55555', 'source_id' => 'other-src']);
+        $this->dontSeeInDatabase('banks', ['bank_code' => '12000']);
+    }
+
+    public function testPruneIsSkippedWhenTheRunImportedNothing(): void
+    {
+        $runner = new ImportRunner();
+
+        $runner->run(new FakeAtImporter(), new BankModel());
+        self::assertSame(3, $this->db->table('banks')->countAllResults());
+
+        // An importer for the SAME (country, source) that yields nothing — a
+        // failed/empty fetch. Prune must NOT wipe the existing rows.
+        $empty = new class () implements ImporterInterface {
+            public function countryCode(): string
+            {
+                return 'AT';
+            }
+
+            public function sourceId(): string
+            {
+                return 'fake';
+            }
+
+            public function sourceName(): string
+            {
+                return 'Fake Test Importer';
+            }
+
+            public function license(): string
+            {
+                return 'Public Domain (test fixture)';
+            }
+
+            public function sourceUrl(): string
+            {
+                return 'https://example.test/fake-at-importer';
+            }
+
+            public function rows(?string $localFile = null): iterable
+            {
+                yield from [];
+            }
+        };
+
+        $report = $runner->run($empty, new BankModel(), prune: true);
+
+        self::assertSame(0, $report->imported);
+        self::assertSame(0, $report->pruned, 'Prune is skipped when nothing was imported (guards against wiping on a failed fetch).');
+        self::assertSame(3, $this->db->table('banks')->countAllResults(), 'An empty run with --prune must not delete the existing rows.');
+    }
+
+    public function testDryRunPruneReportsTheCountWithoutDeleting(): void
+    {
+        $runner = new ImportRunner();
+
+        $runner->run(new FakeAtImporter(), new BankModel());
+        self::assertSame(3, $this->db->table('banks')->countAllResults());
+
+        $rows   = array_slice(FakeAtImporter::defaultRows(), 1); // drop 12000
+        $report = $runner->run(new FakeAtImporter($rows), new BankModel(), dryRun: true, prune: true);
+
+        self::assertTrue($report->dryRun);
+        self::assertSame(1, $report->pruned, 'Dry-run --prune reports what would be pruned.');
+        self::assertSame(3, $this->db->table('banks')->countAllResults(), 'Dry-run --prune must not delete anything.');
+        $this->seeInDatabase('banks', ['bank_code' => '12000']);
+    }
 }

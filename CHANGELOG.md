@@ -7,6 +7,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`iban:update --prune`** — opt-in flag that turns an import run into a full **sync** of the
+  selected `(country_code, source_id)` slice: after the usual upsert, any row that source previously
+  wrote but the current run no longer produced is deleted (so institutions a source has dropped are
+  removed instead of lingering). Default behaviour is unchanged — **upsert-only**, never deletes.
+  Pruning is **guarded** (skipped entirely when the run imported nothing, so a failed/empty fetch can
+  never wipe good data) and **scoped per `(country, source)`** (it never touches rows written by
+  another source or country). `--prune --dry-run` reports the would-prune count without deleting.
+  `Import\ImportReport` gains a `pruned` count, `BankModel` a `rowsForSource()` helper, and
+  `iban:update`'s per-source report line shows `pruned=<N>` when any row was (or would be) pruned.
+
 ## [2.2.0] - 2026-07-16
 
 Additive release: **completes SEPA-scheme bank resolution from 24/42 to 38/42 countries**, adding 14

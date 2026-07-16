@@ -761,6 +761,42 @@ final class CommandsTest extends CIUnitTestCase
         self::assertStringContainsString('No bundled importer matches that selection.', $output);
     }
 
+    /**
+     * `--prune`: after re-importing a source, rows that source previously wrote
+     * for this `(country, source)` but no longer produces are deleted, and the
+     * report line shows the `pruned=` count. Uses the injected-registry path so
+     * two runs of the same `(country, source)` with different row sets are
+     * deterministic and offline.
+     */
+    public function testUpdateWithPruneDeletesRowsTheSourceNoLongerProvidesAndReportsPrunedCount(): void
+    {
+        // First run (no prune) seeds two rows for (XX, fx).
+        [$exit1] = $this->runUpdateWith(
+            ['iban:update', '--source', 'fx'],
+            $this->registryOf($this->fakeImporter('XX', 'fx', rows: [
+                ['bank_code' => '001', 'name' => 'Bank One'],
+                ['bank_code' => '002', 'name' => 'Bank Two'],
+            ])),
+        );
+
+        self::assertSame(EXIT_SUCCESS, $exit1);
+        self::assertSame(2, $this->db->table('banks')->countAllResults());
+
+        // Second run WITH --prune yields only '001'; '002' must be pruned.
+        [$exit2, $output] = $this->runUpdateWith(
+            ['iban:update', '--source', 'fx', '--prune'],
+            $this->registryOf($this->fakeImporter('XX', 'fx', rows: [
+                ['bank_code' => '001', 'name' => 'Bank One'],
+            ])),
+        );
+
+        self::assertSame(EXIT_SUCCESS, $exit2);
+        self::assertStringContainsString('pruned=1', $output);
+        self::assertSame(1, $this->db->table('banks')->countAllResults());
+        $this->seeInDatabase('banks', ['country_code' => 'XX', 'bank_code' => '001']);
+        $this->dontSeeInDatabase('banks', ['country_code' => 'XX', 'bank_code' => '002']);
+    }
+
     // -- iban:bic ----------------------------------------------------------
 
     public function testBicCommandValidBicPrintsFieldsAndExitsSuccess(): void
