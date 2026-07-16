@@ -10,6 +10,7 @@ and imports everything on-demand instead.
 - [`iban:update` usage](#ibanupdate-usage)
 - [The 44 bundled importers](#the-44-bundled-importers)
 - [Source shapes: HTML, offline `--file`, and curated data](#source-shapes-html-offline---file-and-curated-data)
+- [Obtaining the offline `--file` sources](#obtaining-the-offline---file-sources)
 - [Coverage matrix](#coverage-matrix)
 - [Bank-level resolution: why `branch_code` is `null`](#bank-level-resolution-why-branch_code-is-null)
 - [The EPC SEPA Register importer](#the-epc-sepa-register-importer)
@@ -245,6 +246,77 @@ earlier importers use:
   codes / 3 banks), **VA** (`vatican`, the single IOR entry), **SM** (`bcsm`, 4 banks by ABI). This is
   the one deliberate exception to "ship no bank data"; see
   [`docs/licensing.md`](licensing.md#curated-micro-jurisdiction-bank-data-the-narrow-exception).
+
+## Obtaining the offline `--file` sources
+
+The **live-fetch** importers (SE, FR, MC, CY, EE, ME, IT) and the **curated** ones (AD, VA, SM) need no
+file — just `php spark iban:update --country=<cc>`. The four **PDF-/Cloudflare-gated** importers (PT, FI,
+RS, MK) are `--file`-only: download the official source, prepare a text/CSV as documented below, and
+pass it with `--file`. The PDF ones need [`pdftotext`](https://poppler.freedesktop.org/) (the
+`poppler-utils` package). Add `--dry-run` to preview any import without writing to the `banks` table.
+Each importer's class docblock carries the same recipe plus its exact parsing rules — re-verify against
+a freshly downloaded file before production, since publishers change layouts and URLs without notice.
+
+### PT — Banco de Portugal (SICOI)
+
+1. Download the *"BIC associated with IBANs of PSPs participating in SICOI"* PDF from
+   <https://www.bportugal.pt/en/page/sicoi> (the file URL is date-stamped and rotates; the landing page
+   bot-blocks automated fetches, which is why this is `--file`-only).
+2. Extract its text preserving the fixed-width column alignment, then import:
+
+```bash
+pdftotext -layout -enc UTF-8 "bic_linked_with_ibans_<date>.pdf" bportugal.txt
+php spark iban:update --source=bportugal --country=PT --file=bportugal.txt
+```
+
+The parser reads each data line as `4-digit code | PSP name | BIC`; accented names extracted without
+`-enc UTF-8` (Windows-1252 mojibake) are repaired automatically.
+
+### FI — Finance Finland (Finanssiala ry)
+
+1. Download the *"Suomalaiset rahalaitostunnukset ja BIC-koodit"* PDF from
+   <https://www.finanssiala.fi/julkaisut/suomalaiset-rahalaitostunnukset-ja-bic-koodit/>.
+2. Extract it and tidy the three columns into a **semicolon**-delimited UTF-8 CSV with the header
+   `Rahalaitos;Rahalaitostunnus;BIC` (semicolon, because a code cell can hold a comma list like
+   `405, 497`), then import:
+
+```bash
+pdftotext -layout -enc UTF-8 "suomalaiset-rahalaitostunnukset-ja-bic-<date>.pdf" fi.txt
+# arrange the columns into  Rahalaitos;Rahalaitostunnus;BIC  → fi.csv
+php spark iban:update --source=finanssiala --country=FI --file=fi.csv
+```
+
+The importer expands the variable-length `Rahalaitostunnus` (single values, `1 ja 2` lists, `470-479`
+ranges) into the fixed 3-digit `bank_code`. Post-2024 four-digit codes (leading 72–78) cannot be keyed
+on 3 digits and are reported as skipped in the `ImportReport`.
+
+### RS — National Bank of Serbia (NBS)
+
+1. Download both NBS PDFs from <https://www.nbs.rs/>: `pregled_racuna_banka.pdf` (code → BIC) and
+   `pu_jedinstveni_id_brojevi.pdf` (code → name).
+2. Extract both and build a **semicolon**-delimited UTF-8 CSV with the header `code;name;bic`, joining
+   the two files **by code** (not by row order — the two-column PDF layout is misaligned), then import:
+
+```bash
+pdftotext -layout -enc UTF-8 pu_jedinstveni_id_brojevi.pdf names.txt
+pdftotext -layout -enc UTF-8 pregled_racuna_banka.pdf bics.txt
+# cross-join by 3-digit code → rs.csv  (code;name;bic)
+php spark iban:update --source=nbs-rs --country=RS --file=rs.csv
+```
+
+### MK — NBRM (National Bank of North Macedonia)
+
+1. `nbrm.mk` sits behind a Cloudflare challenge, so download it **from a browser**: the
+   *"Листа на доделени водечки броеви на банките"* roster (`.xls`/`.docx`).
+2. Open it in Excel/LibreOffice and *Save As* a **comma**-delimited, UTF-8 CSV, keeping the header row
+   (`Р.бр,SWIFT BIC,Назив на банка,Водечки број`), then import:
+
+```bash
+php spark iban:update --source=nbrm --country=MK --file=mk.csv
+```
+
+> ⚠️ The only publicly confirmable roster is from 2014 — verify it and drop any defunct institutions
+> (e.g. Eurostandard banka, leading number 370, liquidated 2020) before importing.
 
 ## Coverage matrix
 
