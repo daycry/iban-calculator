@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Estado** | borrador |
+| **Estado** | en-progreso |
 | **Fecha** | 2026-07-16 |
 | **Plan** | [`improvement-plan.md`](./improvement-plan.md) |
 
@@ -16,7 +16,7 @@ Horas y tokens **base** (sin margen +20 %).
 
 | Fase | Completadas | Total | Progreso | Horas (real/est) | Tokens (real/est) |
 |------|------------|-------|----------|------------------|-------------------|
-| Fase 0 — Infra | 0 | 1 | 0% | 0 / 9h | 0 / 0,44 M |
+| Fase 0 — Infra | 1 | 1 | 100% | — / 9h | — / 0,44 M |
 | Fase 1 — Tier A (fetch en vivo) | 0 | 5 | 0% | 0 / 26h | 0 / 1,32 M |
 | Fase 2 — Tier B (offline `--file`) | 0 | 3 | 0% | 0 / 14h | 0 / 0,63 M |
 | Fase 3 — Tier C (salvedades / curación) | 0 | 8 | 0% | 0 / 46h | 0 / 2,21 M |
@@ -29,12 +29,12 @@ Horas y tokens **base** (sin margen +20 %).
 
 ## Fase 0 — Infra (`HtmlTableReader`)
 
-**Estado**: borrador · **Estimado**: 9h · **Real**: — · **Coste est.**: ≈ 461 € · **Tokens est.**: 0,44 M
+**Estado**: completado · **Estimado**: 9h · **Real**: — · **Coste est.**: ≈ 461 € · **Tokens est.**: 0,44 M
 
 ### T-01 — `Import/Support/HtmlTableReader` (lector de tablas HTML, framework-free)
 
 - **Descripción**: nuevo helper framework-free basado en `DOMDocument` (`ext-dom`/`ext-libxml`, ya disponibles), con la misma forma que `XlsxReader`: `readTables()` / `readFirstTable()` → rejilla 0-indexada de celdas string, + `locateHeader()` por importador (localiza cabecera y columna por nombre). Prerequisito de EE/ME/IT y del scrape de la landing de CY.
-- **Estado**: borrador
+- **Estado**: completado
 - **Tiempo**: est. 9h · real —
 - **Previsión IA**: 0,35 M in / 0,09 M out tok · ≈ 11 €
 - **Dependencias**: ninguna · **habilita** T-04, T-05, T-06, T-13
@@ -42,19 +42,19 @@ Horas y tokens **base** (sin margen +20 %).
 - **Cubre (tests)**: — (sin UI)
 
 **Criterios de aceptación**
-- [ ] `readFirstTable()`/`readTables()` devuelven rejilla 0-indexada `list<list<string>>` desde HTML representativo (tablas anidadas, `<thead>`/`<tbody>`, celdas vacías).
-- [ ] `locateHeader()` localiza la fila de cabecera y el índice de columna por nombre.
-- [ ] Tests unitarios verdes con fixtures HTML representativos (TDD: fixture reducido primero).
-- [ ] PHPStan L8 limpio, PSR-12.
-- [ ] Framework-free: `CoreIsFrameworkFreeTest` verde (vive en el directorio ya guardado `Import/Support`; **no** requiere editar `GUARDED_DIRECTORIES`, solo verificar que sigue cubierto).
+- [x] `readFirstTable()`/`readTables()` devuelven rejilla 0-indexada `list<list<string>>` desde HTML representativo (tablas anidadas, `<thead>`/`<tbody>`, celdas vacías).
+- [x] `locateHeader()` localiza la fila de cabecera y el índice de columna por nombre.
+- [x] Tests unitarios verdes con fixtures HTML representativos (TDD: fixture reducido primero).
+- [x] PHPStan L8 limpio, PSR-12.
+- [x] Framework-free: `CoreIsFrameworkFreeTest` verde (vive en el directorio ya guardado `Import/Support`; **no** requiere editar `GUARDED_DIRECTORIES`, solo verificar que sigue cubierto).
 
 **Subtareas**
-- [ ] Test con HTML de referencia (fixture reducido) primero.
-- [ ] Implementar `readTables()`/`readFirstTable()` con `DOMDocument` (tolerante a HTML malformado vía `libxml_use_internal_errors`).
-- [ ] Implementar `locateHeader()` por nombre de columna.
-- [ ] Verificar `CoreIsFrameworkFreeTest`, PHPStan L8 y PSR-12.
+- [x] Test con HTML de referencia (fixture reducido) primero.
+- [x] Implementar `readTables()`/`readFirstTable()` con `DOMDocument` (tolerante a HTML malformado vía `libxml_use_internal_errors`).
+- [x] Implementar `locateHeader()` por nombre de columna.
+- [x] Verificar `CoreIsFrameworkFreeTest`, PHPStan L8 y PSR-12.
 
-**Notas**: sin `colspan`/`rowspan` (no visto en las fichas; asumido no). Documentar el CAVEAT de fragilidad ante rediseños web, como el resto del catálogo.
+**Notas**: sin `colspan`/`rowspan` (no visto en las fichas; asumido no). Documentar el CAVEAT de fragilidad ante rediseños web, como el resto del catálogo. **Impl.**: `readTables()` devuelve `list<list<list<string>>>` (una rejilla por `<table>`, en orden de documento; las tablas anidadas afloran como rejilla propia y no contaminan la exterior). UTF-8 preservado vía `mb_encode_numericentity` antes de `loadHTML`. `locateHeader()` es estático en `HtmlTableReader` (case-insensitive, normaliza espacios). Añadido `ext-dom` a `composer.json` (igual que `ext-zip` respalda a `XlsxReader`). 10 tests unitarios verdes.
 
 ---
 
