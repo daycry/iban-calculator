@@ -111,7 +111,7 @@ Horas y tokens **base** (sin margen +20 %).
 ### T-04 — EE · `EstonianBankingAssociationImporter` (HTML)
 
 - **Descripción**: `HtmlTableReader` sobre `pangaliit.ee/.../bank-codes`; código de **2 díg.** → nombre + BIC; **manejar dobles** (Luminor 96/17) y **cero inicial** (TBB 00, código como string, no int). Primer consumidor del scraping HTML → valida T-01.
-- **Estado**: borrador
+- **Estado**: completado
 - **Tiempo**: est. 4h · real —
 - **Previsión IA**: 0,15 M in / 0,04 M out tok · ≈ 4,8 €
 - **Dependencias**: **T-01** (`HtmlTableReader`)
@@ -119,17 +119,17 @@ Horas y tokens **base** (sin margen +20 %).
 - **Cubre (tests)**: — (sin UI)
 
 **Criterios de aceptación**
-- [ ] `rows()` mapea el código de 2 díg. → nombre + BIC; preserva el cero inicial (TBB 00) y emite los dos códigos de Luminor (96 y 17).
-- [ ] Test verde con fixture HTML reducido (incluye 00 y 96/17); PHPStan L8, PSR-12; framework-free.
-- [ ] Registrado en `registerDefaults()` y listado por `iban:update`.
-- [ ] `resolve()` de una IBAN EE de ejemplo devuelve el banco esperado.
+- [x] `rows()` mapea el código de 2 díg. → nombre + BIC; preserva el cero inicial (TBB 00) y emite los dos códigos de Luminor (96 y 17).
+- [x] Test verde con fixture HTML reducido (incluye 00 y 96/17); PHPStan L8, PSR-12; framework-free.
+- [x] Registrado en `registerDefaults()` y listado por `iban:update`.
+- [x] `resolve()` de una IBAN EE de ejemplo devuelve el banco esperado.
 
 **Subtareas**
-- [ ] Test con fixture HTML reducido primero.
-- [ ] Implementar `rows()` con `HtmlTableReader` + `locateHeader()`; tratar el código como string.
-- [ ] Registrar en `registerDefaults()`.
+- [x] Test con fixture HTML reducido primero.
+- [x] Implementar `rows()` con `HtmlTableReader` + `locateHeader()`; tratar el código como string.
+- [x] Registrar en `registerDefaults()`.
 
-**Notas**: sin licencia explícita (lista factual, cubierta por «fetch bajo demanda»). Contrastar código con la definición legal del FSA (dígitos 5.º-6.º de la IBAN).
+**Notas**: sin licencia explícita (lista factual, cubierta por «fetch bajo demanda»). Contrastar código con la definición legal del FSA (dígitos 5.º-6.º de la IBAN). **Impl.**: `EstonianBankingAssociationImporter` (sourceId `pangaliit`) usa `HtmlTableReader::readTables()` + `locateHeader()`. **ASUNCIÓN a validar en vivo**: cabeceras `Bank`/`Bank code`/`BIC` (documentado como CAVEAT; ruta viva no testeada). Códigos extraídos por regex `(?<!\d)\d{2}(?!\d)` → soporta multi-código (Luminor `96, 17` → 2 filas) y cero inicial (`00`). Fixture DB `tests/Fixtures/import/ee_sample.html`; resolve() verde con `EE382200221020145685` → Swedbank.
 
 ### T-05 — ME · `CentralBankOfMontenegroImporter` (HTML + filtro)
 

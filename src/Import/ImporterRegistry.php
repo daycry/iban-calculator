@@ -18,6 +18,7 @@ use Daycry\Iban\Import\Importers\CentralBankOfMaltaImporter;
 use Daycry\Iban\Import\Importers\CroatianNationalBankImporter;
 use Daycry\Iban\Import\Importers\CzechNationalBankImporter;
 use Daycry\Iban\Import\Importers\EpcRegisterImporter;
+use Daycry\Iban\Import\Importers\EstonianBankingAssociationImporter;
 use Daycry\Iban\Import\Importers\HellenicBankAssociationImporter;
 use Daycry\Iban\Import\Importers\LiechtensteinImporter;
 use Daycry\Iban\Import\Importers\LuxembourgBankersAssociationImporter;
@@ -232,6 +233,7 @@ class ImporterRegistry
         $this->register(new SwedenBankInfrastructureImporter());
         $this->register(new RegafiImporter('FR'));
         $this->register(new RegafiImporter('MC'));
+        $this->register(new EstonianBankingAssociationImporter());
     }
 
     private static function key(string $countryCode, string $sourceId): string

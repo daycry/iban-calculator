@@ -20,6 +20,7 @@ use Daycry\Iban\Import\Importers\CentralBankOfMaltaImporter;
 use Daycry\Iban\Import\Importers\CroatianNationalBankImporter;
 use Daycry\Iban\Import\Importers\CzechNationalBankImporter;
 use Daycry\Iban\Import\Importers\EpcRegisterImporter;
+use Daycry\Iban\Import\Importers\EstonianBankingAssociationImporter;
 use Daycry\Iban\Import\Importers\HellenicBankAssociationImporter;
 use Daycry\Iban\Import\Importers\LiechtensteinImporter;
 use Daycry\Iban\Import\Importers\LuxembourgBankersAssociationImporter;
@@ -139,6 +140,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const EPC_FIXTURE              = __DIR__ . '/../Fixtures/import/epc_sct_sample.csv';
     private const SE_FIXTURE               = __DIR__ . '/../Fixtures/import/se_sample.psv';
     private const REGAFI_FIXTURE           = __DIR__ . '/../Fixtures/import/regafi_sample.json';
+    private const EE_FIXTURE               = __DIR__ . '/../Fixtures/import/ee_sample.html';
 
     private const CZ_EXAMPLE_IBAN = 'CZ6508000000192000145399';
     private const GR_EXAMPLE_IBAN = 'GR1601101250000000012300695';
@@ -166,6 +168,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const SE_EXAMPLE_IBAN = 'SE4550000000058398257466'; // bank code '500' = SEB
     private const FR_EXAMPLE_IBAN = 'FR0530003000001234567890100'; // CIB '30003' = Société Générale
     private const MC_EXAMPLE_IBAN = 'MC3112739000001234567890100'; // CIB '12739' = CFM Indosuez
+    private const EE_EXAMPLE_IBAN = 'EE382200221020145685'; // bank code '22' = Swedbank
 
     // MOD-97-valid test IBANs for the EPC SEPA Register importer's seeded
     // banks. GB's is the SRLG example handed down with the task brief
@@ -1277,6 +1280,39 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
         $mc = $iban->resolve(self::MC_EXAMPLE_IBAN);
         self::assertTrue($mc->isResolved());
         self::assertSame('CFM Indosuez Wealth', $mc->bankName);
+    }
+
+    public function testEstonianBankingAssociationImporterImportsRowsAndResolvesTheExampleIban(): void
+    {
+        $report = (new ImportRunner())->run(new EstonianBankingAssociationImporter(), new BankModel(), false, self::EE_FIXTURE);
+
+        self::assertSame('EE', $report->countryCode);
+        self::assertSame('pangaliit', $report->sourceId);
+        // Swedbank, SEB, Luminor x2 (96 + 17), TBB = 5 rows.
+        self::assertSame(5, $report->imported);
+
+        self::assertSame(5, $this->db->table('banks')->countAllResults());
+
+        $this->seeInDatabase('banks', [
+            'country_code'   => 'EE',
+            'bank_code'      => '22',
+            'branch_code'    => null,
+            'name'           => 'Swedbank AS',
+            'bic'            => 'HABAEE2X',
+            'source_id'      => 'pangaliit',
+        ]);
+
+        // Both Luminor codes were seeded; the leading-zero TBB code survived.
+        $this->seeInDatabase('banks', ['country_code' => 'EE', 'bank_code' => '96', 'name' => 'Luminor Bank AS']);
+        $this->seeInDatabase('banks', ['country_code' => 'EE', 'bank_code' => '17', 'name' => 'Luminor Bank AS']);
+        $this->seeInDatabase('banks', ['country_code' => 'EE', 'bank_code' => '00', 'name' => 'AS TBB pank']);
+
+        // The real proof: resolving the SWIFT EE example IBAN (bank code '22').
+        $iban   = new Iban(provider: new DatabaseProvider(new BankModel()));
+        $result = $iban->resolve(self::EE_EXAMPLE_IBAN);
+
+        self::assertTrue($result->isResolved());
+        self::assertSame('Swedbank AS', $result->bankName);
     }
 
     public function testBothImportersCanCoexistInTheSameBanksTable(): void
