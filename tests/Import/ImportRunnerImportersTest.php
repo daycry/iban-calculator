@@ -7,6 +7,7 @@ namespace Tests\Import;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Daycry\Iban\Iban;
+use Daycry\Iban\Import\Importers\AndorranBankingImporter;
 use Daycry\Iban\Import\Importers\BancoDeEspanaImporter;
 use Daycry\Iban\Import\Importers\BankOfIsraelImporter;
 use Daycry\Iban\Import\Importers\BankOfSloveniaImporter;
@@ -174,6 +175,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const EE_EXAMPLE_IBAN = 'EE382200221020145685'; // bank code '22' = Swedbank
     private const ME_EXAMPLE_IBAN = 'ME56510123456789012300'; // bank code '510' = CKB
     private const CY_EXAMPLE_IBAN = 'CY17002001280000001200527600'; // bank code '002' = Bank of Cyprus
+    private const AD_EXAMPLE_IBAN = 'AD1200012030200359100100'; // Entitat '0001' = Andbank (registry example)
 
     // MOD-97-valid test IBANs for the EPC SEPA Register importer's seeded
     // banks. GB's is the SRLG example handed down with the task brief
@@ -1394,6 +1396,45 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
 
         self::assertTrue($result->isResolved());
         self::assertSame('Bank of Cyprus Public Company Ltd', $result->bankName);
+    }
+
+    public function testAndorranBankingImporterImportsCuratedRowsAndResolvesTheExampleIban(): void
+    {
+        // Curated importer: no $localFile is passed -- rows() yields the
+        // constant data/ad.php map on its own.
+        $report = (new ImportRunner())->run(new AndorranBankingImporter(), new BankModel(), false, null);
+
+        self::assertSame('AD', $report->countryCode);
+        self::assertSame('andorran-banking', $report->sourceId);
+        // Andbank 0001, Creand 0003, MoraBanc 0007 + 0008 = 4 rows.
+        self::assertSame(4, $report->imported);
+
+        self::assertSame(4, $this->db->table('banks')->countAllResults());
+
+        $this->seeInDatabase('banks', [
+            'country_code'   => 'AD',
+            'bank_code'      => '0001',
+            'branch_code'    => null,
+            'name'           => 'Andorra Banc Agrícol Reig, S.A. (Andbank)',
+            'bic'            => 'BACAADAD',
+            'source_id'      => 'andorran-banking',
+            'source_license' => 'curated (factual, non-copyrightable)',
+        ]);
+
+        // Both MoraBanc codes were seeded; leading zeros survived as strings.
+        $this->seeInDatabase('banks', ['country_code' => 'AD', 'bank_code' => '0007', 'bic' => 'BSAAADAD']);
+        $this->seeInDatabase('banks', ['country_code' => 'AD', 'bank_code' => '0008', 'bic' => 'BSAAADAD']);
+        $this->seeInDatabase('banks', ['country_code' => 'AD', 'bank_code' => '0003', 'name' => 'Crèdit Andorrà, S.A. (Creand)']);
+
+        // The real proof: resolving the registry's own AD example IBAN
+        // (Entitat '0001', WITH a branch segment the bank-level row has no
+        // exact match for) against the seeded bank-level row, via the
+        // Resolver's findByBankCode(cc, bank, null) fallback.
+        $iban   = new Iban(provider: new DatabaseProvider(new BankModel()));
+        $result = $iban->resolve(self::AD_EXAMPLE_IBAN);
+
+        self::assertTrue($result->isResolved());
+        self::assertSame('Andorra Banc Agrícol Reig, S.A. (Andbank)', $result->bankName);
     }
 
     public function testBothImportersCanCoexistInTheSameBanksTable(): void

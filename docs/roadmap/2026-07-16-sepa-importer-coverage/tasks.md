@@ -18,10 +18,10 @@ Horas y tokens **base** (sin margen +20 %).
 |------|------------|-------|----------|------------------|-------------------|
 | Fase 0 — Infra | 1 | 1 | 100% | — / 9h | — / 0,44 M |
 | Fase 1 — Tier A (fetch en vivo) | 5 | 5 | 100% | — / 26h | — / 1,32 M |
-| Fase 2 — Tier B (offline `--file`) | 0 | 3 | 0% | 0 / 14h | 0 / 0,63 M |
+| Fase 2 — Tier B (offline `--file`) | 1 | 3 | 33% | — / 14h | — / 0,63 M |
 | Fase 3 — Tier C (salvedades / curación) | 0 | 8 | 0% | 0 / 46h | 0 / 2,21 M |
 | Fase 4 — Transversal | 0 | 4 | 0% | 0 / 6h | 0 / 0,34 M |
-| **TOTAL** | **6** | **21** | **29%** | **— / 101h** | **— / ≈ 4,94 M** |
+| **TOTAL** | **7** | **21** | **33%** | **— / 101h** | **— / ≈ 4,94 M** |
 
 > Cobertura objetivo por fase: Fase 1 → **30/42**, Fase 2 → **33/42**, Fase 3 → **hasta 41/42**. DK (+FO/GL) fuera (tier D). Tareas condicionadas: **T-16 (LT) bloqueada por licencia**; **T-09 (MK) condicionada a frescura**; **T-15 (RS) con cross-check por alineación**; **T-17 (FI) el último por coste/riesgo**.
 
@@ -181,12 +181,12 @@ Horas y tokens **base** (sin margen +20 %).
 
 ## Fase 2 — Tier B (offline `--file`) · Cobertura → 33/42
 
-**Estado**: borrador · **Estimado**: 14h · **Real**: — · **Coste est.**: ≈ 716 € · **Tokens est.**: 0,63 M
+**Estado**: en-progreso · **Estimado**: 14h · **Real**: — · **Coste est.**: ≈ 716 € · **Tokens est.**: 0,63 M
 
 ### T-07 — AD · `AndorranBankingImporter` (dato curado)
 
 - **Descripción**: dado que son **3 bancos / 4 códigos**, ruta **curada** (D4): `rows()` yield un array constante `Entitat` (4 díg.) → nombre; BIC curado (BACAADAD, CRDAADAD, BSAAADAD). Fichero `Import/Importers/data/ad.php`, procedencia `curated`.
-- **Estado**: borrador
+- **Estado**: completado
 - **Tiempo**: est. 3h · real —
 - **Previsión IA**: 0,10 M in / 0,03 M out tok · ≈ 3,5 €
 - **Dependencias**: **D4** (aprobada) · **T-18** (nota `licensing.md`, recomendada adelantar)
@@ -194,15 +194,15 @@ Horas y tokens **base** (sin margen +20 %).
 - **Cubre (tests)**: — (sin UI)
 
 **Criterios de aceptación**
-- [ ] `rows()` yield el mapa curado (4 díg. → nombre + BIC); `license()` = "curated (factual, non-copyrightable)"; procedencia `curated`.
-- [ ] Test verde con el dato curado; PHPStan L8, PSR-12; framework-free.
-- [ ] Registrado en `registerDefaults()`; `resolve()` de una IBAN AD de ejemplo (0001 Andbank, 0003 Creand) devuelve el banco esperado.
+- [x] `rows()` yield el mapa curado (4 díg. → nombre + BIC); `license()` = "curated (factual, non-copyrightable)"; procedencia `curated`.
+- [x] Test verde con el dato curado; PHPStan L8, PSR-12; framework-free.
+- [x] Registrado en `registerDefaults()`; `resolve()` de una IBAN AD de ejemplo (0001 Andbank, 0003 Creand) devuelve el banco esperado.
 
 **Subtareas**
-- [ ] Autorar `data/ad.php` (hechos, no copia de la fuente; metodología `registry-authoring.md`).
-- [ ] Implementar importador + test; registrar en `registerDefaults()`.
+- [x] Autorar `data/ad.php` (hechos, no copia de la fuente; metodología `registry-authoring.md`).
+- [x] Implementar importador + test; registrar en `registerDefaults()`.
 
-**Notas**: verificar el mapeo 0007/0008 de MoraBanc. Refresco anual documentado.
+**Notas**: verificar el mapeo 0007/0008 de MoraBanc. Refresco anual documentado. **Impl.**: primer importador **curado** del catálogo. `AndorranBankingImporter` (sourceId `andorran-banking`, license `curated (factual, non-copyrightable)`) hace `require __DIR__/data/ad.php` y emite 4 filas (0001 Andbank/BACAADAD, 0003 Creand/CRDAADAD, 0007+0008 MoraBanc/BSAAADAD); `bank_code` string de 4 díg. (ceros a la izquierda). `rows()` ignora `$localFile` (dato constante). **Patrón curado establecido** (adelanta T-18): fichero de datos `data/<cc>.php` bajo el subárbol ya guardado `Import/Importers` → framework-free sin tocar `GUARDED_DIRECTORIES`. La IBAN de ejemplo del registro `AD1200012030200359100100` (Entitat 0001) resuelve a Andbank vía el fallback `findByBankCode(cc, bank, null)`.
 
 ### T-08 — PT · `BancoDePortugalImporter` (`--file`, texto del PDF SICOI)
 

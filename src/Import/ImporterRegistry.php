@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Daycry\Iban\Import;
 
 use Daycry\Iban\Contracts\ImporterInterface;
+use Daycry\Iban\Import\Importers\AndorranBankingImporter;
 use Daycry\Iban\Import\Importers\BancoDeEspanaImporter;
 use Daycry\Iban\Import\Importers\BankOfIsraelImporter;
 use Daycry\Iban\Import\Importers\BankOfSloveniaImporter;
@@ -238,6 +239,12 @@ class ImporterRegistry
         $this->register(new EstonianBankingAssociationImporter());
         $this->register(new CentralBankOfMontenegroImporter());
         $this->register(new CentralBankOfCyprusImporter());
+
+        // v2.x SEPA-coverage batch (Fase 2, tier B -- offline `--file` +
+        // curated): AD is curated (no machine-readable source; a tiny, stable
+        // 3-bank set), PT/MK are `--file`-only (their landings block bots /
+        // sit behind Cloudflare).
+        $this->register(new AndorranBankingImporter());
     }
 
     private static function key(string $countryCode, string $sourceId): string
