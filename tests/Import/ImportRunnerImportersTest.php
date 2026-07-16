@@ -39,6 +39,7 @@ use Daycry\Iban\Import\Importers\NationalBankOfUkraineImporter;
 use Daycry\Iban\Import\Importers\NbrmImporter;
 use Daycry\Iban\Import\Importers\OenbImporter;
 use Daycry\Iban\Import\Importers\RegafiImporter;
+use Daycry\Iban\Import\Importers\SanMarinoImporter;
 use Daycry\Iban\Import\Importers\SixImporter;
 use Daycry\Iban\Import\Importers\SwedenBankInfrastructureImporter;
 use Daycry\Iban\Import\Importers\VaticanCityImporter;
@@ -184,6 +185,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const PT_EXAMPLE_IBAN = 'PT16003400000000000000000'; // bank code '0034' = Caixa Geral de Depósitos
     private const MK_EXAMPLE_IBAN = 'MK37300000001234500'; // bank code '300' = Komercijalna banka
     private const VA_EXAMPLE_IBAN = 'VA59001123000012345678'; // bank code '001' = IOR (registry example)
+    private const SM_EXAMPLE_IBAN = 'SM15U0303409800000000270100'; // ABI '03034' = Banca Agricola Commerciale
 
     // MOD-97-valid test IBANs for the EPC SEPA Register importer's seeded
     // banks. GB's is the SRLG example handed down with the task brief
@@ -1543,6 +1545,44 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
 
         self::assertTrue($result->isResolved());
         self::assertSame('Istituto per le Opere di Religione (IOR)', $result->bankName);
+    }
+
+    public function testSanMarinoImporterImportsCuratedRowsAndResolvesTheExampleIban(): void
+    {
+        // Curated importer: no $localFile is passed -- rows() yields the
+        // constant data/sm.php map (four Sammarinese banks) on its own.
+        $report = (new ImportRunner())->run(new SanMarinoImporter(), new BankModel(), false, null);
+
+        self::assertSame('SM', $report->countryCode);
+        self::assertSame('bcsm', $report->sourceId);
+        // Four Sammarinese banks.
+        self::assertSame(4, $report->imported);
+
+        self::assertSame(4, $this->db->table('banks')->countAllResults());
+
+        $this->seeInDatabase('banks', [
+            'country_code'   => 'SM',
+            'bank_code'      => '03034',
+            'branch_code'    => null,
+            'name'           => 'Banca Agricola Commerciale della Repubblica di San Marino',
+            'bic'            => 'BASMSMSM',
+            'source_id'      => 'bcsm',
+            'source_license' => 'curated (factual, non-copyrightable)',
+        ]);
+
+        // Leading zeros survived as 5-digit strings.
+        $this->seeInDatabase('banks', ['country_code' => 'SM', 'bank_code' => '08540', 'bic' => 'MAOISMSM']);
+        $this->seeInDatabase('banks', ['country_code' => 'SM', 'bank_code' => '06067', 'bic' => 'CSSMSMSM']);
+
+        // The real proof: resolving a MOD-97-valid SM IBAN (ABI '03034', WITH
+        // a branch segment the bank-level row has no exact match for) against
+        // the seeded bank-level row, via the Resolver's
+        // findByBankCode(cc, bank, null) fallback.
+        $iban   = new Iban(provider: new DatabaseProvider(new BankModel()));
+        $result = $iban->resolve(self::SM_EXAMPLE_IBAN);
+
+        self::assertTrue($result->isResolved());
+        self::assertSame('Banca Agricola Commerciale della Repubblica di San Marino', $result->bankName);
     }
 
     public function testBothImportersCanCoexistInTheSameBanksTable(): void

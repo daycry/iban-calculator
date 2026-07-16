@@ -37,6 +37,7 @@ use Daycry\Iban\Import\Importers\NationalBankOfUkraineImporter;
 use Daycry\Iban\Import\Importers\NbrmImporter;
 use Daycry\Iban\Import\Importers\OenbImporter;
 use Daycry\Iban\Import\Importers\RegafiImporter;
+use Daycry\Iban\Import\Importers\SanMarinoImporter;
 use Daycry\Iban\Import\Importers\SixImporter;
 use Daycry\Iban\Import\Importers\SwedenBankInfrastructureImporter;
 use Daycry\Iban\Import\Importers\VaticanCityImporter;
@@ -252,9 +253,12 @@ class ImporterRegistry
         $this->register(new NbrmImporter());
 
         // v2.x SEPA-coverage batch (Fase 3, tier C -- caveats / curation):
-        // VA is curated (the Vatican's whole bank universe is a single
-        // institution, the IOR, with no machine-readable directory).
+        // VA/SM are curated (the Vatican's whole bank universe is a single
+        // institution, the IOR; San Marino's is four banks, and the Italian
+        // ABI directories don't list them). Neither has a machine-readable
+        // directory.
         $this->register(new VaticanCityImporter());
+        $this->register(new SanMarinoImporter());
     }
 
     private static function key(string $countryCode, string $sourceId): string

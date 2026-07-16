@@ -19,9 +19,9 @@ Horas y tokens **base** (sin margen +20 %).
 | Fase 0 — Infra | 1 | 1 | 100% | — / 9h | — / 0,44 M |
 | Fase 1 — Tier A (fetch en vivo) | 5 | 5 | 100% | — / 26h | — / 1,32 M |
 | Fase 2 — Tier B (offline `--file`) | 3 | 3 | 100% | — / 14h | — / 0,63 M |
-| Fase 3 — Tier C (salvedades / curación) | 1 | 8 | 13% | — / 46h | — / 2,21 M |
+| Fase 3 — Tier C (salvedades / curación) | 2 | 8 | 25% | — / 46h | — / 2,21 M |
 | Fase 4 — Transversal | 0 | 4 | 0% | 0 / 6h | 0 / 0,34 M |
-| **TOTAL** | **10** | **21** | **48%** | **— / 101h** | **— / ≈ 4,94 M** |
+| **TOTAL** | **11** | **21** | **52%** | **— / 101h** | **— / ≈ 4,94 M** |
 
 > Cobertura objetivo por fase: Fase 1 → **30/42**, Fase 2 → **33/42**, Fase 3 → **hasta 41/42**. DK (+FO/GL) fuera (tier D). Tareas condicionadas: **T-16 (LT) bloqueada por licencia**; **T-09 (MK) condicionada a frescura**; **T-15 (RS) con cross-check por alineación**; **T-17 (FI) el último por coste/riesgo**.
 
@@ -279,22 +279,22 @@ Horas y tokens **base** (sin margen +20 %).
 ### T-11 — SM · `BcsmImporter` (dato curado, 4 bancos)
 
 - **Descripción**: **4 bancos**, ABI de 5 díg. → nombre + BIC. Ruta **curada** recomendada (más robusta que scrapear 4 filas), `data/sm.php`, procedencia `curated`.
-- **Estado**: borrador
+- **Estado**: completado
 - **Tiempo**: est. 3h · real —
 - **Previsión IA**: 0,10 M in / 0,03 M out tok · ≈ 3,5 €
 - **Dependencias**: **D4** (aprobada) · **T-18** (nota `licensing.md`)
-- **Archivos**: `src/Import/Importers/BcsmImporter.php`, `src/Import/Importers/data/sm.php`, `tests/Import/Importers/BcsmImporterTest.php`, `src/Import/ImporterRegistry.php`
+- **Archivos**: `src/Import/Importers/SanMarinoImporter.php`, `src/Import/Importers/data/sm.php`, `tests/Import/Importers/SanMarinoImporterTest.php`, `src/Import/ImporterRegistry.php`
 - **Cubre (tests)**: — (sin UI)
 
 **Criterios de aceptación**
-- [ ] `rows()` yield los 4 bancos (ABI 5 díg. → nombre + BIC); procedencia `curated`.
-- [ ] Test verde; PHPStan L8, PSR-12; framework-free.
-- [ ] Registrado en `registerDefaults()`; `resolve()` de una IBAN SM de ejemplo (03034 Banca Agricola Commerciale) devuelve el banco esperado.
+- [x] `rows()` yield los 4 bancos (ABI 5 díg. → nombre + BIC); procedencia `curated`.
+- [x] Test verde; PHPStan L8, PSR-12; framework-free.
+- [x] Registrado en `registerDefaults()`; `resolve()` de una IBAN SM de ejemplo (03034 Banca Agricola Commerciale) devuelve el banco esperado.
 
 **Subtareas**
-- [ ] Autorar `data/sm.php` (4 bancos verificados con ABI+BIC); implementar importador + test; registrar.
+- [x] Autorar `data/sm.php` (4 bancos verificados con ABI+BIC); implementar importador + test; registrar.
 
-**Notas**: los directorios ABI italianos **no** listan bancos sammarinesi → fuente propia. Refresco anual.
+**Notas**: los directorios ABI italianos **no** listan bancos sammarinesi → fuente propia. Refresco anual. **Impl.**: `SanMarinoImporter` (sourceId `bcsm`, license `curated (factual, non-copyrightable)`) hace `require __DIR__/data/sm.php` y emite 4 filas (03034 Banca Agricola Commerciale/BASMSMSM, 08540 Banca di San Marino/MAOISMSM, 03287 Banca Sammarinese di Investimento/BSDISMSD, 06067 Cassa di Risparmio/CSSMSMSM); `bank_code` string de 5 díg. (ceros a la izquierda). **DESVIACIÓN de nombre**: clase nombrada `SanMarinoImporter` (no `BcsmImporter` como sugería el borrador), aunque el `sourceId` sí es `bcsm`. **Ejemplo IBAN**: el ejemplo del registro `SM86U0322509800000000270100` usa ABI ilustrativo `03225` (no curado); para el resolve() proof se construyó una IBAN MOD-97-válida con un ABI curado: `SM15U0303409800000000270100` (ABI `03034`) resuelve a Banca Agricola Commerciale vía el fallback `findByBankCode(cc, bank, null)`. Catálogo 40 → 41.
 
 ### T-12 — IS · dato curado a nivel banco (prefijos centenas)
 
