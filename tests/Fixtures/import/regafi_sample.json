@@ -1,0 +1,8 @@
+[
+  {"cib":"[\"30003\"]","denomination":"Société Générale","pays":"FRANCE"},
+  {"cib":"[{\"code\":\"20041\"},{\"code\":\"20042\"}]","denomination":"La Banque Postale","pays":"FRANCE"},
+  {"cib":"[]","denomination":"Entity Without CIB","pays":"FRANCE"},
+  {"cib":"[\"7788\"]","denomination":"Short Code Bank","pays":"FRANCE"},
+  {"cib":"[\"12739\"]","denomination":"CFM Indosuez Wealth","pays":"MONACO"},
+  {"cib":"[\"10160\"]","denomination":"Crédit Mobilier de Monaco","pays":"MONACO"}
+]

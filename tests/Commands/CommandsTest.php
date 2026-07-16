@@ -345,7 +345,7 @@ final class CommandsTest extends CIUnitTestCase
         self::assertStringContainsString('SWIFT IBAN Registry', $output);
         self::assertStringContainsString('SWIFT BIC Directory', $output);
         self::assertStringContainsString('National lists require per-source attribution.', $output);
-        self::assertStringContainsString('Registered importers: 31', $output);
+        self::assertStringContainsString('Registered importers: 33', $output);
         self::assertStringContainsString('oenb', $output);
         self::assertStringContainsString('bundesbank', $output);
         self::assertStringContainsString('six', $output);
@@ -372,6 +372,7 @@ final class CommandsTest extends CIUnitTestCase
         self::assertStringContainsString('bcb', $output);
         self::assertStringContainsString('epc', $output);
         self::assertStringContainsString('bankinfrastruktur', $output);
+        self::assertStringContainsString('regafi', $output);
         self::assertStringContainsString('AT', $output);
         self::assertStringContainsString('DE', $output);
         self::assertStringContainsString('CH', $output);
@@ -403,18 +404,19 @@ final class CommandsTest extends CIUnitTestCase
         self::assertStringContainsString('LV', $output);
         self::assertStringContainsString('RO', $output);
         self::assertStringContainsString('SE', $output);
+        self::assertStringContainsString('FR', $output);
+        self::assertStringContainsString('MC', $output);
         self::assertStringContainsString('Select one with --country=/--source= to run it', $output);
     }
 
     public function testUpdateAcceptsDryRunAndCountryOptionsWithoutErrorAndReportsNoMatch(): void
     {
-        // 'FR' matches none of the 30 bundled importers
-        // (AT/DE/CH/NL/ES/CZ/GR/SI/SK/BG/MD/PL/AZ/BE/HR/LU/MT/HU/NO/GE/IL/UA/KZ/LI/BR/GB/GI/IE/LV/RO)
-        // -- the EPC SEPA Register importer is registered for GB/GI/IE/LV/RO
-        // only, NOT for FR, even though the EPC Register itself also lists
-        // French participants -- so this stays the graceful "no match"
-        // branch -- and, crucially, never reaches the network/file fetch.
-        [$exit, $output] = $this->runSpark(['iban:update', '--dry-run', '--country', 'FR']);
+        // 'DK' matches none of the bundled importers -- Denmark is tier D in
+        // the SEPA-coverage initiative (no open, machine-readable source), so
+        // it is deliberately never bundled. This keeps the graceful "no
+        // match" branch and, crucially, never reaches the network/file fetch.
+        // (FR/MC used to sit here but are now bundled via RegafiImporter.)
+        [$exit, $output] = $this->runSpark(['iban:update', '--dry-run', '--country', 'DK']);
 
         self::assertSame(EXIT_SUCCESS, $exit);
         self::assertStringContainsString('SWIFT IBAN Registry', $output);

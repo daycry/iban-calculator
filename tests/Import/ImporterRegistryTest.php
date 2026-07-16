@@ -31,6 +31,7 @@ use Daycry\Iban\Import\Importers\NationalBankOfPolandImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfUkraineImporter;
 use Daycry\Iban\Import\Importers\OenbImporter;
+use Daycry\Iban\Import\Importers\RegafiImporter;
 use Daycry\Iban\Import\Importers\SixImporter;
 use Daycry\Iban\Import\Importers\SwedenBankInfrastructureImporter;
 use PHPUnit\Framework\TestCase;
@@ -84,7 +85,7 @@ final class ImporterRegistryTest extends TestCase
 
         $all = $registry->all();
 
-        self::assertCount(31, $all);
+        self::assertCount(33, $all);
         self::assertInstanceOf(OenbImporter::class, $all[0]);
         self::assertInstanceOf(BundesbankImporter::class, $all[1]);
         self::assertInstanceOf(SixImporter::class, $all[2]);
@@ -116,6 +117,8 @@ final class ImporterRegistryTest extends TestCase
         self::assertInstanceOf(EpcRegisterImporter::class, $all[28]);
         self::assertInstanceOf(EpcRegisterImporter::class, $all[29]);
         self::assertInstanceOf(SwedenBankInfrastructureImporter::class, $all[30]);
+        self::assertInstanceOf(RegafiImporter::class, $all[31]);
+        self::assertInstanceOf(RegafiImporter::class, $all[32]);
 
         self::assertSame([
             ['country' => 'AT', 'source' => 'oenb', 'name' => 'Oesterreichische Nationalbank', 'license' => 'CC-BY-4.0 (OeNB)'],
@@ -149,6 +152,8 @@ final class ImporterRegistryTest extends TestCase
             ['country' => 'LV', 'source' => 'epc', 'name' => 'European Payments Council (SEPA Register)', 'license' => 'EPC SEPA Register (credit EPC, no resale as-is)'],
             ['country' => 'RO', 'source' => 'epc', 'name' => 'European Payments Council (SEPA Register)', 'license' => 'EPC SEPA Register (credit EPC, no resale as-is)'],
             ['country' => 'SE', 'source' => 'bankinfrastruktur', 'name' => 'Bankinfrastruktur BankData', 'license' => 'MIT (Bankinfrastruktur BankData)'],
+            ['country' => 'FR', 'source' => 'regafi', 'name' => 'REGAFI (ACPR / Banque de France)', 'license' => 'Licence Ouverte / Etalab (attribution)'],
+            ['country' => 'MC', 'source' => 'regafi', 'name' => 'REGAFI (ACPR / Banque de France)', 'license' => 'Licence Ouverte / Etalab (attribution)'],
         ], $registry->sources());
 
         self::assertNotNull($registry->get('AT', 'oenb'));
@@ -182,6 +187,12 @@ final class ImporterRegistryTest extends TestCase
         self::assertNotNull($registry->get('LV', 'epc'));
         self::assertNotNull($registry->get('RO', 'epc'));
         self::assertNotNull($registry->get('SE', 'bankinfrastruktur'));
+        self::assertNotNull($registry->get('FR', 'regafi'));
+        self::assertNotNull($registry->get('MC', 'regafi'));
+
+        // FR and MC share the 'regafi' sourceId but are keyed separately by
+        // country, so both coexist as distinct registry entries.
+        self::assertNotSame($registry->get('FR', 'regafi'), $registry->get('MC', 'regafi'));
 
         // LI and CH share the 'six' sourceId but are keyed separately by
         // country, so both coexist as distinct registry entries.
@@ -297,14 +308,14 @@ final class ImporterRegistryTest extends TestCase
         $registry->register($at);
         $registry->register($de);
 
-        // Registration order is preserved: the 30 bundled defaults (V-7a +
+        // Registration order is preserved: the bundled defaults (V-7a +
         // V-7b + v1.2 + v1.2 follow-up + v1.2 BE/HR/LU/MT batch + v1.2
-        // HU/NO/GE batch + v1.2 IL/UA/KZ batch + v1.2 BR/LI batch + this
-        // v1.2 EPC SEPA Register batch) register first (in the constructor),
-        // then $at and $de.
+        // HU/NO/GE batch + v1.2 IL/UA/KZ batch + v1.2 BR/LI batch + v1.2
+        // EPC SEPA Register batch + this v2.x SEPA-coverage batch) register
+        // first (in the constructor), then $at and $de.
         $all = $registry->all();
 
-        self::assertCount(33, $all);
+        self::assertCount(35, $all);
         self::assertInstanceOf(OenbImporter::class, $all[0]);
         self::assertInstanceOf(BundesbankImporter::class, $all[1]);
         self::assertInstanceOf(SixImporter::class, $all[2]);
@@ -336,8 +347,10 @@ final class ImporterRegistryTest extends TestCase
         self::assertInstanceOf(EpcRegisterImporter::class, $all[28]);
         self::assertInstanceOf(EpcRegisterImporter::class, $all[29]);
         self::assertInstanceOf(SwedenBankInfrastructureImporter::class, $all[30]);
-        self::assertSame($at, $all[31]);
-        self::assertSame($de, $all[32]);
+        self::assertInstanceOf(RegafiImporter::class, $all[31]);
+        self::assertInstanceOf(RegafiImporter::class, $all[32]);
+        self::assertSame($at, $all[33]);
+        self::assertSame($de, $all[34]);
     }
 
     public function testAllReturnValueIsAListOfImporterInterfaceInstances(): void

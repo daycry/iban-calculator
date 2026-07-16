@@ -32,6 +32,7 @@ use Daycry\Iban\Import\Importers\NationalBankOfPolandImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfUkraineImporter;
 use Daycry\Iban\Import\Importers\OenbImporter;
+use Daycry\Iban\Import\Importers\RegafiImporter;
 use Daycry\Iban\Import\Importers\SixImporter;
 use Daycry\Iban\Import\Importers\SwedenBankInfrastructureImporter;
 use Daycry\Iban\Import\ImportReport;
@@ -137,6 +138,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const BCB_FIXTURE              = __DIR__ . '/../Fixtures/import/bcb_sample.csv';
     private const EPC_FIXTURE              = __DIR__ . '/../Fixtures/import/epc_sct_sample.csv';
     private const SE_FIXTURE               = __DIR__ . '/../Fixtures/import/se_sample.psv';
+    private const REGAFI_FIXTURE           = __DIR__ . '/../Fixtures/import/regafi_sample.json';
 
     private const CZ_EXAMPLE_IBAN = 'CZ6508000000192000145399';
     private const GR_EXAMPLE_IBAN = 'GR1601101250000000012300695';
@@ -162,6 +164,8 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     // SEPA-coverage batch example IBANs (MOD-97-valid; bank code as extracted
     // by the structural registry).
     private const SE_EXAMPLE_IBAN = 'SE4550000000058398257466'; // bank code '500' = SEB
+    private const FR_EXAMPLE_IBAN = 'FR0530003000001234567890100'; // CIB '30003' = Société Générale
+    private const MC_EXAMPLE_IBAN = 'MC3112739000001234567890100'; // CIB '12739' = CFM Indosuez
 
     // MOD-97-valid test IBANs for the EPC SEPA Register importer's seeded
     // banks. GB's is the SRLG example handed down with the task brief
@@ -1219,6 +1223,60 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
 
         self::assertTrue($result->isResolved());
         self::assertSame('Skandinaviska Enskilda Banken', $result->bankName);
+    }
+
+    public function testRegafiImporterImportsFranceAndMonacoRowsAndResolvesExampleIbans(): void
+    {
+        $runner = new ImportRunner();
+        $model  = new BankModel();
+
+        $frReport = $runner->run(new RegafiImporter('FR'), $model, false, self::REGAFI_FIXTURE);
+        $mcReport = $runner->run(new RegafiImporter('MC'), $model, false, self::REGAFI_FIXTURE);
+
+        // FR: 30003 + (20041, 20042) + 07788 = 4 rows (empty-cib entity and
+        // the two Monaco records excluded). MC: 12739 + 10160 = 2 rows.
+        self::assertSame('FR', $frReport->countryCode);
+        self::assertSame(4, $frReport->imported);
+        self::assertSame('MC', $mcReport->countryCode);
+        self::assertSame(2, $mcReport->imported);
+
+        self::assertSame(6, $this->db->table('banks')->countAllResults());
+
+        $this->seeInDatabase('banks', [
+            'country_code'   => 'FR',
+            'bank_code'      => '30003',
+            'branch_code'    => null,
+            'name'           => 'Société Générale',
+            'bic'            => null, // REGAFI carries no BIC
+            'source_id'      => 'regafi',
+            'source_license' => 'Licence Ouverte / Etalab (attribution)',
+        ]);
+
+        // The two-CIB entity produced two rows.
+        $this->seeInDatabase('banks', ['country_code' => 'FR', 'bank_code' => '20041', 'name' => 'La Banque Postale']);
+        $this->seeInDatabase('banks', ['country_code' => 'FR', 'bank_code' => '20042', 'name' => 'La Banque Postale']);
+        // The short code was zero-padded to 5 digits.
+        $this->seeInDatabase('banks', ['country_code' => 'FR', 'bank_code' => '07788']);
+
+        // Monaco entities are keyed under MC, never FR.
+        $this->seeInDatabase('banks', [
+            'country_code' => 'MC',
+            'bank_code'    => '12739',
+            'name'         => 'CFM Indosuez Wealth',
+            'source_id'    => 'regafi',
+        ]);
+        $this->dontSeeInDatabase('banks', ['country_code' => 'FR', 'bank_code' => '12739']);
+
+        // The real proof: resolving MOD-97-valid FR and MC example IBANs.
+        $iban = new Iban(provider: new DatabaseProvider(new BankModel()));
+
+        $fr = $iban->resolve(self::FR_EXAMPLE_IBAN);
+        self::assertTrue($fr->isResolved());
+        self::assertSame('Société Générale', $fr->bankName);
+
+        $mc = $iban->resolve(self::MC_EXAMPLE_IBAN);
+        self::assertTrue($mc->isResolved());
+        self::assertSame('CFM Indosuez Wealth', $mc->bankName);
     }
 
     public function testBothImportersCanCoexistInTheSameBanksTable(): void

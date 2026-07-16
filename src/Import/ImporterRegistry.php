@@ -30,6 +30,7 @@ use Daycry\Iban\Import\Importers\NationalBankOfPolandImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfUkraineImporter;
 use Daycry\Iban\Import\Importers\OenbImporter;
+use Daycry\Iban\Import\Importers\RegafiImporter;
 use Daycry\Iban\Import\Importers\SixImporter;
 use Daycry\Iban\Import\Importers\SwedenBankInfrastructureImporter;
 
@@ -229,6 +230,8 @@ class ImporterRegistry
 
         // v2.x SEPA-coverage batch (Fase 1, tier A -- live fetch):
         $this->register(new SwedenBankInfrastructureImporter());
+        $this->register(new RegafiImporter('FR'));
+        $this->register(new RegafiImporter('MC'));
     }
 
     private static function key(string $countryCode, string $sourceId): string

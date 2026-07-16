@@ -88,7 +88,7 @@ Horas y tokens **base** (sin margen +20 %).
 ### T-03 — FR + MC · `RegafiImporter` (JSON `cib`, parametrizado por país)
 
 - **Descripción**: importador parametrizado (patrón `EpcRegisterImporter`, `new RegafiImporter('FR')` / `'MC'`), registrado **dos veces**. Fetch JSON de la API ODS REGAFI; **parsear el array serializado `cib`** (`["24659"]`, `[{"code":…}]`, `"[]"`) y **expandir una fila por código** (5 díg., zero-pad/validar); nombre (sin BIC); atribución Licence Ouverte. MC sale del mismo dataset filtrando por país (lleva CIB).
-- **Estado**: borrador
+- **Estado**: completado
 - **Tiempo**: est. 7h · real —
 - **Previsión IA**: 0,30 M in / 0,08 M out tok · ≈ 9,7 €
 - **Dependencias**: ninguna
@@ -96,17 +96,17 @@ Horas y tokens **base** (sin margen +20 %).
 - **Cubre (tests)**: — (sin UI)
 
 **Criterios de aceptación**
-- [ ] `cib` (array JSON) parseado y expandido a una fila por código (5 díg., zero-pad/validar); una entidad con varios CIB genera varias filas.
-- [ ] Constructor por país (`'FR'`/`'MC'`); registrado dos veces; atribución Licence Ouverte en `license()`.
-- [ ] Test verde con fixture JSON reducido cubriendo FR **y** MC (Mónaco filtrado del mismo dataset); PHPStan L8, PSR-12.
-- [ ] `resolve()` de una IBAN FR (CIB 5 díg.) **y** una IBAN MC (p. ej. CIB 12739 CFM Indosuez) devuelven el banco esperado.
+- [x] `cib` (array JSON) parseado y expandido a una fila por código (5 díg., zero-pad/validar); una entidad con varios CIB genera varias filas.
+- [x] Constructor por país (`'FR'`/`'MC'`); registrado dos veces; atribución Licence Ouverte en `license()`.
+- [x] Test verde con fixture JSON reducido cubriendo FR **y** MC (Mónaco filtrado del mismo dataset); PHPStan L8, PSR-12.
+- [x] `resolve()` de una IBAN FR (CIB 5 díg.) **y** una IBAN MC (p. ej. CIB 12739 CFM Indosuez) devuelven el banco esperado.
 
 **Subtareas**
-- [ ] Test con fixture JSON reducido (FR + MC) primero.
-- [ ] Implementar parseo/expansión del array `cib` y filtrado por país.
-- [ ] Registrar `RegafiImporter('FR')` y `RegafiImporter('MC')` en `registerDefaults()`.
+- [x] Test con fixture JSON reducido (FR + MC) primero.
+- [x] Implementar parseo/expansión del array `cib` y filtrado por país.
+- [x] Registrar `RegafiImporter('FR')` y `RegafiImporter('MC')` en `registerDefaults()`.
 
-**Notas**: elegir dataset (`prd-jdd-recherche` simple vs. `prd-banque-entites` autoritativo); ambos verificados en vivo. Sin BIC (capa EPC diferida, D5).
+**Notas**: elegir dataset (`prd-jdd-recherche` simple vs. `prd-banque-entites` autoritativo); ambos verificados en vivo. Sin BIC (capa EPC diferida, D5). **Impl.**: `RegafiImporter($country)` sobre `prd-banque-entites` `exports/json`; `cib` decodificado (string serializado o array nativo; elementos string u objeto `{code}`); códigos `^\d{1,5}$` → zero-pad a 5. **DESVIACIÓN/asunción a validar en vivo**: el filtro país usa el primer campo presente entre `pays`/`code_pays`/`pays_localisation`/`localisation` con valor `FRANCE|FR` / `MONACO|MC`; un registro sin campo país reconocible se descarta (no se asume FR), para que FR/MC no se mezclen. El nombre de campo país exacto de REGAFI no está confirmado en `research.md` → documentado como CAVEAT en el docblock; la ruta viva no se testea (patrón del repo). Fixture DB `tests/Fixtures/import/regafi_sample.json`; resolve() verde para FR (30003→Société Générale) y MC (12739→CFM Indosuez).
 
 ### T-04 — EE · `EstonianBankingAssociationImporter` (HTML)
 
