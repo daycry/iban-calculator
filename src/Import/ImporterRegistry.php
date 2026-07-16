@@ -34,6 +34,7 @@ use Daycry\Iban\Import\Importers\NationalBankOfMoldovaImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfPolandImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfUkraineImporter;
+use Daycry\Iban\Import\Importers\NbrmImporter;
 use Daycry\Iban\Import\Importers\OenbImporter;
 use Daycry\Iban\Import\Importers\RegafiImporter;
 use Daycry\Iban\Import\Importers\SixImporter;
@@ -247,6 +248,7 @@ class ImporterRegistry
         // sit behind Cloudflare).
         $this->register(new AndorranBankingImporter());
         $this->register(new BancoDePortugalImporter());
+        $this->register(new NbrmImporter());
     }
 
     private static function key(string $countryCode, string $sourceId): string

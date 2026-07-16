@@ -345,7 +345,7 @@ final class CommandsTest extends CIUnitTestCase
         self::assertStringContainsString('SWIFT IBAN Registry', $output);
         self::assertStringContainsString('SWIFT BIC Directory', $output);
         self::assertStringContainsString('National lists require per-source attribution.', $output);
-        self::assertStringContainsString('Registered importers: 38', $output);
+        self::assertStringContainsString('Registered importers: 39', $output);
         self::assertStringContainsString('oenb', $output);
         self::assertStringContainsString('bundesbank', $output);
         self::assertStringContainsString('six', $output);
@@ -378,6 +378,7 @@ final class CommandsTest extends CIUnitTestCase
         self::assertStringContainsString('cbc', $output);
         self::assertStringContainsString('andorran-banking', $output);
         self::assertStringContainsString('bportugal', $output);
+        self::assertStringContainsString('nbrm', $output);
         self::assertStringContainsString('AT', $output);
         self::assertStringContainsString('DE', $output);
         self::assertStringContainsString('CH', $output);
@@ -416,6 +417,7 @@ final class CommandsTest extends CIUnitTestCase
         self::assertStringContainsString('CY', $output);
         self::assertStringContainsString('AD', $output);
         self::assertStringContainsString('PT', $output);
+        self::assertStringContainsString('MK', $output);
         self::assertStringContainsString('Select one with --country=/--source= to run it', $output);
     }
 

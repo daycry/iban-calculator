@@ -36,6 +36,7 @@ use Daycry\Iban\Import\Importers\NationalBankOfMoldovaImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfPolandImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfSlovakiaImporter;
 use Daycry\Iban\Import\Importers\NationalBankOfUkraineImporter;
+use Daycry\Iban\Import\Importers\NbrmImporter;
 use Daycry\Iban\Import\Importers\OenbImporter;
 use Daycry\Iban\Import\Importers\RegafiImporter;
 use Daycry\Iban\Import\Importers\SixImporter;
@@ -147,6 +148,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const EE_FIXTURE               = __DIR__ . '/../Fixtures/import/ee_sample.html';
     private const ME_FIXTURE               = __DIR__ . '/../Fixtures/import/me_sample.html';
     private const PT_FIXTURE               = __DIR__ . '/../Fixtures/import/bportugal_sample.txt';
+    private const MK_FIXTURE               = __DIR__ . '/../Fixtures/import/nbrm_sample.csv';
 
     private const CZ_EXAMPLE_IBAN = 'CZ6508000000192000145399';
     private const GR_EXAMPLE_IBAN = 'GR1601101250000000012300695';
@@ -179,6 +181,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
     private const CY_EXAMPLE_IBAN = 'CY17002001280000001200527600'; // bank code '002' = Bank of Cyprus
     private const AD_EXAMPLE_IBAN = 'AD1200012030200359100100'; // Entitat '0001' = Andbank (registry example)
     private const PT_EXAMPLE_IBAN = 'PT16003400000000000000000'; // bank code '0034' = Caixa Geral de Depósitos
+    private const MK_EXAMPLE_IBAN = 'MK37300000001234500'; // bank code '300' = Komercijalna banka
 
     // MOD-97-valid test IBANs for the EPC SEPA Register importer's seeded
     // banks. GB's is the SRLG example handed down with the task brief
@@ -1473,6 +1476,39 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
 
         self::assertTrue($result->isResolved());
         self::assertSame('Caixa Geral de Depósitos, S.A.', $result->bankName);
+    }
+
+    public function testNbrmImporterImportsRowsFromExportedCsvAndResolvesTheExampleIban(): void
+    {
+        $report = (new ImportRunner())->run(new NbrmImporter(), new BankModel(), false, self::MK_FIXTURE);
+
+        self::assertSame('MK', $report->countryCode);
+        self::assertSame('nbrm', $report->sourceId);
+        // Stopanska 200, NLB 210, Komercijalna 300, no-BIC 999 = 4 rows
+        // (title + header located by name, not seeded).
+        self::assertSame(4, $report->imported);
+
+        self::assertSame(4, $this->db->table('banks')->countAllResults());
+
+        $this->seeInDatabase('banks', [
+            'country_code'   => 'MK',
+            'bank_code'      => '300',
+            'branch_code'    => null,
+            'name'           => 'Комерцијална банка АД Скопје', // UTF-8 Cyrillic round trip
+            'bic'            => 'KOBSMK2X',
+            'source_id'      => 'nbrm',
+            'source_license' => 'NBRM (regulatory roster)',
+        ]);
+
+        // The "Р.бр" row-number column must never have leaked in as a bank code.
+        $this->dontSeeInDatabase('banks', ['country_code' => 'MK', 'bank_code' => '001']);
+
+        // The real proof: resolving a MOD-97-valid MK IBAN (bank code '300').
+        $iban   = new Iban(provider: new DatabaseProvider(new BankModel()));
+        $result = $iban->resolve(self::MK_EXAMPLE_IBAN);
+
+        self::assertTrue($result->isResolved());
+        self::assertSame('Комерцијална банка АД Скопје', $result->bankName);
     }
 
     public function testBothImportersCanCoexistInTheSameBanksTable(): void

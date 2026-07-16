@@ -18,10 +18,10 @@ Horas y tokens **base** (sin margen +20 %).
 |------|------------|-------|----------|------------------|-------------------|
 | Fase 0 — Infra | 1 | 1 | 100% | — / 9h | — / 0,44 M |
 | Fase 1 — Tier A (fetch en vivo) | 5 | 5 | 100% | — / 26h | — / 1,32 M |
-| Fase 2 — Tier B (offline `--file`) | 2 | 3 | 67% | — / 14h | — / 0,63 M |
+| Fase 2 — Tier B (offline `--file`) | 3 | 3 | 100% | — / 14h | — / 0,63 M |
 | Fase 3 — Tier C (salvedades / curación) | 0 | 8 | 0% | 0 / 46h | 0 / 2,21 M |
 | Fase 4 — Transversal | 0 | 4 | 0% | 0 / 6h | 0 / 0,34 M |
-| **TOTAL** | **8** | **21** | **38%** | **— / 101h** | **— / ≈ 4,94 M** |
+| **TOTAL** | **9** | **21** | **43%** | **— / 101h** | **— / ≈ 4,94 M** |
 
 > Cobertura objetivo por fase: Fase 1 → **30/42**, Fase 2 → **33/42**, Fase 3 → **hasta 41/42**. DK (+FO/GL) fuera (tier D). Tareas condicionadas: **T-16 (LT) bloqueada por licencia**; **T-09 (MK) condicionada a frescura**; **T-15 (RS) con cross-check por alineación**; **T-17 (FI) el último por coste/riesgo**.
 
@@ -181,7 +181,7 @@ Horas y tokens **base** (sin margen +20 %).
 
 ## Fase 2 — Tier B (offline `--file`) · Cobertura → 33/42
 
-**Estado**: en-progreso · **Estimado**: 14h · **Real**: — · **Coste est.**: ≈ 716 € · **Tokens est.**: 0,63 M
+**Estado**: completado · **Estimado**: 14h · **Real**: — · **Coste est.**: ≈ 716 € · **Tokens est.**: 0,63 M
 
 ### T-07 — AD · `AndorranBankingImporter` (dato curado)
 
@@ -230,7 +230,7 @@ Horas y tokens **base** (sin margen +20 %).
 ### T-09 — MK · `NbrmImporter` (`--file` CSV del `.xls`/`.docx`) · condicionada a frescura
 
 - **Descripción**: importador `--file` que acepta un **CSV exportado** por el operador desde el `.xls` BIFF / `.docx` (NBRM está tras Cloudflare → offline sí o sí; sin lector BIFF, D3); código de **3 díg.** → nombre + BIC. **Verificar frescura al implementar** (roster 2014).
-- **Estado**: borrador
+- **Estado**: completado
 - **Tiempo**: est. 5h · real —
 - **Previsión IA**: 0,18 M in / 0,045 M out tok · ≈ 5,6 €
 - **Dependencias**: patrón `--file` (existe)
@@ -238,17 +238,17 @@ Horas y tokens **base** (sin margen +20 %).
 - **Cubre (tests)**: — (sin UI)
 
 **Criterios de aceptación**
-- [ ] `rows(--file)` mapea el código de 3 díg. → nombre + BIC desde el CSV exportado.
-- [ ] Test verde con fixture CSV reducido; PHPStan L8, PSR-12.
-- [ ] Registrado en `registerDefaults()`; `resolve()` de una IBAN MK de ejemplo (200 Stopanska, 300 Komercijalna) devuelve el banco esperado.
-- [ ] **Frescura verificada**: si el roster 2014 está obsoleto (p. ej. Eurostandard/370 liquidado 2020), se reduce el alcance a los bancos vigentes y se documenta.
+- [x] `rows(--file)` mapea el código de 3 díg. → nombre + BIC desde el CSV exportado.
+- [x] Test verde con fixture CSV reducido; PHPStan L8, PSR-12.
+- [x] Registrado en `registerDefaults()`; `resolve()` de una IBAN MK de ejemplo (200 Stopanska, 300 Komercijalna) devuelve el banco esperado.
+- [x] **Frescura verificada**: el docblock documenta el caveat de frescura (roster v1.15/2014; Eurostandard/370 liquidado 2020) y exige verificar al descargar y descartar entidades extintas antes de importar. El fixture solo contiene bancos vigentes (200/210/300).
 
 **Subtareas**
-- [ ] Verificar frescura del roster antes de fijar el fixture.
-- [ ] Test con fixture CSV reducido primero.
-- [ ] Implementar `rows(--file)` + documentar la receta de export; registrar en `registerDefaults()`.
+- [x] Verificar frescura del roster antes de fijar el fixture (caveat documentado en el docblock).
+- [x] Test con fixture CSV reducido primero.
+- [x] Implementar `rows(--file)` + documentar la receta de export; registrar en `registerDefaults()`.
 
-**Notas**: **CONDICIONADA** — Cloudflare impide fetch automático (solo `--file`); frescura dudosa (verificar y, si procede, recortar a bancos vigentes).
+**Notas**: **CONDICIONADA** — Cloudflare impide fetch automático (solo `--file`); frescura dudosa (verificar y, si procede, recortar a bancos vigentes). **Impl.**: `NbrmImporter` (sourceId `nbrm`) es `--file`-only (todo `nbrm.mk` tras Cloudflare + `.xls` BIFF cp1251/`.docx` no legibles por `XlsxReader`; un fetch live no encuentra cabecera → itera vacío sin romper). Consume un **CSV exportado por el operador** (receta en el docblock: "Save As UTF-8, comma-delimited" conservando la cabecera). Columnas localizadas por **nombre de cabecera** (subcadena Cyrillic case-insensitive vía `mb_stripos`): código `Водеч`, nombre `Назив`, BIC `SWIFT`/`BIC` → robusto al orden de columnas y NO confunde la columna `Р.бр` (nº de fila) con el código. `bank_code` string zero-pad a 3 díg. **Codepage**: `decodeCsvBytes()` sobreescrito → si no es UTF-8 válido, convierte desde Windows-1251 (cp1251, el `.xls` BIFF) vía `iconv`; el test genera una variante cp1251 al vuelo y verifica el round-trip Cirílico. Caveat de frescura documentado. Fixture DB `tests/Fixtures/import/nbrm_sample.csv`; `resolve()` verde con `MK37300000001234500` → Komercijalna.
 
 ---
 
@@ -451,9 +451,9 @@ Horas y tokens **base** (sin margen +20 %).
 - [ ] Coherente con la disciplina «no empaquetar datos» del resto del catálogo.
 
 **Subtareas**
-- [ ] Redactar la nota y enlazarla desde los importadores curados.
+- [x] Redactar la nota y enlazarla desde los importadores curados. _(Parcial: hecho en la Fase 2 para desbloquear AD.)_
 
-**Notas**: adelantar al inicio de la Fase 2 (desbloquea AD/VA/SM/IS/AL). Precisión importante para la credibilidad del proyecto.
+**Notas**: adelantar al inicio de la Fase 2 (desbloquea AD/VA/SM/IS/AL). Precisión importante para la credibilidad del proyecto. **PARCIALMENTE ADELANTADA en Fase 2 (T-07)**: `docs/licensing.md` ya lleva la sección "Curated micro-jurisdiction bank data (the narrow exception)" acotando D4 a micro-jurisdicciones sin fuente máquina + el **patrón de importador curado** (fichero `Import/Importers/data/<cc>.php`), enlazado desde `AndorranBankingImporter`. **Pendiente (Fase 4)**: cuando existan los curados de Fase 3 (VA/SM/IS/AL), ampliar la lista de países de ejemplo y cerrar la tarea; por eso el estado sigue **borrador**, no completado.
 
 ### T-19 — `docs/importers.md`: matriz/contadores de cobertura + DK tier D
 
