@@ -52,7 +52,7 @@ use Daycry\Iban\Registry\IsoCountryRegistry;
  *   - positions 9-11 optional branch code: `[A-Z0-9]{3}`
  *
  * Country-code policy (position 5-6): checked against the FULL ISO 3166-1
- * alpha-2 set via {@see IsoCountryRegistry} (~249 countries), NOT the ~78-country
+ * alpha-2 set via {@see IsoCountryRegistry} (~249 countries), NOT the 89-country
  * IBAN registry — most countries with BICs (US, JP, CN, …) issue no IBAN, so
  * reusing the IBAN registry would wrongly reject the majority of real BICs.
  * The bundled ISO registry contains only OFFICIALLY assigned alpha-2 codes; the
@@ -84,14 +84,15 @@ final class BicValidator
     }
 
     /**
-     * Canonicalize raw BIC input: strip all whitespace and uppercase.
+     * Canonicalize raw BIC input: strip ASCII/Unicode spacing and the documented
+     * zero-width characters via WhitespaceNormalizer, then uppercase.
      *
      * Purely mechanical — it does NOT drop or replace invalid characters, so
      * {@see validate()} can still report them (BicIllegalCharacters).
      */
     public function normalize(string $bic): string
     {
-        return strtoupper((string) preg_replace('/\s+/', '', $bic));
+        return strtoupper(WhitespaceNormalizer::strip($bic));
     }
 
     public function validate(string|ParsedBic $bic): ValidationResult

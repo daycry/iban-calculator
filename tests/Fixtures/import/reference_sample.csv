@@ -1,0 +1,6 @@
+country_code,bank_code,branch_code,bic,name,source_version,source_license
+DK,0001,,TESTDK22,Synthetic Test Bank DK,test-dk-2026,fixture-license-dk
+FI,123,,TESTFI22,Synthetic Test Bank FI,test-fi-2026,fixture-license-fi
+NL,TEST,,TESTNL22,Synthetic Test Bank NL,test-nl-2026,fixture-license-nl
+AT,00001,,TESTAT22,Synthetic Test Bank AT,test-at-2026,fixture-license-at
+FR,00001,,TESTFR22,Synthetic Test Bank FR,test-fr-2026,fixture-license-fr

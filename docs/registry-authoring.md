@@ -1,5 +1,9 @@
 # Registry Authoring Methodology
 
+The current registry covers **89 national IBAN formats**. See the
+[complete country coverage table](country-coverage.md) for supported prefixes and lengths, and the
+[October 2026 review](registry-refresh-2026-10.md) for the latest source comparison and limitations.
+
 ## Purpose
 
 The IBAN structural registry lives in `src/Registry/data/countries.php` as a raw PHP array — a zero-dependency, embedded data source that requires no network access, database, or external files. This design choice serves three goals:
@@ -27,7 +31,7 @@ Each entry in `src/Registry/data/countries.php` is keyed by ISO 3166-1 alpha-2 c
 | `sepa` | `bool` | Whether this country is part of the Single Euro Payments Area (SEPA), as defined by EPC409-09. For ES: `true`. |
 | `example` | `string` | A valid IBAN example in electronic format (no spaces), used for validation testing and documentation. For ES: `'ES9121000418450200051332'`. |
 
-**Offset convention**: All offsets are relative to the normalized IBAN (lowercase, no spaces). The IBAN check digits are at positions 2–3; the BBAN begins at offset 4.
+**Offset convention**: All offsets are relative to the normalized IBAN (uppercase, no spaces). The IBAN check digits are at positions 2–3; the BBAN begins at offset 4.
 
 ---
 
@@ -134,11 +138,16 @@ These validations are parameterized over all countries in the registry, so as ne
 
 ## Annual Refresh and Registry Generator
 
-Every year or after a structural IBAN update, the registry may be regenerated using the bin-level generator (planned for Tasks T-28/T-29, not yet implemented):
+After a national format change, regenerate the registry with the existing, tested generator:
 
-- **Source**: A dedicated fact-gathering document (e.g., a CSV or YAML file) containing the independently authored structural data for all countries.
+```bash
+php bin/generate-registry.php
+php bin/generate-registry.php --dry-run
+```
+
+- **Source**: `bin/data/registry-facts.csv`, containing independently encoded structural facts for all registered prefixes.
 - **Process**: `bin/generate-registry.php` transforms this source into `src/Registry/data/countries.php`, ensuring consistency and reducing manual transcription errors.
-- **Versioning**: After regeneration, `Registry::VERSION` is updated to reflect the new release date, e.g., `'2027-07 (independent authorship; not derived from the SWIFT IBAN Registry)'`.
+- **Versioning**: After regeneration, update `Registry::VERSION` to reflect the review date and country count. Record sources, discrepancies and the limits of the comparison, as in [the October 2026 review](registry-refresh-2026-10.md).
 
 This design allows the registry to evolve without manually editing the PHP array, while maintaining an auditable trail of changes.
 

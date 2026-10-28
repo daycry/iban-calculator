@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Config;
 
+use CodeIgniter\HTTP\Response;
 use CodeIgniter\Test\CIUnitTestCase;
 use Daycry\Iban\Config\Iban as IbanConfig;
 use Daycry\Iban\Config\Services as IbanServices;
@@ -16,6 +17,7 @@ use Daycry\Iban\Providers\NullProvider;
 use Daycry\Iban\Resolver\Resolver;
 use InvalidArgumentException;
 use ReflectionProperty;
+use Tests\Support\RecordingCurlRequest;
 
 /**
  * Exercises `Config\Services::iban()` through CI4's real service discovery
@@ -57,6 +59,24 @@ final class ServicesTest extends CIUnitTestCase
         $iban = service('iban');
 
         self::assertTrue($iban->isValid('ES9121000418450200051332'));
+    }
+
+    public function testConfiguredIbanComKeyEnablesExplicitVerificationButKeepsValidationOffline(): void
+    {
+        $response = new Response(config('App'));
+        $response->setStatusCode(200);
+        $response->setBody('{"query":{"success":true,"bic":"CHASUS33"},"bic_valid":true,"bic_active":false,"directory_results":{"bic":"CHASUS33XXX"},"error":{}}');
+        $client = new RecordingCurlRequest($response);
+        \Config\Services::injectMock('curlrequest', $client);
+        config(IbanConfig::class)->ibanComApiKey = 'test-key';
+        $iban = IbanServices::iban(false);
+        self::assertTrue($iban->isValidBic('CHASUS33'));
+        self::assertSame('', $client->lastUrl);
+        $result = $iban->verifyBic('CHASUS33');
+        self::assertSame('externally_validated', $result->status->value);
+        self::assertTrue($result->external?->exists);
+        self::assertFalse($result->external->active);
+        self::assertSame('https://api.iban.com/clients/api/swiftv2/bic/', $client->lastUrl);
     }
 
     public function testServiceIbanNonSharedReturnsAFreshFacadeInstanceEachTime(): void

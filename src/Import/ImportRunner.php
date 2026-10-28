@@ -98,20 +98,24 @@ class ImportRunner
                 'country_code'   => $countryCode,
                 'bank_code'      => $bankCode,
                 'branch_code'    => $branchCode,
-                'bic'            => self::stringOrNull($row['bic'] ?? null),
-                'name'           => self::stringOrNull($row['name'] ?? null),
-                'short_name'     => self::stringOrNull($row['short_name'] ?? null),
-                'city'           => self::stringOrNull($row['city'] ?? null),
-                'address'        => self::stringOrNull($row['address'] ?? null),
-                'sepa_sct'       => self::tinyIntOrNull($row['sepa_sct'] ?? null),
-                'sepa_sct_inst'  => self::tinyIntOrNull($row['sepa_sct_inst'] ?? null),
-                'sepa_sdd_core'  => self::tinyIntOrNull($row['sepa_sdd_core'] ?? null),
-                'sepa_sdd_b2b'   => self::tinyIntOrNull($row['sepa_sdd_b2b'] ?? null),
                 'source_id'      => $sourceId,
-                'source_version' => $version,
-                'source_license' => $license,
+                'source_version' => self::stringOrNull($row['source_version'] ?? null) ?? $version,
+                'source_license' => self::stringOrNull($row['source_license'] ?? null) ?? $license,
                 'updated_at'     => $updatedAt,
             ];
+
+            // Optional means absent information, not an instruction to clear a stored value.
+            // Explicit null remains available to importers that need to remove a field.
+            foreach (['bic', 'name', 'short_name', 'city', 'address'] as $field) {
+                if (array_key_exists($field, $row)) {
+                    $data[$field] = self::stringOrNull($row[$field]);
+                }
+            }
+            foreach (['sepa_sct', 'sepa_sct_inst', 'sepa_sdd_core', 'sepa_sdd_b2b'] as $field) {
+                if (array_key_exists($field, $row)) {
+                    $data[$field] = self::tinyIntOrNull($row[$field]);
+                }
+            }
 
             $existing   = $model->findByNaturalKey($countryCode, $bankCode, $branchCode);
             $existingId = $existing['id'] ?? null;

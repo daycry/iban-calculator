@@ -930,6 +930,111 @@ final class CommandsTest extends CIUnitTestCase
 
     // -- Discovery -----------------------------------------------------------
 
+    public function testUpdateImportsReferenceCsvForAllCountriesWithOriginalProvenance(): void
+    {
+        $args = ['iban:update', '--source', 'reference-csv', '--file', __DIR__ . '/../Fixtures/import/reference_sample.csv'];
+        [$exit, $output] = $this->runSpark($args);
+
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertSame(5, $this->db->table('banks')->countAllResults(), $output);
+        $this->seeInDatabase('banks', [
+            'country_code' => 'DK', 'bank_code' => '0001', 'branch_code' => null,
+            'bic' => 'TESTDK22', 'source_id' => 'reference-csv',
+            'source_version' => 'test-dk-2026', 'source_license' => 'fixture-license-dk',
+        ]);
+        $this->seeInDatabase('banks', ['country_code' => 'FR', 'bank_code' => '00001', 'bic' => 'TESTFR22']);
+
+        $this->runSpark($args);
+        self::assertSame(5, $this->db->table('banks')->countAllResults());
+    }
+
+    public function testUpdateReferenceCsvCanPreviewAndSelectOneCountry(): void
+    {
+        $args = ['iban:update', '--source', 'reference-csv', '--country', 'dk', '--file', __DIR__ . '/../Fixtures/import/reference_sample.csv'];
+        [$exit, $output] = $this->runSpark([...$args, '--dry-run']);
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertStringContainsString('imported=1', $output);
+        self::assertSame(0, $this->db->table('banks')->countAllResults());
+
+        [$exit] = $this->runSpark($args);
+        self::assertSame(EXIT_SUCCESS, $exit);
+        self::assertSame(1, $this->db->table('banks')->countAllResults());
+        $this->seeInDatabase('banks', ['country_code' => 'DK', 'bank_code' => '0001']);
+    }
+
+    public function testUpdateReferenceCsvEnrichesWithoutErasingExistingBankDetails(): void
+    {
+        $this->db->table('banks')->insert([
+            'country_code' => 'AT', 'bank_code' => '00001', 'branch_code' => null,
+            'name' => 'Old name', 'bic' => null, 'city' => 'Vienna', 'sepa_sct' => 1,
+        ]);
+        [$exit] = $this->runSpark(['iban:update', '--source', 'reference-csv', '--file', __DIR__ . '/../Fixtures/import/reference_sample.csv']);
+        self::assertSame(EXIT_SUCCESS, $exit);
+        $this->seeInDatabase('banks', [
+            'country_code' => 'AT', 'bank_code' => '00001', 'bic' => 'TESTAT22',
+            'city' => 'Vienna', 'sepa_sct' => 1,
+        ]);
+    }
+
+    public function testUpdateReferenceCsvRequiresAFileAndRefusesPruning(): void
+    {
+        [$exit] = $this->runSpark(['iban:update', '--source', 'reference-csv']);
+        self::assertSame(EXIT_ERROR, $exit);
+        [$exit] = $this->runSpark(['iban:update', '--source', 'reference-csv', '--file', __DIR__ . '/../Fixtures/import/reference_sample.csv', '--prune']);
+        self::assertSame(EXIT_ERROR, $exit);
+        self::assertSame(0, $this->db->table('banks')->countAllResults());
+    }
+
+    public function testUpdateReferenceCsvCannotAccidentallyRunLiveImportersWithAll(): void
+    {
+        [$exit] = $this->runUpdateWith(['iban:update', '--source', 'reference-csv', '--all'], $this->registryOf());
+        self::assertSame(EXIT_ERROR, $exit);
+    }
+
+    public function testUpdateReferenceCsvWithBadTrailingDataWritesNothing(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'iban_reference_');
+        self::assertNotFalse($path);
+        try {
+            $csv = file_get_contents(__DIR__ . '/../Fixtures/import/reference_sample.csv');
+            self::assertNotFalse($csv);
+            file_put_contents($path, $csv . "\nES,2100,,NOT-A-BIC,Bank,v1,fixture-license\n");
+            [$exit] = $this->runSpark(['iban:update', '--source', 'reference-csv', '--file', $path]);
+            self::assertSame(EXIT_ERROR, $exit);
+            self::assertSame(0, $this->db->table('banks')->countAllResults());
+        } finally {
+            unlink($path);
+        }
+    }
+
+    public function testUpdateReferenceCsvWithAnEmptyBicKeepsTheKnownBic(): void
+    {
+        $this->db->table('banks')->insert(['country_code' => 'DK', 'bank_code' => '0001', 'bic' => 'TESTDK22']);
+        $path = tempnam(sys_get_temp_dir(), 'iban_reference_');
+        self::assertNotFalse($path);
+        try {
+            file_put_contents($path, "country_code,bank_code,branch_code,bic,name,source_version,source_license\nDK,0001,,,Renamed,v1,fixture-license\n");
+            [$exit] = $this->runSpark(['iban:update', '--source', 'reference-csv', '--file', $path]);
+            self::assertSame(EXIT_SUCCESS, $exit);
+            $this->seeInDatabase('banks', ['country_code' => 'DK', 'bank_code' => '0001', 'bic' => 'TESTDK22', 'name' => 'Renamed']);
+        } finally {
+            unlink($path);
+        }
+    }
+
+    public function testUpdateReferenceCsvReportsDatabaseFailuresAsErrors(): void
+    {
+        $config = config(IbanConfig::class);
+        $oldTable = $config->table;
+        try {
+            $config->table = 'missing_reference_import_test';
+            [$exit] = $this->runSpark(['iban:update', '--source', 'reference-csv', '--file', __DIR__ . '/../Fixtures/import/reference_sample.csv']);
+            self::assertSame(EXIT_ERROR, $exit);
+        } finally {
+            $config->table = $oldTable;
+        }
+    }
+
     public function testAllCommandsAreDiscoveredUnderTheIbanGroup(): void
     {
         $commands = service('commands')->getCommands();

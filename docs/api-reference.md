@@ -32,25 +32,29 @@ public function __construct(
     Registry $registry = new Registry(),
     ProviderInterface $provider = new NullProvider(),
     IsoCountryRegistry $isoCountries = new IsoCountryRegistry(),
+    ?VerificationProviderInterface $verificationProvider = null,
 )
 ```
 
-All three parameters default to a zero-config value ([src/Iban.php:51](src/Iban.php#L51)), so the facade
+All four parameters have defaults, so the facade
 is default-constructible. The constructor wires the sub-services internally:
 `Validator($registry)` → `Parser($validator)`, `BicValidator($isoCountries)` → `BicParser`,
 `Resolver($parser, $provider, $bicValidator)`, and `IbanBicCrossChecker($registry)`.
 
 - `$registry` — [`Daycry\Iban\Registry\Registry`](src/Registry/Registry.php), the structural country
-  registry (78 countries) used for IBAN validation, parsing, and the IBAN↔BIC bank cross-check.
+  registry (89 countries) used for IBAN validation, parsing, and the IBAN↔BIC bank cross-check.
 - `$provider` — a [`ProviderInterface`](src/Contracts/ProviderInterface.php) supplying bank-data
   overlays for `resolve()` / `resolveBic()`. Defaults to
   [`NullProvider`](src/Providers/NullProvider.php), which resolves no bank data (structural result
   only).
 - `$isoCountries` — an [`IsoCountryRegistry`](src/Registry/IsoCountryRegistry.php) (the full ISO 3166-1
   country set, 249 codes) that BIC validation checks a BIC's country code against. **Added in v2.1**;
-  it is the last constructor parameter and defaulted, so the change is backward-compatible. Defaults to
+  it is defaulted, so the change is backward-compatible. Defaults to
   the bundled compiled list ([`PhpIsoCountryLoader`](src/Registry/PhpIsoCountryLoader.php)), no database
   required.
+- `$verificationProvider` — optional `VerificationProviderInterface` used only by the explicit
+  `verifyIban()` / `verifyBic()` methods. Defaults to null. The service factory supplies the configured
+  iban.com provider when its key is present. See [verification](verification.md).
 
 #### Standalone (zero-config)
 
@@ -97,6 +101,8 @@ All signatures are verbatim from [src/Iban.php](src/Iban.php).
 | `tryParseBic` | `tryParseBic(string $bic)` | `?ParsedBic` | — (returns `null` on failure) |
 | `validateIbanAndBic` | `validateIbanAndBic(?string $iban, ?string $bic)` | `ValidationResult` | — (never throws) |
 | `resolveBic` | `resolveBic(string\|ParsedBic $bic)` | `?BankInfo` | — (returns `null` on failure) |
+| `verifyIban` | `verifyIban(string\|ParsedIban $iban, bool $checkNational = false)` | `VerificationResult` | — (local validation plus optional external check) |
+| `verifyBic` | `verifyBic(string\|ParsedBic $bic)` | `VerificationResult` | — (local validation plus optional directory check) |
 | `validator` | `validator()` | `Validator` | — |
 | `parser` | `parser()` | `Parser` | — |
 | `resolver` | `resolver()` | `Resolver` | — |
@@ -123,7 +129,10 @@ $ok = $iban->isValid('ES9121000418450200051332'); // true
 
 #### `normalize(string $iban): string`
 
-Strips spaces and uppercases the input. Does not validate.
+Strips spaces and uppercases the input. Does not validate. Both IBAN and BIC normalization remove
+ASCII whitespace, NBSP (`U+00A0`), `U+2000`–`U+200A`, narrow NBSP (`U+202F`), ideographic space
+(`U+3000`), zero-width space (`U+200B`) and BOM (`U+FEFF`). Other illegal characters and malformed
+UTF-8 are retained so validation can reject them.
 
 ```php
 $iban->normalize('es91 2100 0418 4502 0005 1332'); // 'ES9121000418450200051332'
@@ -721,7 +730,50 @@ public function __construct(
 
 No methods. See [ISO 3166-1 country registry](#iso-3166-1-country-registry) for how it's loaded.
 
+### ExternalVerification and VerificationResult
+
+Both are framework-free `final readonly` DTOs used by the optional verification API.
+
+```php
+// Daycry\Iban\DTO\ExternalVerification
+public function __construct(
+    public ?bool $valid,
+    public string $provider,
+    public ?bool $exists = null,
+    public ?bool $active = null,
+);
+
+// Daycry\Iban\DTO\VerificationResult
+public function __construct(
+    public ValidationResult $validation,
+    public ?ExternalVerification $external = null,
+);
+public VerificationStatus $status; // computed at construction
+```
+
+`valid` is the external verdict; `exists` and `active` are independent directory evidence, each nullable.
+The local `validation` result is always retained. `status` prioritizes an unsupported IBAN prefix or
+local failure over any external evidence. For locally valid input, no provider means `format_valid`,
+a true/false external verdict means accepted/rejected, and a null external verdict means unavailable.
+For iban.com IBAN checks, account existence and activity remain unknown. See [verification outcomes](verification.md#outcomes).
+
 ## Enums & exceptions
+
+### VerificationStatus
+
+A backed string enum for `VerificationResult::$status`:
+
+| Case | Value |
+|---|---|
+| `FormatValid` | `format_valid` |
+| `FormatInvalid` | `format_invalid` |
+| `UnsupportedCountry` | `unsupported_country` |
+| `ExternallyValidated` | `externally_validated` |
+| `ExternalRejected` | `external_rejected` |
+| `VerificationUnavailable` | `verification_unavailable` |
+
+Only the explicit `verifyIban()` / `verifyBic()` methods add external evidence. Local validation APIs
+keep returning `ValidationResult`; see [provider setup and examples](verification.md).
 
 The core exposes two enums and three exception types. Both enums are defined verbatim from the design spec (§4). See [src/Enums/ViolationCode.php](src/Enums/ViolationCode.php), [src/Enums/IbanFormat.php](src/Enums/IbanFormat.php), [src/Exceptions/IbanException.php](src/Exceptions/IbanException.php), [src/Exceptions/InvalidIbanException.php](src/Exceptions/InvalidIbanException.php), and [src/Exceptions/InvalidBicException.php](src/Exceptions/InvalidBicException.php).
 
@@ -994,7 +1046,7 @@ canonical ISO 20022 / ISO 9362:2014-2022 one (the AnyBICIdentifier / BICFIIdenti
 - positions 9-11 (optional branch): `[A-Z0-9]{3}`
 
 **Country-code policy (positions 5-6):** checked against the FULL ISO 3166-1 alpha-2 set via
-[`IsoCountryRegistry`](src/Registry/IsoCountryRegistry.php) (~249 codes), **not** the ~78-country IBAN
+[`IsoCountryRegistry`](src/Registry/IsoCountryRegistry.php) (~249 codes), **not** the 89-country IBAN
 registry — most countries with BICs (US, JP, CN, …) issue no IBAN, so reusing the IBAN registry would
 wrongly reject the majority of real BICs. The bundled ISO registry contains only *officially assigned*
 codes; the user-assigned code `XK` (Kosovo) is layered back on via `BicValidator`'s private
@@ -1029,7 +1081,9 @@ Intended to run **only** when both an IBAN and a BIC were supplied and each is i
 additive** checks — a single `check()` can return both:
 
 - **Country** — the BIC's country code (positions 5-6) must equal the IBAN's country code
-  (`BicIbanCountryMismatch`). Always applicable.
+  (`BicIbanCountryMismatch`). The sole documented exception is FR bank `13088` with Martinique
+  BIC `BNPAMQMX` or its head-office BIC11 `BNPAMQMXXXX`. Other FR/MQ combinations and unlisted
+  branch BICs remain mismatches.
 - **Bank** — emitted **only** for countries whose IBAN bank-code segment is exactly four *alphabetic*
   characters, because only then is the IBAN's bank segment guaranteed to be the same token as the BIC's
   institution code (positions 1-4) — e.g. GB `NWBK`… ↔ `NWBK`GB2L (`BicIbanBankMismatch`). For a
@@ -1038,10 +1092,10 @@ additive** checks — a single `check()` can return both:
 
 The 4-letter-alpha-bank-code set is **derived at runtime** from each country's
 [`CountryStructure`](src/Registry/CountryStructure.php) (never hardcoded), so it tracks the registry.
-Against the current 78-country registry it is these **19** countries:
+Against the current 89-country registry it is these **22** countries:
 
 ```
-AZ, BG, BH, GB, GI, IE, IQ, JO, KW, LC, LV, MT, NL, PK, PS, QA, RO, SV, VG
+AZ, BG, BH, GB, GI, HN, IE, IQ, JO, KW, LC, LV, MT, NI, NL, PK, PS, QA, RO, SV, VG, YE
 ```
 
 For every other country only the *country* can be cross-checked structurally.
@@ -1068,12 +1122,12 @@ in the usage guide for which providers/importers actually supply BICs.
 ## Contracts & extension points
 
 Every seam in `daycry/iban` is expressed as a small, framework-free interface in
-[src/Contracts](src/Contracts). The nine interfaces below carry no `CodeIgniter\` dependency
+[src/Contracts](src/Contracts). The ten interfaces below carry no `CodeIgniter\` dependency
 (enforced by [tests/Architecture/CoreIsFrameworkFreeTest.php](tests/Architecture/CoreIsFrameworkFreeTest.php)),
 so anything written purely against them stays usable standalone. Implement one to swap in your own
 behavior; wire it through [Config\Iban](src/Config/Iban.php) or the relevant registry.
 
-### The nine interfaces
+### The ten interfaces
 
 | Interface | File | Role |
 |-----------|------|------|
@@ -1086,6 +1140,21 @@ behavior; wire it through [Config\Iban](src/Config/Iban.php) or the relevant reg
 | `IsoCountryLoaderInterface` | [src/Contracts/IsoCountryLoaderInterface.php](src/Contracts/IsoCountryLoaderInterface.php) | Load the raw ISO 3166-1 country registry (v2.1). |
 | `NationalCheckValidatorInterface` | [src/Contracts/NationalCheckValidatorInterface.php](src/Contracts/NationalCheckValidatorInterface.php) | Verify country-specific national check digits. |
 | `ImporterInterface` | [src/Contracts/ImporterInterface.php](src/Contracts/ImporterInterface.php) | Yield normalized `banks` rows for one `(country, source)` pair. |
+| `VerificationProviderInterface` | [Contract source](../src/Contracts/VerificationProviderInterface.php) | Optional external IBAN/BIC verdicts; separate from bank resolution. |
+
+#### `VerificationProviderInterface`
+
+Optional, framework-free external verification contract, supplied as the facade constructor's fourth
+argument. Resolution providers do not need to implement it.
+
+```php
+public function verifyIban(string $iban): ExternalVerification;
+public function verifyBic(string $bic): ExternalVerification;
+```
+
+Inputs are normalized electronic identifiers that already passed local validation. Return an explicit
+nullable verdict; `null` means unavailable, not valid or invalid. The facade catches provider exceptions
+and preserves the local result. See [verification semantics](verification.md).
 
 #### `ValidatorInterface`
 
@@ -1262,7 +1331,7 @@ Implement `ImporterInterface` for a new `(country, source)`, then register the i
 [ImporterRegistry](src/Import/ImporterRegistry.php):
 
 ```php
-$registry = new ImporterRegistry();          // ctor loads the 30 bundled defaults
+$registry = new ImporterRegistry();          // ctor loads the 44 default registrations
 $registry->register(new MyCentralBankImporter());  // add or replace by (country, source) key
 ```
 
@@ -1307,12 +1376,13 @@ its fixed length, BBAN token string, SEPA membership, an example IBAN, and the p
 of the bank / branch / account / national-check fields. The core validator, parser and formatter
 all read structure from it; nothing else in the package hard-codes per-country IBAN layout.
 
-It covers **78 countries** and is **independently authored** from publicly documented IBAN
-formats — not copied from, nor derived from, the SWIFT IBAN Registry file. See
+It covers **89 countries**, with independently encoded structural facts and no bundled third-party
+registry file. See [the October 2026 source review](registry-refresh-2026-10.md),
 [docs/registry-authoring.md](registry-authoring.md) for the authoring/cross-check
 methodology and [docs/licensing.md](licensing.md) for the data-licensing rationale.
-For the per-country coverage listing, see the coverage matrix in
-[docs/importers.md](importers.md#coverage-matrix) rather than enumerating countries here.
+For every supported prefix, length, national check and default importer, see the
+[country coverage table](country-coverage.md). The separate
+[importer coverage matrix](importers.md#coverage-matrix) describes bank-data sources, not format validity.
 
 ### Registry API
 
@@ -1344,13 +1414,13 @@ Lookups are case-insensitive: both [`has()`](src/Registry/Registry.php#L49) and
 #### `VERSION` const and its provenance
 
 ```php
-public const string VERSION = '2026-07 (78 countries; independently authored, not derived from the SWIFT IBAN Registry file)';
+public const string VERSION = '2026-10 (89 countries; independently authored national-format facts; no third-party registry file bundled)';
 ```
 
 `VERSION` ([src/Registry/Registry.php:30](src/Registry/Registry.php#L30)) is a typed class
 constant that doubles as a provenance marker. Its wording is deliberate: it records the refresh
-period (`2026-07`), the country count, and — importantly — asserts that the structural facts are
-independently authored rather than lifted from the SWIFT IBAN Registry file. Treat it as the
+period (`2026-10`), the country count, and the independently encoded / no-bundled-registry policy.
+Treat it as the
 registry's version stamp for the ~annual refresh cycle.
 
 ### CountryStructure
@@ -1400,7 +1470,7 @@ always yields byte-identical output — the property the drift test relies on. S
 
 Added in v2.1 to back BIC validation. It is **separate from the structural IBAN registry** above and
 serves a different purpose: BIC validation must recognise *every* country that has BICs (US, JP, CN, …),
-not just the ~78 that issue IBANs, so a BIC's country code (positions 5-6) is checked against this full
+not just the 89 registered IBAN formats, so a BIC's country code (positions 5-6) is checked against this full
 ISO 3166-1 set. It is framework-free and needs **no database** in its default form.
 
 The registry data (`src/Registry/data/iso_countries.php`) covers the **249 officially assigned** ISO

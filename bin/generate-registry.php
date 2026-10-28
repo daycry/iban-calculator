@@ -434,8 +434,10 @@ declare(strict_types=1);
  * docs/registry-authoring.md for the annual-refresh workflow.
  *
  * Independently authored structural facts (lengths / field offsets / BBAN
- * tokens) derived from publicly documented IBAN formats — NOT copied or
- * derived from the SWIFT IBAN Registry file. `branch` and `national_check`
+ * tokens), independently encoded from public national-format facts. No
+ * third-party registry rows or example collection are imported or bundled.
+ * See docs/registry-refresh-2026-10.md for sources and comparison limits.
+ * `branch` and `national_check`
  * may be `null` for countries whose BBAN has no such field.
  *
  * sepa flags follow the EPC List of SEPA Scheme Countries (EPC409-09 v8.0,

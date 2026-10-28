@@ -34,6 +34,95 @@ final class IbanComProviderTest extends CIUnitTestCase
         self::assertFalse($withoutKey->supports('ES'));
     }
 
+    public function testVerifyIbanRequiresAllValidationChecksAndNeverClaimsAccountExistence(): void
+    {
+        $checks = [];
+        foreach (['chars' => '006', 'iban' => '001', 'length' => '003', 'structure' => '005', 'country_support' => '007', 'account' => '004'] as $name => $code) {
+            $checks[$name] = ['code' => $code];
+        }
+        $client = $this->recordingClient($this->cannedResponse(200, (string) json_encode(['validations' => $checks, 'errors' => []])));
+        $provider = new IbanComProvider('secret', $client);
+        $result = $provider->verifyIban('DE89370400440532013000');
+        self::assertTrue($result->valid);
+        self::assertNull($result->exists);
+        self::assertSame('iban.com', $result->provider);
+        self::assertSame('https://api.iban.com/clients/api/v4/iban/', $client->lastUrl);
+
+        $checks['account']['code'] = '201';
+        $provider = new IbanComProvider('secret', $this->clientReturning($this->cannedResponse(200, (string) json_encode(['validations' => $checks, 'errors' => []]))));
+        self::assertFalse($provider->verifyIban('DE89370400440532013000')->valid);
+
+        $provider = new IbanComProvider('secret', $this->clientReturning($this->cannedResponse(200, '{"bank_data":{"bank":"Example"},"errors":[]}')));
+        self::assertNull($provider->verifyIban('DE89370400440532013000')->valid);
+    }
+
+    public function testVerifyBicSeparatesDirectoryPresenceConnectivityAndAccessErrors(): void
+    {
+        $body = ['query' => ['success' => true, 'bic' => 'CHASUS33'], 'bic_valid' => true, 'bic_active' => false, 'directory_results' => ['bic' => 'CHASUS33XXX'], 'error' => []];
+        $client = $this->recordingClient($this->cannedResponse(200, (string) json_encode($body)));
+        $provider = new IbanComProvider('secret', $client);
+        $result = $provider->verifyBic('CHASUS33');
+        self::assertTrue($result->valid);
+        self::assertTrue($result->exists);
+        self::assertFalse($result->active);
+        self::assertSame('https://api.iban.com/clients/api/swiftv2/bic/', $client->lastUrl);
+
+        $body = ['query' => ['success' => true, 'bic' => 'CHASUS33'], 'bic_valid' => false, 'bic_active' => false, 'directory_results' => [], 'error' => ['code' => '803']];
+        $provider = new IbanComProvider('secret', $this->clientReturning($this->cannedResponse(200, (string) json_encode($body))));
+        self::assertFalse($provider->verifyBic('CHASUS33')->valid);
+        self::assertFalse($provider->verifyBic('CHASUS33')->exists);
+
+        $body['error']['code'] = '301';
+        $body['query']['success'] = false;
+        $provider = new IbanComProvider('secret', $this->clientReturning($this->cannedResponse(200, (string) json_encode($body))));
+        self::assertNull($provider->verifyBic('CHASUS33')->valid);
+    }
+
+    public function testVerificationWithoutAKeyDoesNotCallTheHttpClient(): void
+    {
+        $client = $this->recordingClient($this->cannedResponse(200, '{}'));
+        $provider = new IbanComProvider('', $client);
+        self::assertNull($provider->verifyIban('DE89370400440532013000')->valid);
+        self::assertNull($provider->verifyBic('CHASUS33')->valid);
+        self::assertSame('', $client->lastUrl);
+    }
+
+    public function testVerificationTreatsTransportAndMalformedResponsesAsUnavailable(): void
+    {
+        foreach ([[429, '{}'], [503, '{}'], [200, '{broken'], [200, '{}'], [200, '[]'],
+            [200, '{"errors":[{"code":"301"}]}'],
+            [200, '{"query":{"success":false},"bic_valid":false,"error":{"code":"301"}}']] as [$status, $body]) {
+            $provider = new IbanComProvider('secret', $this->clientReturning($this->cannedResponse($status, $body)));
+            self::assertNull($provider->verifyIban('DE89370400440532013000')->valid);
+            self::assertNull($provider->verifyBic('CHASUS33')->valid);
+        }
+        $client = new class () extends CURLRequest {
+            public function __construct()
+            {
+            }
+
+            /** @param array<string, mixed> $options */
+            public function post(string $url, array $options = []): ResponseInterface
+            {
+                throw new RuntimeException('timeout');
+            }
+        };
+        $provider = new IbanComProvider('secret', $client);
+        self::assertNull($provider->verifyIban('DE89370400440532013000')->valid);
+        self::assertNull($provider->verifyBic('CHASUS33')->valid);
+    }
+
+    public function testVerificationCannotConfirmADifferentBicFromTheRequestedOne(): void
+    {
+        $body = ['query' => ['success' => true, 'bic' => 'CHASUS33'], 'bic_valid' => true, 'bic_active' => true, 'directory_results' => ['bic' => 'DEUTDEFFXXX'], 'error' => []];
+        $provider = new IbanComProvider('secret', $this->clientReturning($this->cannedResponse(200, (string) json_encode($body))));
+        self::assertNull($provider->verifyBic('CHASUS33')->valid);
+        $body['directory_results']['bic'] = 'CHASUS33XXX';
+        $body['query']['bic'] = 'DEUTDEFF';
+        $provider = new IbanComProvider('secret', $this->clientReturning($this->cannedResponse(200, (string) json_encode($body))));
+        self::assertNull($provider->verifyBic('CHASUS33')->valid);
+    }
+
     public function testFindByIbanMapsACannedSuccessResponseToBankInfo(): void
     {
         $body = json_encode([

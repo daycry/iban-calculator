@@ -9,6 +9,7 @@ use CodeIgniter\CLI\CLI;
 use Daycry\Iban\Config\Services;
 use Daycry\Iban\Contracts\ImporterInterface;
 use Daycry\Iban\Import\ImporterRegistry;
+use Daycry\Iban\Import\Importers\ReferenceCsvImporter;
 use Daycry\Iban\Import\ImportReport;
 use Daycry\Iban\Import\ImportRunner;
 use Daycry\Iban\Models\BankModel;
@@ -61,7 +62,7 @@ final class UpdateCommand extends BaseCommand
     protected $options = [
         '--all'     => 'Run every bundled importer (all countries/sources). Fetches live; combine with --dry-run to preview. Cannot be combined with --file.',
         '--country' => 'Restrict to importers for this ISO 3166-1 alpha-2 country code (e.g. AT).',
-        '--source'  => 'Restrict to the importer with this source id (e.g. oenb).',
+        '--source'  => 'Select a source (e.g. oenb), or reference-csv with --file for an annotated multi-country directory.',
         '--dry-run' => 'Preview: count what would be imported without writing to the `banks` table.',
         '--file'    => 'Import offline from this local file instead of fetching from the source live.',
         '--prune'   => 'After importing, delete rows this (country, source) previously wrote but no longer produces (sync). Skipped when the run imports nothing; combine with --dry-run to preview the count.',
@@ -99,6 +100,23 @@ final class UpdateCommand extends BaseCommand
             CLI::error('--all cannot be combined with --file (a single local file cannot feed multiple importers).');
 
             return EXIT_ERROR;
+        }
+
+        if ($source !== null && strtolower($source) === 'reference-csv') {
+            if ($file === null || $prune) {
+                CLI::error('reference-csv requires --file and cannot be combined with --all or --prune (a reference file is a partial directory).');
+
+                return EXIT_ERROR;
+            }
+            try {
+                $matches = self::filterImporters(ReferenceCsvImporter::fromFile($file), $country, null);
+            } catch (\InvalidArgumentException $e) {
+                CLI::error($e->getMessage());
+
+                return EXIT_ERROR;
+            }
+
+            return $this->runAll($matches, $dryRun, failOnError: true);
         }
 
         if ($all) {
@@ -144,7 +162,7 @@ final class UpdateCommand extends BaseCommand
      *
      * @param list<ImporterInterface> $importers
      */
-    private function runAll(array $importers, bool $dryRun, bool $prune = false): int
+    private function runAll(array $importers, bool $dryRun, bool $prune = false, bool $failOnError = false): int
     {
         if ($importers === []) {
             CLI::write(
@@ -195,7 +213,7 @@ final class UpdateCommand extends BaseCommand
             $dryRun ? ' (dry-run)' : '',
         ), 'green');
 
-        return EXIT_SUCCESS;
+        return $failOnError && $failed > 0 ? EXIT_ERROR : EXIT_SUCCESS;
     }
 
     private function listImporters(ImporterRegistry $registry): void
@@ -221,6 +239,7 @@ final class UpdateCommand extends BaseCommand
 
         CLI::table($rows, ['Country', 'Source', 'Name', 'License']);
         CLI::write('Select one with --country=/--source= to run it (add --dry-run to preview).', 'yellow');
+        CLI::write('Local reference data: --source=reference-csv --file=<annotated.csv> (all file countries, or select --country=XX).', 'yellow');
     }
 
     private function printReport(ImporterInterface $importer, ImportReport $report): void

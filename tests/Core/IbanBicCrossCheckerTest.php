@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Core;
 
 use Daycry\Iban\Core\IbanBicCrossChecker;
+use Daycry\Iban\Core\Mod97;
 use Daycry\Iban\DTO\ParsedBic;
 use Daycry\Iban\DTO\ParsedIban;
 use Daycry\Iban\Enums\ViolationCode;
@@ -106,6 +107,27 @@ final class IbanBicCrossCheckerTest extends TestCase
     }
 
     // -- country mismatch -----------------------------------------------------
+
+    public function testDocumentedMartiniqueBankAcceptsItsEightAndElevenCharacterBic(): void
+    {
+        $bban = '13088' . '00001' . '00000000001' . '00'; // Synthetic account.
+        $iban = 'FR' . (new Mod97())->checkDigits('FR', $bban) . $bban;
+        foreach (['BNPAMQMX', 'BNPAMQMXXXX'] as $bic) {
+            self::assertTrue($this->iban->isValid($iban));
+            self::assertTrue($this->iban->isValidBic($bic));
+            self::assertTrue($this->iban->validateIbanAndBic($iban, $bic)->isValid());
+        }
+    }
+
+    public function testMartiniqueExceptionDoesNotAcceptAnotherBankOrAnUnlistedBic(): void
+    {
+        foreach ([['13089', 'BNPAMQMXXXX'], ['13088', 'TESTMQMX'], ['13088', 'BNPAMQMX123']] as [$bank, $bic]) {
+            $bban = $bank . '00001' . '00000000001' . '00';
+            $iban = 'FR' . (new Mod97())->checkDigits('FR', $bban) . $bban;
+            $result = $this->iban->validateIbanAndBic($iban, $bic);
+            self::assertSame(ViolationCode::BicIbanCountryMismatch, $result->firstViolation()?->code);
+        }
+    }
 
     public function testCountryMismatchEsIbanDeBic(): void
     {

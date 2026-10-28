@@ -1,7 +1,7 @@
 # Data Licensing
 
 `daycry/iban` is MIT-licensed (see [`LICENSE`](../LICENSE)). This note explains why the **structural
-country registry** (`src/Registry/data/countries.php`, 78 countries) can be MIT-licensed even though
+country registry** (`src/Registry/data/countries.php`, 89 national formats) can be MIT-licensed even though
 IBAN structure data has a tangled licensing history, and why v1.0 ships **zero bundled bank-entity
 data**. See [`docs/registry-authoring.md`](registry-authoring.md) for the full authoring methodology
 this page summarizes the legal rationale for.
@@ -55,7 +55,7 @@ The authoring workflow for each `countries.php` entry (detailed in
    [`ixnode/php-iban`](https://github.com/ixnode/php-iban) — purely to catch transcription mistakes, not
    to copy their data verbatim.
 4. Verify algorithmically: every registry entry's `example` IBAN must satisfy the MOD-97 (ISO 7064)
-   checksum, parameterized over all 78 countries in the test suite (`tests/Core/CountryValidationTest.php`
+   checksum, parameterized over all registered countries in the test suite (`tests/Core/CountryValidationTest.php`
    and friends).
 
 This produces a registry that is **independently authored from public facts**, license-compatible with
@@ -121,7 +121,7 @@ importers.
 number:
 
 ```php
-public const string VERSION = '2026-07 (78 countries; independently authored, not derived from the SWIFT IBAN Registry file)';
+public const string VERSION = '2026-10 (89 countries; independently authored national-format facts; no third-party registry file bundled)';
 ```
 
 This exists to make the independent-authorship claim **traceable and machine-visible** at runtime — an

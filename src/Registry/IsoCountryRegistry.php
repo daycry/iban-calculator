@@ -17,7 +17,7 @@ use OutOfBoundsException;
  * DTOs, caching the hydrated map so repeated lookups don't re-hydrate.
  *
  * This exists because BIC validation must recognise ALL countries that have
- * BICs, not just the ~78 that issue IBANs: the country code in a BIC
+ * BICs, not just the 89 registered IBAN formats: the country code in a BIC
  * (positions 5-6) is checked against this full ISO 3166-1 set, whereas the
  * IBAN {@see Registry} only knows the IBAN-issuing subset.
  */

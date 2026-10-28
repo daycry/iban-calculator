@@ -7,7 +7,11 @@ namespace Daycry\Iban\Providers;
 use CodeIgniter\HTTP\CURLRequest;
 use Daycry\Iban\Contracts\BicProviderInterface;
 use Daycry\Iban\Contracts\ProviderInterface;
+use Daycry\Iban\Contracts\VerificationProviderInterface;
+use Daycry\Iban\Core\BicValidator;
+use Daycry\Iban\Core\Normalizer;
 use Daycry\Iban\DTO\BankInfo;
+use Daycry\Iban\DTO\ExternalVerification;
 use Daycry\Iban\DTO\ParsedIban;
 use Throwable;
 
@@ -63,7 +67,7 @@ use Throwable;
  *
  * @see docs/superpowers/specs/2026-07-10-daycry-iban-v1-design.md
  */
-final class IbanComProvider implements BicProviderInterface, ProviderInterface
+final class IbanComProvider implements BicProviderInterface, ProviderInterface, VerificationProviderInterface
 {
     private const ENDPOINT = 'https://api.iban.com/clients/api/v4/iban/';
 
@@ -85,6 +89,106 @@ final class IbanComProvider implements BicProviderInterface, ProviderInterface
     public function supports(string $countryCode): bool
     {
         return $this->apiKey !== '';
+    }
+
+    /** Read the API's coded checks, rather than inferring validity from bank_data. */
+    public function verifyIban(string $iban): ExternalVerification
+    {
+        $decoded = $this->verificationResponse(self::ENDPOINT, ['iban' => (new Normalizer())->normalize($iban)]);
+        if ($decoded === null || !isset($decoded['errors']) || !is_array($decoded['errors']) || $decoded['errors'] !== []) {
+            return new ExternalVerification(null, 'iban.com');
+        }
+        $checks = $decoded['validations'] ?? null;
+        if (!is_array($checks)) {
+            return new ExternalVerification(null, 'iban.com');
+        }
+        $rules = [
+            'chars' => ['006', '206'],
+            'iban' => ['001', '202'],
+            'length' => ['003', '203'],
+            'structure' => ['005', '205'],
+            'country_support' => ['007', '207'],
+            'account' => ['002', '004', '201'],
+        ];
+        $valid = true;
+        foreach ($rules as $name => $allowed) {
+            $check = $checks[$name] ?? null;
+            $code = is_array($check) ? self::verificationCode($check['code'] ?? null) : null;
+            if ($code === null || !in_array($code, $allowed, true)) {
+                return new ExternalVerification(null, 'iban.com');
+            }
+            if (str_starts_with($code, '2')) {
+                $valid = false;
+            }
+        }
+
+        // These checks establish identifier integrity, never a live customer's account.
+        return new ExternalVerification($valid, 'iban.com');
+    }
+
+    public function verifyBic(string $bic): ExternalVerification
+    {
+        $normalized = (new BicValidator())->normalize($bic);
+        $decoded = $this->verificationResponse(self::BIC_ENDPOINT, ['bic' => $normalized]);
+        $query = $decoded['query'] ?? null;
+        if ($decoded === null || !is_array($query) || ($query['success'] ?? null) !== true || ($query['bic'] ?? null) !== $normalized) {
+            return new ExternalVerification(null, 'iban.com');
+        }
+        $error = $decoded['error'] ?? null;
+        if (!is_array($error)) {
+            return new ExternalVerification(null, 'iban.com');
+        }
+        $valid = $decoded['bic_valid'] ?? null;
+        if ($valid === false) {
+            $code = self::verificationCode($error['code'] ?? null);
+            if (in_array($code, ['801', '802', '803'], true)) {
+                return new ExternalVerification(false, 'iban.com', exists: $code === '803' ? false : null);
+            }
+
+            return new ExternalVerification(null, 'iban.com');
+        }
+        $directory = $decoded['directory_results'] ?? null;
+        $canonical = strlen($normalized) === 8 ? $normalized . 'XXX' : $normalized;
+        if ($valid !== true || !is_bool($decoded['bic_active'] ?? null)
+            || $error !== [] || !is_array($directory) || ($directory['bic'] ?? null) !== $canonical) {
+            return new ExternalVerification(null, 'iban.com');
+        }
+
+        return new ExternalVerification(true, 'iban.com', exists: true, active: $decoded['bic_active']);
+    }
+
+    /** @param array<string, string> $fields
+     *  @return array<string, mixed>|null
+     */
+    private function verificationResponse(string $endpoint, array $fields): ?array
+    {
+        if ($this->apiKey === '') {
+            return null;
+        }
+        try {
+            $response = $this->client->post($endpoint, [
+                'form_params' => ['format' => 'json', 'api_key' => $this->apiKey] + $fields,
+                'timeout' => $this->timeout,
+                'http_errors' => false,
+            ]);
+            if ($response->getStatusCode() !== 200) {
+                return null;
+            }
+            $decoded = json_decode((string) $response->getBody(), true);
+
+            return is_array($decoded) && !array_is_list($decoded) ? $decoded : null;
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    private static function verificationCode(mixed $code): ?string
+    {
+        if ((!is_string($code) && !is_int($code)) || preg_match('/^[0-9]{1,3}$/D', (string) $code) !== 1) {
+            return null;
+        }
+
+        return str_pad((string) $code, 3, '0', STR_PAD_LEFT);
     }
 
     public function findByIban(ParsedIban $iban): ?BankInfo

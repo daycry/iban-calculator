@@ -24,10 +24,10 @@ final class Registry
      *
      * Independently authored structural facts (IBAN lengths / field offsets /
      * BBAN tokens), compiled from publicly documented IBAN formats. This
-     * registry is NOT derived from, nor copied out of, the SWIFT IBAN
-     * Registry file.
+     * registry does not bundle a third-party registry file or its example
+     * collection. See docs/registry-refresh-2026-10.md for the current audit.
      */
-    public const string VERSION = '2026-07 (78 countries; independently authored, not derived from the SWIFT IBAN Registry file)';
+    public const string VERSION = '2026-10 (89 countries; independently authored national-format facts; no third-party registry file bundled)';
 
     /**
      * Hydrated country map, lazily built and cached on first access.

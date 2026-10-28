@@ -71,6 +71,18 @@ final class ImportRunnerTest extends CIUnitTestCase
         self::assertNotEmpty($row['updated_at']);
     }
 
+    public function testPartialUpdatesKeepOmittedFieldsAndExplicitNullStillClearsThem(): void
+    {
+        $runner = new ImportRunner();
+        $runner->run(new FakeAtImporter(), new BankModel());
+        $runner->run(new FakeAtImporter([['bank_code' => '12000', 'name' => 'Renamed']]), new BankModel());
+        $this->seeInDatabase('banks', [
+            'bank_code' => '12000', 'name' => 'Renamed', 'bic' => 'BKAUATWWXXX', 'city' => 'Wien', 'sepa_sct' => 1,
+        ]);
+        $runner->run(new FakeAtImporter([['bank_code' => '12000', 'bic' => null]]), new BankModel());
+        $this->seeInDatabase('banks', ['bank_code' => '12000', 'name' => 'Renamed', 'bic' => null]);
+    }
+
     public function testDryRunWritesNothingButStillCountsTheReport(): void
     {
         $report = (new ImportRunner())->run(new FakeAtImporter(), new BankModel(), dryRun: true);
