@@ -152,17 +152,17 @@ class Services extends BaseService
      */
     public static function config(): IbanConfig
     {
-        $config = Factories::get('config', 'Iban');
+        // Resolve aliases in priority order: a published app config first,
+        // then the package config. Resolution depends on the consuming app.
+        foreach (['Iban', IbanConfig::class] as $alias) {
+            $config = Factories::get('config', $alias);
 
-        if ($config instanceof IbanConfig) {
-            return $config;
+            if ($config instanceof IbanConfig) {
+                return $config;
+            }
         }
 
-        // Defensive fallback to the package's own config by FQCN, for any
-        // unexpected short-name resolution.
-        $config = Factories::get('config', IbanConfig::class);
-
-        return $config instanceof IbanConfig ? $config : new IbanConfig();
+        return new IbanConfig();
     }
 
     /**

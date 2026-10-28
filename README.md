@@ -419,8 +419,9 @@ See [`docs/architecture.md`](docs/architecture.md) and [`CLAUDE.md`](CLAUDE.md) 
 |---|---|---|
 | 8.3 | ^4.6 | ✅ CI-tested |
 | 8.4 | ^4.6 | ✅ CI-tested |
+| 8.5 | ^4.6 | ✅ CI-tested |
 
-CodeIgniter 4 is optional (`require-dev` only) — the core works on plain PHP 8.3/8.4 with no framework at all.
+CodeIgniter 4 is optional (`require-dev` only) — the core works on plain PHP 8.3/8.4/8.5 with no framework at all.
 
 ## Documentation
 

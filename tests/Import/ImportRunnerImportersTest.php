@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Import;
 
+use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Daycry\Iban\Iban;
@@ -365,7 +366,7 @@ final class ImportRunnerImportersTest extends CIUnitTestCase
         ]);
 
         $result = $this->db->table('banks')->where('bank_code', '12000')->get();
-        self::assertNotFalse($result);
+        self::assertInstanceOf(ResultInterface::class, $result);
         $row = $result->getRowArray();
         self::assertIsArray($row);
         self::assertNotEmpty($row['source_version']);

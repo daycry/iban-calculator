@@ -7,6 +7,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-10-28
+
+Adds global registered IBAN format coverage, explicit optional external verification and annotated
+bank-reference CSV imports. Existing local validation remains offline; new constructor dependencies
+are optional. Bank-data coverage and the nine optional national checksum validators remain separate
+from the 89 supported IBAN formats.
+
 ### Added
 
 - Eleven IBAN national formats (BI, DJ, FK, HN, MN, NI, OM, RU, SD, SO, YE), bringing local format
@@ -30,7 +37,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `Import\ImportReport` gains a `pruned` count, `BankModel` a `rowsForSource()` helper, and
   `iban:update`'s per-source report line shows `pruned=<N>` when any row was (or would be) pruned.
 
+### Changed
+
+- Added PHP 8.5 to the CI test matrix alongside PHP 8.3 and 8.4; the minimum PHP requirement stays 8.3.
+
+- Expanded the README with grouped feature bullets, installation, complete configuration and
+  examples. Added a country coverage table distinguishing IBAN/BIC checks, national validators
+  and default bank importer availability.
+
 ### Fixed
+
+- Compatibility with updated PHPStan/CodeIgniter analysis: preserve application config alias
+  priority, require database result objects before reading rows in tests, and declare cache lookup
+  methods stateful so repeated-call assertions remain meaningful.
 
 - Brazil's 2026 IBAN profile now accepts alphanumeric bank identifiers and final account-type /
   holder characters while retaining support for older numeric-bank examples.
@@ -97,6 +116,8 @@ purely more bundled importers plus one new framework-free support reader.
   the Finanstilsynet PDF is a stale 2011 edition). See
   [`docs/importers.md`](docs/importers.md#coverage-matrix).
 
+[Unreleased]: https://github.com/daycry/iban-calculator/compare/2.3.0...master
+[2.3.0]: https://github.com/daycry/iban-calculator/compare/2.2.0...2.3.0
 [2.2.0]: https://github.com/daycry/iban-calculator/compare/2.1.1...2.2.0
 
 ## [2.1.1] - 2026-07-14

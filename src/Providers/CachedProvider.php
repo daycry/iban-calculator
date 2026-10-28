@@ -71,6 +71,11 @@ final class CachedProvider implements BicProviderInterface, ProviderInterface
         return $this->inner->supports($countryCode);
     }
 
+    /**
+     * Reads/writes external cache state and may call the inner provider.
+     *
+     * @phpstan-impure
+     */
     public function findByBankCode(string $countryCode, string $bankCode, ?string $branchCode = null): ?BankInfo
     {
         $key = $this->key($countryCode, $bankCode, $branchCode);
@@ -90,6 +95,11 @@ final class CachedProvider implements BicProviderInterface, ProviderInterface
         return $info;
     }
 
+    /**
+     * Reads/writes external cache state and may call the inner provider.
+     *
+     * @phpstan-impure
+     */
     public function findByIban(ParsedIban $iban): ?BankInfo
     {
         $key = $this->ibanKey($iban);
@@ -116,6 +126,8 @@ final class CachedProvider implements BicProviderInterface, ProviderInterface
      * Delegates only when the inner provider actually implements
      * {@see BicProviderInterface}; otherwise returns `null` immediately WITHOUT
      * caching (a provider with no BIC capability has no answer to memoize).
+     *
+     * @phpstan-impure
      */
     public function findByBic(string $bic): ?BankInfo
     {

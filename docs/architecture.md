@@ -1,9 +1,9 @@
 # Architecture
 
 > Concise architecture overview. Full usage documentation lives in [`docs/usage.md`](usage.md), and
-> the importer subsystem in [`docs/importers.md`](importers.md). The package is feature-complete; the
-> latest release adds BIC (ISO 9362) validation and an ISO 3166-1 country registry (see
-> [`CHANGELOG.md`](../CHANGELOG.md)).
+> the importer subsystem in [`docs/importers.md`](importers.md). Version 2.3 expands coverage to 89
+> IBAN formats and adds optional external verification and annotated bank-reference CSV imports.
+> See [`CHANGELOG.md`](../CHANGELOG.md) for release details.
 
 ## Two layers, one direction
 

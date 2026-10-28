@@ -62,3 +62,12 @@ Martinique IBAN/BIC exception, and normalize Unicode spacing in IBANs and BICs.
 - Only generic package documentation and synthetic reference CSV fixtures are published.
 - External application files, private bank-reference datasets and local agent configuration are excluded.
 - Removed internal application identifiers and development-source descriptions before publication.
+
+## T-06 - Compatibility with updated static-analysis dependencies
+
+- Status: completed.
+- RED: PHPStan 2.3.3 with codeigniter/phpstan-codeigniter 2.2.0 reproduced all six CI errors: constant config alias inference, query-result union types and repeated cached-provider assertions inferred as pure calls (2026-10-28).
+- Preserve app-config alias priority and fallback while resolving candidates in one loop; require ResultInterface before reading query rows in tests; explicitly mark stateful cache lookup methods impure so repeated-call regression assertions remain meaningful.
+- No baseline entries, ignored diagnostics, inferred-type overrides or reduced analysis level.
+- GREEN: PHPStan level 8 passed with PHPStan 2.3.3 and codeigniter/phpstan-codeigniter 2.2.0; focused tests passed (90 tests / 613 assertions); full suite passed (1,505 tests / 8,572 assertions); style dry-run and registry regeneration clean.
+- PHP compatibility: full suite passed independently on PHP 8.3.30, 8.4.18 and 8.5.12 (1,505 tests / 8,572 assertions per version). PHP 8.5 added to CI; minimum PHP remains 8.3. Static analysis also passed on PHP 8.5.12.
