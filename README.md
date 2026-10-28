@@ -1,4 +1,4 @@
-# Daycry Iban
+# IBAN & SWIFT/BIC Validation for CodeIgniter 4 and Standalone PHP
 
 <!-- Tests & coverage -->
 [![Tests](https://github.com/daycry/iban-calculator/actions/workflows/phpunit.yml/badge.svg)](https://github.com/daycry/iban-calculator/actions/workflows/phpunit.yml)
