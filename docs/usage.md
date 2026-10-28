@@ -1,11 +1,12 @@
 # Usage
 
-Task-oriented guide for `daycry/iban`, current through v2.1. Every example on this page has been run
+Task-oriented guide for `daycry/iban`, including the October 2026 registry and verification updates. Every example on this page has been run
 against the real code (see `tests/` for the source of truth these examples are drawn from). For the
 exhaustive per-symbol reference — every facade method, helper function, config property, DTO field,
 enum case, exception, and contract — see [`docs/api-reference.md`](api-reference.md).
 
 - [The facade: `Daycry\Iban\Iban`](#the-facade-daycryibaniban)
+- [Normalization and validation](#normalization-and-validation)
 - [Validation and the 8 `ViolationCode` cases](#validation-and-the-8-violationcode-cases)
 - [National check-digit validators](#national-check-digit-validators)
 - [Parsing](#parsing)
@@ -75,6 +76,28 @@ $iban->format('ES9121000418450200051332', IbanFormat::Electronic); // 'ES9121000
 $iban->format('ES9121000418450200051332', IbanFormat::Print);      // 'ES91 2100 0418 4502 0005 1332'
 $iban->format('ES9121000418450200051332', IbanFormat::Anonymized); // 'ES******************1332'
 ```
+
+## Normalization and validation
+
+IBAN and BIC validation normalize input first. Both uppercase input and remove ASCII whitespace,
+non-breaking spaces (`U+00A0`), spaces `U+2000` through `U+200A`, narrow non-breaking space
+(`U+202F`), ideographic space (`U+3000`), zero-width space (`U+200B`) and BOM (`U+FEFF`).
+IBAN normalization also removes a leading `IBAN` label and its separator.
+
+```php
+$iban = new \Daycry\Iban\Iban();
+$iban->normalize("IBAN: es91\u{00A0}2100 0418 4502 0005 1332"); // 'ES9121000418450200051332'
+$iban->normalizeBic("caix\u{200B}esbbxxx");                    // 'CAIXESBBXXX'
+```
+
+Normalization is not validation: other illegal characters and malformed UTF-8 remain rejectable.
+It does not repair a checksum or remove arbitrary punctuation from an identifier.
+
+See the [complete country coverage table](country-coverage.md) for all 89 IBAN prefixes and lengths,
+BIC country support, nine optional national validators and default importer availability.
+Local format validity is independent of bank-directory coverage. For provider verdicts and directory
+existence/connectivity, see [optional external verification](verification.md); ordinary validation
+stays offline.
 
 ## Validation and the 8 `ViolationCode` cases
 
@@ -221,8 +244,8 @@ Two honest limits, up front:
 2. **The structural bank cross-check is only possible for some countries.** When you validate an IBAN
    *and* a BIC together, the country codes are always compared. But comparing the *bank* is only
    structurally sound for countries whose IBAN bank-code segment is exactly the BIC's 4-letter
-   institution prefix. Against the current registry that's these **19** countries:
-   `AZ, BG, BH, GB, GI, IE, IQ, JO, KW, LC, LV, MT, NL, PK, PS, QA, RO, SV, VG`. For every other
+   institution prefix. Against the current registry that's these **22** countries:
+   `AZ, BG, BH, GB, GI, HN, IE, IQ, JO, KW, LC, LV, MT, NI, NL, PK, PS, QA, RO, SV, VG, YE`. For every other
    country (ES, DE, FR, … — whose IBAN bank code is *numeric*) there is no structural relationship
    between the IBAN digits and the BIC letters, so only the country is cross-checked, never the bank.
 
@@ -272,7 +295,7 @@ The BIC validation pipeline short-circuits on the first failure and reports one 
 | `BicUnknownCountry` | `bic_unknown_country` | Positions 5-6 aren't a recognised ISO 3166-1 code (the full ~249-code set, plus `XK`). |
 
 > **Country codes:** a BIC's country (positions 5-6) is checked against the full ISO 3166-1 set (249
-> officially assigned codes) — **not** the ~78 IBAN countries — so BICs from non-IBAN countries (US, JP,
+> officially assigned codes) — **not** the 89 IBAN country formats — so BICs from non-IBAN countries (US, JP,
 > CN, …) validate. Kosovo's user-assigned `XK` is accepted too (real XK BICs exist); no other non-ISO
 > code (`UK`/`EU`/`EL`/…) is.
 
@@ -285,7 +308,11 @@ from earlier in this guide.
 
 `validateIbanAndBic(?string $iban, ?string $bic)` is the "one, the other, or both" entry point. When
 both are supplied **and each is individually valid**, it also cross-checks them for mutual coherence
-(country always; bank only for the 19 countries above). It never throws.
+(country, with the documented exception below; bank only for the 22 countries above). It never throws.
+
+The country check accepts FR bank `13088` (BNP Paribas Antilles-Guyane) with Martinique BIC
+`BNPAMQMX` / `BNPAMQMXXXX`. The exception is specific to this bank and head-office BIC; it does
+not accept arbitrary French IBANs with Martinique BICs.
 
 ```php
 // Both valid AND coherent → valid, no violations
@@ -296,7 +323,7 @@ $r = $iban->validateIbanAndBic('GB29NWBK60161331926819', 'DEUTDEFF');
 $r->isValid();                                   // false
 $r->firstViolation()->code;                      // ViolationCode::BicIbanCountryMismatch
 
-// Bank mismatch (GB is one of the 19 alpha-bank-code countries): same country, wrong institution
+// Bank mismatch (GB is one of the 22 alpha-bank-code countries): same country, wrong institution
 $r = $iban->validateIbanAndBic('GB29NWBK60161331926819', 'BARCGB22');
 $r->firstViolation()->code;                      // ViolationCode::BicIbanBankMismatch
 
@@ -498,17 +525,13 @@ Two conditions must both hold for `resolveBic()` to return a non-null `BankInfo`
    first 8 characters — the institution's primary office), so an 8-char query resolves an 11-char stored
    row and vice-versa; input is normalized (uppercased, whitespace-stripped) first.
 
-**Which bundled importers actually supply BICs.** Of the 30 bundled importers, these populate `banks.bic`
-(so `resolveBic()` can find a bank from their data): **CH & LI** (`six`), **DE** (`bundesbank`), **NL**
-(`betaalvereniging`), **BE** (`nbb`), **CZ** (`cnb`), **SK** (`nbs`), **SI** (`bsi`), **HR** (`hnb`),
-**HU** (`mnb`), **MT** (`cbm`), **BG** (`bnb`), **AZ** (`cbar`), **MD** (`bnm`), **NO** (`bits`),
-**GE** (`nbg`), **KZ** (`nbk`), **LU** (`abbl`), and the **EPC SEPA Register** (`epc`, for GB/GI/IE/LV/RO —
-whose IBAN bank code IS the BIC prefix). The remaining importers publish only a bank code with **no** BIC
-column, so their rows can't answer a `resolveBic()` lookup: **AT** (`oenb`), **ES** (`bde`), **GR** (`hba`),
-**PL** (`nbp`), **IL** (`boi`), **UA** (`nbu`), and **BR** (`bcb`). (These datasets still resolve fine by
-*IBAN* via `resolve()` — they just don't carry the BIC needed for the reverse, BIC-first lookup.) See the
-[bundled-importer table in `docs/importers.md`](importers.md#the-30-bundled-importers) for each source's
-full column layout.
+**BIC availability depends on the source.** The 44 default country registrations do not all
+populate `banks.bic`. For example, SIX (CH/LI), Bundesbank (DE) and the EPC SEPA Register
+(GB/GI/IE/LV/RO) provide BIC data. Sources such as OeNB (AT), Banco de Espana (ES), HBA (GR),
+NBP (PL), BOI (IL), NBU (UA) and BCB (BR) provide bank-code resolution without a BIC column.
+See the [bundled-importer table](importers.md#the-44-bundled-importers) for each source's fields
+and limitations. An operator-supplied [reference CSV](importers.md#local-bank-reference-csv)
+can enrich missing BICs when the application has appropriately licensed data.
 
 ```php
 // Default NullProvider — resolveBic() always null, no matter the BIC:
@@ -586,7 +609,7 @@ class Iban extends \Daycry\Iban\Config\Iban
 
 ```bash
 # .env
-iban.ibanComApiKey = 'your-real-api-key-here'
+iban.ibanComApiKey = 'YOUR_API_KEY'
 ```
 
 With a non-empty `$ibanComApiKey`, `service('iban')` chains an `IbanComProvider` **after** the
@@ -937,7 +960,7 @@ $ php spark iban:bic DEUTDEFF5
 INVALID: bic_bad_length - The BIC must be 8 or 11 characters long.
 ```
 
-### `iban:update [--all] [--country=<cc>] [--source=<id>] [--dry-run] [--file=<path>]`
+### `iban:update [--all] [--country=<cc>] [--source=<id>] [--dry-run] [--file=<path>] [--prune]`
 
 Lists or runs the bundled bank-data importers against the `banks` table, printing licensing notices
 plus an import report per source.
@@ -949,6 +972,14 @@ plus an import report per source.
 | `--source=<id>` | Restrict to the importer with this source id (e.g. `oenb`). |
 | `--dry-run` | Preview: count what would be imported/skipped without writing to the `banks` table. |
 | `--file=<path>` | Import offline from this local file instead of fetching from the source live. |
+| `--prune` | Turn the run into a full **sync** of the selected `(country, source)` slice: after upserting, DELETE any row that source previously wrote but no longer produces. Default (without it) is **upsert-only** (insert/update, never delete). Guarded — skipped when the run imports nothing, so a failed/empty fetch can't wipe data — and scoped per `(country, source)`. With `--dry-run` it reports the would-prune count (`pruned=<N>`) without deleting. |
+
+By default a re-run **upserts** (matched by `(country_code, bank_code, branch_code)`) and never
+deletes, so an institution a source has dropped lingers until removed. `--prune` makes the run a
+scoped, guarded full sync instead — useful for `--file` sources you clean up between runs (e.g. MK)
+and for live sources that change over time. Works with a single selection and with `--all` (each
+importer prunes only its own slice); the per-source report line shows `pruned=<N>` when any row was
+(or would be) pruned.
 
 **Exit codes**: `0` in every normal case — including "no importer matched the selection" and the
 no-selection listing — except `--all` combined with `--file`, which exits `1`.
@@ -1017,7 +1048,7 @@ no-selection listing — except `--all` combined with `--file`, which exits `1`.
    ...
    [GB/epc] fetched=<N> imported=<N> skipped=0 (dry-run — nothing written)
    Source: European Payments Council (SEPA Register) — ...
-   Ran 30 importers: <N> with rows, <N> empty, <N> failed. (dry-run)
+   Ran 44 importers: <N> with rows, <N> empty, <N> failed. (dry-run)
 
    $ php spark iban:update --all --country=GB --dry-run
    ...

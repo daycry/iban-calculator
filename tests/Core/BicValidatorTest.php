@@ -9,6 +9,7 @@ use Daycry\Iban\DTO\ParsedBic;
 use Daycry\Iban\Enums\ViolationCode;
 use Daycry\Iban\Registry\IsoCountryRegistry;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\DataProviderExternal;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -158,6 +159,21 @@ final class BicValidatorTest extends TestCase
         // XK is user-assigned (not officially ISO), deliberately excluded from
         // the ISO registry, but used in real BICs — the validator layers it on.
         self::assertTrue($this->validator->isValid('NLBBXKPR'));
+    }
+
+    #[DataProviderExternal(NormalizerTest::class, 'invisibleProvider')]
+    public function testUnicodeSeparatorsAreRemovedAndTheBicValidates(string $separator): void
+    {
+        $input = $separator . 'caixesbb' . $separator . 'xxx' . $separator;
+        self::assertSame('CAIXESBBXXX', $this->validator->normalize($input));
+        self::assertTrue($this->validator->isValid($input));
+    }
+
+    public function testMalformedUtf8IsPreservedAndRejectedRatherThanDiscarded(): void
+    {
+        $input = "CAIXESBB\xC2 XXX";
+        self::assertSame("CAIXESBB\xC2XXX", $this->validator->normalize($input));
+        self::assertFalse($this->validator->isValid($input));
     }
 
     // -- ParsedBic passthrough ------------------------------------------------

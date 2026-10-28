@@ -54,12 +54,12 @@ final class GenerateRegistryTest extends TestCase
 
     /**
      * Sanity check on the fact source itself: exactly one data row per
-     * country currently in the registry (78, per Registry::VERSION /
+     * country currently in the registry (89, per Registry::VERSION /
      * T-16-18). Guards against an accidental truncated or duplicated CSV
      * slipping past the byte-for-byte check above (which would only fail
      * once countries.php is regenerated to match it).
      */
-    public function testRegistryFactsCsvHas78DataRows(): void
+    public function testRegistryFactsCsvHas89DataRows(): void
     {
         $csvPath = self::REPO_ROOT . '/bin/data/registry-facts.csv';
         $lines   = file($csvPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
@@ -67,7 +67,7 @@ final class GenerateRegistryTest extends TestCase
         self::assertNotFalse($lines, sprintf('Could not read "%s".', $csvPath));
 
         // Subtract 1 for the header row.
-        self::assertCount(79, $lines, 'Expected a header row plus 78 country data rows.');
+        self::assertCount(90, $lines, 'Expected a header row plus 89 country data rows.');
         self::assertSame(
             'code,iban_length,bban_structure,bank_offset,bank_length,branch_offset,branch_length,'
             . 'account_offset,account_length,national_check_offset,national_check_length,sepa,example',

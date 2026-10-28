@@ -23,7 +23,7 @@ use Daycry\Iban\Registry\Registry;
  * Two independent checks:
  *
  *   - Country: the BIC's country code (positions 5-6) must equal the IBAN's
- *     country code. A mismatch is always a real incoherence.
+ *     country code, apart from the explicitly documented bank/BIC exceptions below.
  *
  *   - Bank: emitted ONLY for countries whose IBAN bank-code segment is exactly
  *     four ALPHABETIC characters. This is country-conditional by necessity, not
@@ -40,6 +40,15 @@ use Daycry\Iban\Registry\Registry;
  */
 final class IbanBicCrossChecker
 {
+    /**
+     * FR bank 13088 (BNP Paribas Antilles-Guyane) uses a Martinique BIC (MQ).
+     * Only the documented head-office BIC8/BIC11 pair is allowed; this does not
+     * permit arbitrary FR/MQ combinations or infer a bank match for numeric codes.
+     *
+     * @var array<string, array<int|string, string>> IBAN country => bank code => BIC8
+     */
+    private const COUNTRY_BIC_EXCEPTIONS = ['FR' => ['13088' => 'BNPAMQMX']];
+
     public function __construct(
         private Registry $registry = new Registry(),
     ) {
@@ -52,7 +61,11 @@ final class IbanBicCrossChecker
     {
         $violations = [];
 
-        if ($bic->countryCode !== $iban->countryCode) {
+        $exception = self::COUNTRY_BIC_EXCEPTIONS[$iban->countryCode][$iban->bankIdentifier] ?? null;
+        $documentedPair = $exception !== null
+            && ($bic->bic === $exception || $bic->bic === $exception . 'XXX');
+
+        if ($bic->countryCode !== $iban->countryCode && !$documentedPair) {
             $violations[] = new Violation(
                 ViolationCode::BicIbanCountryMismatch,
                 'bic.violation.iban_country_mismatch',

@@ -101,7 +101,8 @@ class Iban extends BaseConfig
      * repository.
      *
      * Note this is a **paid, external** API: every fallback lookup sends the
-     * full IBAN to iban.com over the network. See
+     * full IBAN to iban.com over the network. The same key enables the
+     * explicit verifyIban()/verifyBic() API; ordinary validation stays local. See
      * [docs/usage.md](../../docs/usage.md) for the privacy/cost caveat.
      */
     public string $ibanComApiKey = '';

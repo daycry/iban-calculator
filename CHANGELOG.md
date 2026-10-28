@@ -7,6 +7,40 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Eleven IBAN national formats (BI, DJ, FK, HN, MN, NI, OM, RU, SD, SO, YE), bringing local format
+  validation/parsing to 89 prefixes. Added source review, synthetic examples and per-country tests.
+- Explicit `verifyIban()` / `verifyBic()` methods, `VerificationProviderInterface`, and verification
+  outcomes separating local integrity, unsupported formats, external rejection and unavailable
+  verification. The existing iban.com key enables optional external checks; BIC presence and
+  connectivity remain distinct, and IBAN checks never claim account existence.
+
+- `iban:update --source=reference-csv --file=...` imports annotated, multi-country bank directories
+  supplied by the application, with row-level version/license, dry-run and country
+  selection. The whole file is validated before writing; no external compiled bank data is bundled.
+
+- **`iban:update --prune`** — opt-in flag that turns an import run into a full **sync** of the
+  selected `(country_code, source_id)` slice: after the usual upsert, any row that source previously
+  wrote but the current run no longer produced is deleted (so institutions a source has dropped are
+  removed instead of lingering). Default behaviour is unchanged — **upsert-only**, never deletes.
+  Pruning is **guarded** (skipped entirely when the run imported nothing, so a failed/empty fetch can
+  never wipe good data) and **scoped per `(country, source)`** (it never touches rows written by
+  another source or country). `--prune --dry-run` reports the would-prune count without deleting.
+  `Import\ImportReport` gains a `pruned` count, `BankModel` a `rowsForSource()` helper, and
+  `iban:update`'s per-source report line shows `pruned=<N>` when any row was (or would be) pruned.
+
+### Fixed
+
+- Brazil's 2026 IBAN profile now accepts alphanumeric bank identifiers and final account-type /
+  holder characters while retaining support for older numeric-bank examples.
+
+- IBAN and BIC normalization now removes Unicode spaces (including NBSP), zero-width space and
+  BOM from pasted values while retaining malformed UTF-8 for rejection.
+- IBAN/BIC cross-check accepts the documented FR bank `13088` / Martinique BIC
+  `BNPAMQMX` (`BNPAMQMXXXX`) pair without allowing unrelated country mismatches.
+- Partial importer updates preserve omitted bank attributes; explicit NULL still clears a field.
+
 ## [2.2.0] - 2026-07-16
 
 Additive release: **completes SEPA-scheme bank resolution from 24/42 to 38/42 countries**, adding 14

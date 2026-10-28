@@ -100,6 +100,22 @@ class BankModel extends Model
     }
 
     /**
+     * Returns the `id` and natural-key columns of every row a given
+     * `(country_code, source_id)` slice currently holds — used by
+     * {@see \Daycry\Iban\Import\ImportRunner}'s `--prune` step to find the rows
+     * a re-import no longer produced (so they can be deleted).
+     *
+     * @return list<array<string, mixed>> Each row carries `id`, `bank_code` and `branch_code`.
+     */
+    public function rowsForSource(string $countryCode, string $sourceId): array
+    {
+        return $this->select('id, bank_code, branch_code')
+            ->where('country_code', $countryCode)
+            ->where('source_id', $sourceId)
+            ->findAll();
+    }
+
+    /**
      * Finds a single `banks` row by BIC, using the indexed `bic` column.
      *
      * Matching rule — **BIC8**: a stored BIC may be 8 chars (institution head

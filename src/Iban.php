@@ -8,6 +8,7 @@ use Daycry\Iban\Contracts\ParserInterface;
 use Daycry\Iban\Contracts\ProviderInterface;
 use Daycry\Iban\Contracts\ResolverInterface;
 use Daycry\Iban\Contracts\ValidatorInterface;
+use Daycry\Iban\Contracts\VerificationProviderInterface;
 use Daycry\Iban\Core\BicParser;
 use Daycry\Iban\Core\BicValidator;
 use Daycry\Iban\Core\IbanBicCrossChecker;
@@ -15,9 +16,11 @@ use Daycry\Iban\Core\Parser;
 use Daycry\Iban\Core\Validator;
 use Daycry\Iban\DTO\BankInfo;
 use Daycry\Iban\DTO\BankResult;
+use Daycry\Iban\DTO\ExternalVerification;
 use Daycry\Iban\DTO\ParsedBic;
 use Daycry\Iban\DTO\ParsedIban;
 use Daycry\Iban\DTO\ValidationResult;
+use Daycry\Iban\DTO\VerificationResult;
 use Daycry\Iban\DTO\Violation;
 use Daycry\Iban\Enums\IbanFormat;
 use Daycry\Iban\Enums\ViolationCode;
@@ -25,6 +28,7 @@ use Daycry\Iban\Providers\NullProvider;
 use Daycry\Iban\Registry\IsoCountryRegistry;
 use Daycry\Iban\Registry\Registry;
 use Daycry\Iban\Resolver\Resolver;
+use Throwable;
 
 /**
  * Public API facade for IBAN validation, parsing, and resolution — plus
@@ -52,6 +56,7 @@ final class Iban implements ValidatorInterface, ParserInterface, ResolverInterfa
         Registry $registry = new Registry(),
         ProviderInterface $provider = new NullProvider(),
         IsoCountryRegistry $isoCountries = new IsoCountryRegistry(),
+        private ?VerificationProviderInterface $verificationProvider = null,
     ) {
         $this->validator    = new Validator($registry);
         $this->parser       = new Parser($this->validator);
@@ -203,7 +208,44 @@ final class Iban implements ValidatorInterface, ParserInterface, ResolverInterfa
         return new ValidationResult($violations === [], $violations);
     }
 
+    // Optional external verification
+
+    /** Local validation plus an explicit, opt-in external check. No account-existence claim. */
+    public function verifyIban(string|ParsedIban $iban, bool $checkNational = false): VerificationResult
+    {
+        $validation = $this->validate($iban, $checkNational);
+        if (!$validation->isValid() || $this->verificationProvider === null) {
+            return new VerificationResult($validation);
+        }
+        $normalized = $iban instanceof ParsedIban ? $iban->electronic : $this->normalize($iban);
+        try {
+            $external = $this->verificationProvider->verifyIban($normalized);
+        } catch (Throwable) {
+            $external = new ExternalVerification(null, 'external');
+        }
+
+        return new VerificationResult($validation, $external);
+    }
+
+    /** A valid local BIC format is distinct from directory presence and connectivity. */
+    public function verifyBic(string|ParsedBic $bic): VerificationResult
+    {
+        $validation = $this->validateBic($bic);
+        if (!$validation->isValid() || $this->verificationProvider === null) {
+            return new VerificationResult($validation);
+        }
+        $normalized = $bic instanceof ParsedBic ? $bic->bic : $this->normalizeBic($bic);
+        try {
+            $external = $this->verificationProvider->verifyBic($normalized);
+        } catch (Throwable) {
+            $external = new ExternalVerification(null, 'external');
+        }
+
+        return new VerificationResult($validation, $external);
+    }
+
     // Sub-service accessors
+
     public function validator(): Validator
     {
         return $this->validator;

@@ -15,7 +15,7 @@ use Tests\Fixtures\IbanFixtures;
 /**
  * Per-country validation coverage (T-45): runs the full {@see Validator}
  * pipeline (default wiring, same as {@see \Daycry\Iban\Config\Services::iban()})
- * against every one of the 78 registered countries, so validation behaviour
+ * against every registered country, so validation behaviour
  * is exercised for each country individually rather than only through a
  * handful of hand-picked examples elsewhere in the suite.
  *

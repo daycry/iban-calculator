@@ -8,6 +8,7 @@ use CodeIgniter\Config\BaseService;
 use CodeIgniter\Config\Factories;
 use Daycry\Iban\Config\Iban as IbanConfig;
 use Daycry\Iban\Contracts\ProviderInterface;
+use Daycry\Iban\Contracts\VerificationProviderInterface;
 use Daycry\Iban\Iban as IbanService;
 use Daycry\Iban\Models\BankModel;
 use Daycry\Iban\Models\IsoCountryModel;
@@ -66,15 +67,17 @@ class Services extends BaseService
             'database' => new DatabaseProvider(new BankModel($config->table, $config->dbGroup)),
             default    => self::instantiateProvider($config->provider),
         };
+        $verificationProvider = $provider instanceof VerificationProviderInterface ? $provider : null;
 
         // Opt-in iban.com fallback (Config\Iban::$ibanComApiKey non-empty):
         // chained AFTER the primary provider above, so the remote,
         // paid iban.com API is only queried once the primary provider has
         // already failed to resolve the IBAN.
         if ($config->ibanComApiKey !== '') {
+            $verificationProvider = new IbanComProvider($config->ibanComApiKey, service('curlrequest'), $config->ibanComTimeout);
             $provider = new ChainProvider([
                 $provider,
-                new IbanComProvider($config->ibanComApiKey, service('curlrequest'), $config->ibanComTimeout),
+                $verificationProvider,
             ]);
         }
 
@@ -97,7 +100,7 @@ class Services extends BaseService
         // Pass the configured ISO 3166-1 registry (php or database source) so
         // the facade's BIC validation recognises every country's code, not
         // just the IBAN-issuing subset.
-        return new IbanService(new Registry(), $provider, self::isoCountries());
+        return new IbanService(new Registry(), $provider, self::isoCountries(), $verificationProvider);
     }
 
     /**

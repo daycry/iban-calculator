@@ -8,6 +8,7 @@ and imports everything on-demand instead.
 
 - [Overview](#overview)
 - [`iban:update` usage](#ibanupdate-usage)
+- [Local bank reference CSV](#local-bank-reference-csv)
 - [The 44 bundled importers](#the-44-bundled-importers)
 - [Source shapes: HTML, offline `--file`, and curated data](#source-shapes-html-offline---file-and-curated-data)
 - [Obtaining the offline `--file` sources](#obtaining-the-offline---file-sources)
@@ -53,10 +54,50 @@ from `sourceUrl()`. Nearly every bundled importer yields `branch_code: null` —
 [Bank-level resolution](#bank-level-resolution-why-branch_code-is-null) for why, and how a
 branch-carrying IBAN still resolves against those rows.
 
+## Local bank reference CSV
+
+`iban:update --source=reference-csv --file=<path>` imports an operator-supplied, annotated CSV
+across all countries in that file. Add `--country=DK` to select one country or `--dry-run` to preview.
+This source is available separately from the 44 default national importers and never fetches online.
+
+```bash
+php spark iban:update --source=reference-csv --file="/path/to/bank-reference.csv" --dry-run
+php spark iban:update --source=reference-csv --file="/path/to/bank-reference.csv"
+```
+
+Use the following comma-delimited UTF-8 header:
+
+```csv
+country_code,bank_code,branch_code,bic,name,source_version,source_license
+```
+
+Columns are located by name; a UTF-8 BOM and reordered columns are supported. Bank/branch codes
+remain strings, including leading zeros. Empty branch codes become NULL. Empty BICs leave existing
+BICs intact. The complete file is validated before any writes: malformed BICs, unknown countries,
+duplicate natural keys, malformed UTF-8, missing attribution or oversized fields abort the import.
+`--all` and `--prune` are rejected because these files can be partial directories.
+
+Each row is upserted under `source_id=reference-csv`, retaining its own `source_version` and
+`source_license`. Attributes absent from the CSV, such as city and SEPA reachability, are preserved.
+Database failures return a nonzero exit status; an interrupted write can be recovered by rerunning
+the idempotent import. There is no automatic refresh.
+
+Reference rows describe banks, not additional IBAN country formats or complete national bank
+directories. The CSV remains in the consuming application; this package does not redistribute
+external compiled data. Keep source attribution and reuse terms with the file. The bundled
+`tests/Fixtures/import/reference_sample.csv` contains synthetic test records only.
+
+Apply reference enrichment **after** national imports. An importer that explicitly supplies NULL
+can clear an enriched field, and a later source can overwrite a reference row. Reapply the CSV when
+needed. This does not change the library's data-licensing policy.
+
+Standalone callers can use `ReferenceCsvImporter::fromFile($path)` to obtain one validated
+`ImporterInterface` per country, then run each through `ImportRunner`.
+
 ## `iban:update` usage
 
 ```
-iban:update [--all] [--country=<cc>] [--source=<id>] [--dry-run] [--file=<path>]
+iban:update [--all] [--country=<cc>] [--source=<id>] [--dry-run] [--file=<path>] [--prune]
 ```
 
 | Flag | Meaning |
@@ -66,6 +107,16 @@ iban:update [--all] [--country=<cc>] [--source=<id>] [--dry-run] [--file=<path>]
 | `--source=<id>` | Restrict to the importer with this source id (e.g. `oenb`). |
 | `--dry-run` | Preview: count what would be imported/skipped without writing to the `banks` table. |
 | `--file=<path>` | Import offline from this local file instead of fetching from the source live. |
+| `--prune` | After importing, DELETE rows this `(country, source)` previously wrote but no longer produces — a full **sync** of that source's slice, not the default **upsert**. Skipped when the run imports nothing (so a failed/empty fetch can't wipe data); with `--dry-run` the would-prune count is reported but nothing is deleted. The report line then shows `pruned=<N>`. |
+
+By default `iban:update` is **upsert-only**: re-running a source inserts new rows and updates
+existing ones (matched by the natural key `(country_code, bank_code, branch_code)`, with a NULL
+`branch_code` matched as `IS NULL`), but never deletes — so an institution a source has dropped
+lingers until removed. Pass `--prune` to make the run a full **sync** of that `(country, source)`
+slice instead: after the upsert, any row this run did not produce is deleted. Pruning is **scoped
+per `(country, source)`** (it never touches rows written by another source or another country) and
+**guarded** — skipped entirely when the run imported nothing, so a failed or empty fetch can never
+wipe good data. Preview it with `--prune --dry-run` (reports `pruned=<N>`, deletes nothing).
 
 v1.0's licensing notices (SWIFT IBAN Registry / SWIFT BIC Directory / per-source attribution) are
 always printed first, regardless of selection. With **no** `--country`/`--source` at all, the command
@@ -320,10 +371,18 @@ php spark iban:update --source=nbrm --country=MK --file=mk.csv
 
 ## Coverage matrix
 
-44 of the 78 registry countries now have a bundled importer. Of the 42 SEPA-scheme countries, **38 now
+IBAN and BIC format checks work independently of these data sources. The
+[complete country coverage table](country-coverage.md) lists all 89 IBAN prefixes and distinguishes
+local validation, optional national checks and default importer availability.
+
+44 of the 89 registry countries have a default importer registration. Of the 42 SEPA-scheme countries, **38 now
 resolve** through a bundled importer — up from 24 before the SEPA-coverage batch, which added 14
 (SE, FR, MC, EE, ME, CY, AD, PT, MK, VA, SM, IT, RS, FI). The four SEPA countries still unresolved are
 **AL, IS, LT** (documented, deferred — see below) and **DK** (tier D — no open source).
+
+The 11 prefixes added in October 2026 (**BI, DJ, FK, HN, MN, NI, OM, RU, SD, SO, YE**) have
+IBAN format support but no default bank importer. Use an application-supplied reference CSV or a
+custom provider when you have bank data; format coverage does not imply a populated directory.
 
 **Covered (44)** — grouped by source shape:
 
@@ -473,10 +532,14 @@ import from a file you download yourself) for these:
 onto every row written in a given run:
 
 - `source_id` — the importer's `sourceId()` (e.g. `'oenb'`).
-- `source_license` — the importer's `license()` string, verbatim.
+- `source_license` — the row's value when supplied, otherwise the importer's `license()` string.
 - `source_version` — the run's date (`Y-m-d`, taken from a single timestamp computed once per
-  `run()` call, not per row, so every row from the same run shares the same version marker).
+  `run()` call), unless the importer supplies a row-level `source_version`.
 - `updated_at` — the same run timestamp, full precision (`Y-m-d H:i:s`).
+
+Omitted optional bank attributes preserve existing values on update; explicit NULL clears them.
+On insert, omitted optional attributes default to NULL. This lets partial directories enrich rows
+without erasing unrelated attributes already supplied by another source.
 
 This means every `BankResult` returned by `resolve()` carries its own attribution back to the caller
 (`BankResult::$sourceId`, `$sourceVersion`, `$sourceLicense`) — see

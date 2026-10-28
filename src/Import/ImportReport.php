@@ -31,6 +31,9 @@ final readonly class ImportReport
      * @param int      $skipped     Rows skipped, e.g. missing a required field.
      * @param bool     $dryRun      Whether this report describes a preview run (nothing was written).
      * @param string[] $messages    Human-readable notes (e.g. why a row was skipped).
+     * @param int      $pruned      Rows deleted (or, for `--dry-run`, that would have been deleted) by
+     *                                `--prune` because this run no longer produced them; `0` when
+     *                                `--prune` was off.
      */
     public function __construct(
         public string $countryCode,
@@ -40,6 +43,7 @@ final readonly class ImportReport
         public int $skipped,
         public bool $dryRun,
         public array $messages = [],
+        public int $pruned = 0,
     ) {
     }
 }

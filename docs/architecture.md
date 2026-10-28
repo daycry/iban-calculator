@@ -29,7 +29,7 @@ resolver knows about CodeIgniter 4.
   validates and parses **BICs** (ISO 9362) via `BicValidator` / `BicParser` (producing `ParsedBic`),
   cross-checks an IBAN against a BIC via `IbanBicCrossChecker`, and recognises a BIC's country code
   against a compiled **ISO 3166-1 country registry** (`IsoCountryRegistry`, 249 codes — separate from
-  the ~78-country IBAN registry because most BIC-issuing countries issue no IBAN). All of this works
+  the 89-country IBAN registry because most BIC-issuing countries issue no IBAN). All of this works
   with `php -r` alone; no framework required. A BIC carries no checksum, so BIC "validity" means only
   *well-formed + recognised country*.
 - **Resolver** — an optional layer that overlays bank metadata (name, BIC, SEPA reachability) onto a
@@ -77,6 +77,7 @@ with two self-tests proving the detector actually detects (not a trivial stub).
   `BicMalformedStructure`, `BicUnknownCountry` (BIC validation), `BicIbanCountryMismatch`,
   `BicIbanBankMismatch` (IBAN↔BIC cross-check), and `NothingToValidate` (combined entry point).
   Additive, but a consumer with an exhaustive `match` must add arms.
+- `VerificationStatus` - six explicit local/external outcomes; see [verification](verification.md).
 - `IbanFormat` — pure enum: `Electronic`, `Print`, `Anonymized`.
 
 **DTOs** (`src/DTO`, all `final readonly`):
@@ -94,6 +95,9 @@ with two self-tests proving the detector actually detects (not a trivial stub).
   `isResolved(): bool` (`true` iff any bank field is non-null; output of `ResolverInterface`).
 - `IsoCountry` (v2.1) — `alpha2`, `name`, `alpha3`, `numeric` (output of `IsoCountryRegistry`).
 
+- `ExternalVerification` - nullable provider verdict plus source and optional BIC existence/connectivity evidence.
+- `VerificationResult` - local `ValidationResult`, optional external evidence and computed `VerificationStatus`.
+
 **Exceptions** (`src/Exceptions`):
 - `IbanException extends \RuntimeException`.
 - `InvalidIbanException` — `final`; carries the `ValidationResult` that caused a strict parse failure
@@ -101,13 +105,20 @@ with two self-tests proving the detector actually detects (not a trivial stub).
 - `InvalidBicException` (v2.1) — `final`, extends `IbanException`; the BIC analogue, carrying the
   failing `ValidationResult` via `result()` (thrown only by `BicParser::parse()`).
 
-**Contracts** (`src/Contracts`, all framework-free — **nine**): `ValidatorInterface`, `ParserInterface`,
+**Contracts** (`src/Contracts`, all framework-free — **ten**): `ValidatorInterface`, `ParserInterface`,
 `ProviderInterface`, `ResolverInterface`, `RegistryLoaderInterface`,
 `NationalCheckValidatorInterface` (frozen since the close of Phase 1), `ImporterInterface`
 (added in v1.1), plus `BicProviderInterface` (v2.1, optional/additive BIC resolution) and
-`IsoCountryLoaderInterface` (v2.1, loads the ISO 3166-1 registry).
+`IsoCountryLoaderInterface` (v2.1, loads the ISO 3166-1 registry), plus the optional
+`VerificationProviderInterface` (external verdicts, independent of bank resolution).
 
 ## Status
+
+The current registry recognizes 89 national IBAN formats; see the
+[complete country coverage table](country-coverage.md) and
+[October 2026 format review](registry-refresh-2026-10.md). Optional
+[verification methods](verification.md) preserve local validation results while adding explicit
+provider evidence. The `VerificationProviderInterface`, result DTOs and status enum stay framework-free.
 
 **Feature-complete.** All v1.0 phases shipped: the structural registry (78 countries),
 the algorithmic core (`Normalizer`, `Mod97`, `StructureCompiler`, `Validator`, `Parser`,

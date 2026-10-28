@@ -11,8 +11,10 @@ declare(strict_types=1);
  * docs/registry-authoring.md for the annual-refresh workflow.
  *
  * Independently authored structural facts (lengths / field offsets / BBAN
- * tokens) derived from publicly documented IBAN formats — NOT copied or
- * derived from the SWIFT IBAN Registry file. `branch` and `national_check`
+ * tokens), independently encoded from public national-format facts. No
+ * third-party registry rows or example collection are imported or bundled.
+ * See docs/registry-refresh-2026-10.md for sources and comparison limits.
+ * `branch` and `national_check`
  * may be `null` for countries whose BBAN has no such field.
  *
  * sepa flags follow the EPC List of SEPA Scheme Countries (EPC409-09 v8.0,
@@ -115,9 +117,19 @@ return [
         'sepa'           => false,
         'example'        => 'BH67BMAG00001299123456',
     ],
+    'BI' => [
+        'iban_length'    => 27,
+        'bban_structure' => '23!n',
+        'bank'           => [4, 5],
+        'branch'         => [9, 5],
+        'account'        => [14, 11],
+        'national_check' => [25, 2],
+        'sepa'           => false,
+        'example'        => 'BI1420001100010001234567812',
+    ],
     'BR' => [
         'iban_length'    => 29,
-        'bban_structure' => '8!n5!n10!n1!a1!c',
+        'bban_structure' => '8!c15!n2!c',
         'bank'           => [4, 8],
         'branch'         => [12, 5],
         'account'        => [17, 10],
@@ -185,6 +197,16 @@ return [
         'sepa'           => true,
         'example'        => 'DE89370400440532013000',
     ],
+    'DJ' => [
+        'iban_length'    => 27,
+        'bban_structure' => '23!n',
+        'bank'           => [4, 5],
+        'branch'         => [9, 5],
+        'account'        => [14, 11],
+        'national_check' => [25, 2],
+        'sepa'           => false,
+        'example'        => 'DJ3300010000010001234567834',
+    ],
     'DK' => [
         'iban_length'    => 18,
         'bban_structure' => '4!n9!n1!n',
@@ -244,6 +266,16 @@ return [
         'national_check' => [17, 1],
         'sepa'           => true,
         'example'        => 'FI2112345600000785',
+    ],
+    'FK' => [
+        'iban_length'    => 18,
+        'bban_structure' => '2!a12!n',
+        'bank'           => [4, 2],
+        'branch'         => null,
+        'account'        => [6, 12],
+        'national_check' => null,
+        'sepa'           => false,
+        'example'        => 'FK67ZZ987654321012',
     ],
     'FO' => [
         'iban_length'    => 18,
@@ -324,6 +356,16 @@ return [
         'national_check' => null,
         'sepa'           => false,
         'example'        => 'GT82TRAJ01020000001210029690',
+    ],
+    'HN' => [
+        'iban_length'    => 28,
+        'bban_structure' => '4!a20!n',
+        'bank'           => [4, 4],
+        'branch'         => null,
+        'account'        => [8, 20],
+        'national_check' => null,
+        'sepa'           => false,
+        'example'        => 'HN26TEST00000000000012345678',
     ],
     'HR' => [
         'iban_length'    => 21,
@@ -535,6 +577,16 @@ return [
         'sepa'           => true,
         'example'        => 'MK07250120000058984',
     ],
+    'MN' => [
+        'iban_length'    => 20,
+        'bban_structure' => '16!n',
+        'bank'           => [4, 4],
+        'branch'         => null,
+        'account'        => [8, 12],
+        'national_check' => null,
+        'sepa'           => false,
+        'example'        => 'MN320001123456789012',
+    ],
     'MR' => [
         'iban_length'    => 27,
         'bban_structure' => '5!n5!n11!n2!n',
@@ -565,6 +617,16 @@ return [
         'sepa'           => false,
         'example'        => 'MU17BOMM0101101030300200000MUR',
     ],
+    'NI' => [
+        'iban_length'    => 28,
+        'bban_structure' => '4!a20!n',
+        'bank'           => [4, 4],
+        'branch'         => null,
+        'account'        => [8, 20],
+        'national_check' => null,
+        'sepa'           => false,
+        'example'        => 'NI84TEST00000000000012345678',
+    ],
     'NL' => [
         'iban_length'    => 18,
         'bban_structure' => '4!a10!n',
@@ -584,6 +646,16 @@ return [
         'national_check' => [14, 1],
         'sepa'           => true,
         'example'        => 'NO9386011117947',
+    ],
+    'OM' => [
+        'iban_length'    => 23,
+        'bban_structure' => '3!n16!c',
+        'bank'           => [4, 3],
+        'branch'         => null,
+        'account'        => [7, 16],
+        'national_check' => null,
+        'sepa'           => false,
+        'example'        => 'OM77001000012345678ABCD',
     ],
     'PK' => [
         'iban_length'    => 24,
@@ -655,6 +727,16 @@ return [
         'sepa'           => true,
         'example'        => 'RS35260005601001611379',
     ],
+    'RU' => [
+        'iban_length'    => 33,
+        'bban_structure' => '14!n15!c',
+        'bank'           => [4, 9],
+        'branch'         => [13, 5],
+        'account'        => [18, 15],
+        'national_check' => null,
+        'sepa'           => false,
+        'example'        => 'RU31044525225408171234567890ABCDE',
+    ],
     'SA' => [
         'iban_length'    => 24,
         'bban_structure' => '2!n18!c',
@@ -674,6 +756,16 @@ return [
         'national_check' => null,
         'sepa'           => false,
         'example'        => 'SC18SSCB11010000000000001497USD',
+    ],
+    'SD' => [
+        'iban_length'    => 18,
+        'bban_structure' => '14!n',
+        'bank'           => [4, 2],
+        'branch'         => null,
+        'account'        => [6, 12],
+        'national_check' => null,
+        'sepa'           => false,
+        'example'        => 'SD3204123456789012',
     ],
     'SE' => [
         'iban_length'    => 24,
@@ -714,6 +806,16 @@ return [
         'national_check' => [4, 1],
         'sepa'           => true,
         'example'        => 'SM86U0322509800000000270100',
+    ],
+    'SO' => [
+        'iban_length'    => 23,
+        'bban_structure' => '19!n',
+        'bank'           => [4, 4],
+        'branch'         => [8, 3],
+        'account'        => [11, 12],
+        'national_check' => null,
+        'sepa'           => false,
+        'example'        => 'SO210001001123456789012',
     ],
     'ST' => [
         'iban_length'    => 25,
@@ -804,5 +906,15 @@ return [
         'national_check' => [18, 2],
         'sepa'           => false,
         'example'        => 'XK051212012345678906',
+    ],
+    'YE' => [
+        'iban_length'    => 30,
+        'bban_structure' => '4!a4!n18!c',
+        'bank'           => [4, 4],
+        'branch'         => [8, 4],
+        'account'        => [12, 18],
+        'national_check' => null,
+        'sepa'           => false,
+        'example'        => 'YE77TEST0001123456789012345ABC',
     ],
 ];

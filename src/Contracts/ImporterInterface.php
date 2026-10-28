@@ -52,7 +52,7 @@ interface ImporterInterface
     public function sourceName(): string;
 
     /**
-     * License/attribution string to record on every imported row
+     * Default license/attribution string to record on every imported row
      * (`banks.source_license`) and to print in `iban:update`'s output, e.g.
      * `'CC-BY 4.0'` or `'proprietary — attribution required'`.
      */
@@ -83,6 +83,11 @@ interface ImporterInterface
      * - `sepa_sct_inst` (bool|null, optional)
      * - `sepa_sdd_core` (bool|null, optional)
      * - `sepa_sdd_b2b` (bool|null, optional)
+     * - `source_version` (string, optional; defaults to the import date)
+     * - `source_license` (string, optional; defaults to license())
+     *
+     * Omitted optional fields preserve existing values during an upsert;
+     * explicit null clears a field. On insertion omitted fields are NULL.
      *
      * When `$localFile` is given, the importer MUST parse that file instead
      * of reaching out over the network (offline import, e.g. `iban:update
